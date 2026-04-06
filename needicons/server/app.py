@@ -33,4 +33,16 @@ def create_app(
     app.state.app_state = AppState(storage=storage, queue=queue, auth=auth, data_dir=data_dir)
     app.include_router(api_router)
 
+    # Serve frontend static files if dist/ exists
+    frontend_dist = Path(__file__).parent.parent.parent / "frontend" / "dist"
+    if frontend_dist.is_dir():
+        from starlette.responses import FileResponse
+
+        @app.get("/{full_path:path}")
+        async def serve_spa(full_path: str):
+            file_path = frontend_dist / full_path
+            if file_path.is_file():
+                return FileResponse(file_path)
+            return FileResponse(frontend_dist / "index.html")
+
     return app
