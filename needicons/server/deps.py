@@ -20,6 +20,7 @@ class AppState:
         # In-memory data stores (persisted to YAML on change)
         self.packs: dict[str, Any] = {}
         self.profiles: dict[str, Any] = {}
+        self.jobs: dict = {}
         self._load_data()
 
     def _load_data(self) -> None:
