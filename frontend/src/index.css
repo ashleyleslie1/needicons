@@ -1,0 +1,45 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: #ffffff;
+    --foreground: #0a0a0a;
+    --accent: #7c3aed;
+    --accent-foreground: #ffffff;
+    --card: #ffffff;
+    --card-foreground: #0a0a0a;
+    --border: #e5e5e5;
+    --muted: #f5f5f5;
+    --muted-foreground: #888888;
+    --destructive: #ef4444;
+    --destructive-foreground: #ffffff;
+    --success: #22c55e;
+    --radius-lg: 12px;
+    --radius-md: 8px;
+    --radius-sm: 6px;
+    --sidebar-width: 48px;
+    --panel-width: 180px;
+  }
+
+  .dark {
+    --background: #0a0a0a;
+    --foreground: #f0f0f0;
+    --accent: #7c3aed;
+    --accent-foreground: #ffffff;
+    --card: #111111;
+    --card-foreground: #f0f0f0;
+    --border: #1e1e1e;
+    --muted: #1a1a1a;
+    --muted-foreground: #666666;
+    --destructive: #ef4444;
+    --destructive-foreground: #ffffff;
+    --success: #22c55e;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: system-ui, -apple-system, sans-serif;
+  }
+}
