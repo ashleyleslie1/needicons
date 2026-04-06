@@ -29,7 +29,8 @@ Thumbs.db
 
 # Node (frontend dev only)
 node_modules/
-# Note: frontend/dist/ is committed (users don't need Node)
+# frontend/dist/ is committed (users don't need Node to run the app)
+!frontend/dist/
 
 # ML models (downloaded at runtime)
 *.onnx
