@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+.venv/
+venv/
+env/
+
+# Environment
+.env
+.env.local
+
+# User data
+.needicons/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node (frontend dev only)
+node_modules/
+# Note: frontend/dist/ is committed (users don't need Node)
+
+# ML models (downloaded at runtime)
+*.onnx
+
+# Test
+.pytest_cache/
+htmlcov/
+.coverage
