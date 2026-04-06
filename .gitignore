@@ -45,3 +45,6 @@ docs/
 .pytest_cache/
 htmlcov/
 .coverage
+
+# TypeScript build cache
+*.tsbuildinfo
