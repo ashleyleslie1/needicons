@@ -1,0 +1,157 @@
+// Enums
+export type RequirementStatus = "pending" | "generated" | "accepted";
+export type GenerationMode = "precision" | "economy";
+export type JobStatus = "pending" | "running" | "completed" | "failed";
+export type MaskShape = "none" | "circle" | "rounded_rect" | "squircle" | "square";
+export type StrokePosition = "inner" | "outer" | "center";
+export type FillType = "none" | "solid" | "gradient";
+
+// Config models
+export interface BackgroundRemovalConfig {
+  enabled: boolean;
+  model: string;
+  alpha_matting: boolean;
+  alpha_matting_foreground_threshold: number;
+  alpha_matting_background_threshold: number;
+}
+
+export interface EdgeCleanupConfig {
+  enabled: boolean;
+  feather_radius: number;
+  defringe: boolean;
+}
+
+export interface WeightNormalizationConfig {
+  enabled: boolean;
+  target_fill: number;
+}
+
+export interface ColorConfig {
+  overlay_color: string | null;
+  brightness: number;
+  contrast: number;
+  saturation: number;
+  batch_normalize: boolean;
+}
+
+export interface StrokeConfig {
+  enabled: boolean;
+  width: number;
+  color: string;
+  position: StrokePosition;
+}
+
+export interface MaskConfig {
+  shape: MaskShape;
+  corner_radius: number;
+}
+
+export interface FillConfig {
+  type: FillType;
+  color: string;
+  gradient_stops: string[] | null;
+  gradient_angle: number;
+}
+
+export interface ShadowConfig {
+  enabled: boolean;
+  offset_x: number;
+  offset_y: number;
+  blur_radius: number;
+  color: string;
+  opacity: number;
+}
+
+export interface PaddingConfig {
+  percent: number | null;
+  pixels: number | null;
+}
+
+export interface OutputConfig {
+  sizes: number[];
+  formats: string[];
+  sharpen_below: number;
+}
+
+// Domain models
+export interface ProcessingProfile {
+  id: string;
+  name: string;
+  style_prompt: string;
+  background_removal: BackgroundRemovalConfig;
+  edge_cleanup: EdgeCleanupConfig;
+  weight_normalization: WeightNormalizationConfig;
+  color: ColorConfig;
+  stroke: StrokeConfig;
+  mask: MaskConfig;
+  fill: FillConfig;
+  shadow: ShadowConfig;
+  padding: PaddingConfig;
+  output: OutputConfig;
+}
+
+export interface Candidate {
+  id: string;
+  requirement_id: string;
+  source_path: string;
+  preview_path: string;
+  origin: string;
+  selected: boolean;
+}
+
+export interface Requirement {
+  id: string;
+  name: string;
+  description: string | null;
+  status: RequirementStatus;
+  candidates: Candidate[];
+}
+
+export interface Pack {
+  id: string;
+  name: string;
+  description: string;
+  style_prompt: string;
+  profile_id: string | null;
+  requirements: Requirement[];
+}
+
+export interface Job {
+  id: string;
+  type: string;
+  status: JobStatus;
+  progress: number;
+  result: string | null;
+  error: string | null;
+}
+
+// API Request/Response types
+export interface CreatePackRequest {
+  name: string;
+  description?: string;
+  style_prompt?: string;
+}
+
+export interface GenerateRequest {
+  mode: GenerationMode;
+}
+
+export interface ExportRequest {
+  profile_id: string;
+  sizes?: number[];
+  formats?: string[];
+}
+
+export interface SettingsResponse {
+  provider: {
+    api_key: string;
+    default_model: string;
+    api_key_set: boolean;
+  };
+}
+
+export interface GpuResponse {
+  backend: string;
+  available: boolean;
+  detail: string;
+}
