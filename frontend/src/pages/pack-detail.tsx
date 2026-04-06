@@ -4,6 +4,7 @@ import { usePack } from "@/hooks/api/use-packs";
 import { useSidebar } from "@/hooks/ui/use-sidebar";
 import { PackHeader } from "@/components/icons/pack-header";
 import { IconGrid } from "@/components/icons/icon-grid";
+import { GenerationConfig, type GenerationConfigValues } from "@/components/generation/generation-config";
 
 export function PackDetailPage() {
   const { packId } = useParams<{ packId: string }>();
@@ -37,6 +38,10 @@ export function PackDetailPage() {
     handleSelectionChange(id);
   }
 
+  function handleGenerate(config: GenerationConfigValues) {
+    console.log("generate", config, selectedIds);
+  }
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
@@ -54,14 +59,14 @@ export function PackDetailPage() {
   }
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
-      <PackHeader
-        pack={pack}
-        selectedCount={selectedIds.size}
-        onSelectAll={handleSelectAll}
-        onClearSelection={handleClearSelection}
-      />
-      <div className="flex-1 overflow-y-auto">
+    <div className="flex flex-1 h-screen overflow-hidden">
+      <div className="flex-1 p-4 overflow-auto">
+        <PackHeader
+          pack={pack}
+          selectedCount={selectedIds.size}
+          onSelectAll={handleSelectAll}
+          onClearSelection={handleClearSelection}
+        />
         <IconGrid
           pack={pack}
           onRequirementClick={handleRequirementClick}
@@ -69,11 +74,12 @@ export function PackDetailPage() {
           onSelectionChange={handleSelectionChange}
         />
       </div>
-      {/* Right panel placeholder — Tasks 8 and 12 will add generation config and profile editor */}
-      {rightPanel && (
-        <div className="hidden">
-          {/* Panel content rendered by layout shell in future tasks */}
-        </div>
+      {rightPanel === "generation" && (
+        <GenerationConfig
+          selectedCount={selectedIds.size}
+          onGenerate={handleGenerate}
+          isGenerating={false}
+        />
       )}
     </div>
   );
