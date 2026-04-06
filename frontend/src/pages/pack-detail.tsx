@@ -6,6 +6,7 @@ import { PackHeader } from "@/components/icons/pack-header";
 import { IconGrid } from "@/components/icons/icon-grid";
 import { GenerationConfig, type GenerationConfigValues } from "@/components/generation/generation-config";
 import { CandidateReview } from "@/components/review/candidate-review";
+import { ProfileEditor } from "@/components/profile/profile-editor";
 import { Button } from "@/components/ui/button";
 
 type View = "grid" | "review";
@@ -16,6 +17,7 @@ export function PackDetailPage() {
   const { rightPanel } = useSidebar();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [view, setView] = useState<View>("grid");
+  const [profileId, setProfileId] = useState<string | null>(pack?.profile_id ?? null);
 
   function handleSelectionChange(id: string) {
     setSelectedIds((prev) => {
@@ -116,6 +118,13 @@ export function PackDetailPage() {
           selectedCount={selectedIds.size}
           onGenerate={handleGenerate}
           isGenerating={false}
+        />
+      )}
+      {rightPanel === "profile" && (
+        <ProfileEditor
+          profileId={profileId}
+          packName={pack.name}
+          onProfileChange={setProfileId}
         />
       )}
     </div>
