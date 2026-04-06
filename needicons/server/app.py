@@ -1,0 +1,36 @@
+"""FastAPI application factory."""
+from __future__ import annotations
+from pathlib import Path
+from typing import Optional
+from fastapi import FastAPI
+from needicons.server.deps import AppState
+from needicons.server.storage.base import StorageBackend
+from needicons.server.storage.local import LocalStorage
+from needicons.server.queue.base import QueueBackend
+from needicons.server.queue.local import LocalQueue
+from needicons.server.auth.base import AuthBackend
+from needicons.server.auth.local import LocalAuth
+from needicons.server.api import api_router
+
+
+def create_app(
+    *,
+    data_dir: Optional[str | Path] = None,
+    storage_backend: Optional[StorageBackend] = None,
+    queue_backend: Optional[QueueBackend] = None,
+    auth_backend: Optional[AuthBackend] = None,
+) -> FastAPI:
+    if data_dir is None:
+        data_dir = Path.home() / ".needicons"
+    data_dir = Path(data_dir)
+    data_dir.mkdir(parents=True, exist_ok=True)
+
+    storage = storage_backend or LocalStorage(data_dir / "data")
+    queue = queue_backend or LocalQueue()
+    auth = auth_backend or LocalAuth()
+
+    app = FastAPI(title="NeedIcons", version="0.1.0")
+    app.state.app_state = AppState(storage=storage, queue=queue, auth=auth, data_dir=data_dir)
+    app.include_router(api_router)
+
+    return app
