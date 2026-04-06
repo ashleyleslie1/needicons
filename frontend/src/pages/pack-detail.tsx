@@ -5,12 +5,17 @@ import { useSidebar } from "@/hooks/ui/use-sidebar";
 import { PackHeader } from "@/components/icons/pack-header";
 import { IconGrid } from "@/components/icons/icon-grid";
 import { GenerationConfig, type GenerationConfigValues } from "@/components/generation/generation-config";
+import { CandidateReview } from "@/components/review/candidate-review";
+import { Button } from "@/components/ui/button";
+
+type View = "grid" | "review";
 
 export function PackDetailPage() {
   const { packId } = useParams<{ packId: string }>();
   const { data: pack, isLoading, error } = usePack(packId);
   const { rightPanel } = useSidebar();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [view, setView] = useState<View>("grid");
 
   function handleSelectionChange(id: string) {
     setSelectedIds((prev) => {
@@ -34,8 +39,12 @@ export function PackDetailPage() {
   }
 
   function handleRequirementClick(id: string) {
-    // Task 11 will open candidate review panel
-    handleSelectionChange(id);
+    const req = pack?.requirements.find((r) => r.id === id);
+    if (req && req.candidates.length > 0) {
+      setView("review");
+    } else {
+      handleSelectionChange(id);
+    }
   }
 
   function handleGenerate(config: GenerationConfigValues) {
@@ -61,18 +70,46 @@ export function PackDetailPage() {
   return (
     <div className="flex flex-1 h-screen overflow-hidden">
       <div className="flex-1 p-4 overflow-auto">
-        <PackHeader
-          pack={pack}
-          selectedCount={selectedIds.size}
-          onSelectAll={handleSelectAll}
-          onClearSelection={handleClearSelection}
-        />
-        <IconGrid
-          pack={pack}
-          onRequirementClick={handleRequirementClick}
-          selectedIds={selectedIds}
-          onSelectionChange={handleSelectionChange}
-        />
+        <div className="flex items-start justify-between">
+          <PackHeader
+            pack={pack}
+            selectedCount={selectedIds.size}
+            onSelectAll={handleSelectAll}
+            onClearSelection={handleClearSelection}
+          />
+          {/* View toggle */}
+          <div className="flex items-center gap-1 shrink-0 ml-2 mt-3">
+            <Button
+              variant={view === "grid" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setView("grid")}
+              aria-label="Grid view"
+            >
+              Grid
+            </Button>
+            <Button
+              variant={view === "review" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setView("review")}
+              aria-label="Review view"
+            >
+              Review
+            </Button>
+          </div>
+        </div>
+
+        {view === "grid" ? (
+          <IconGrid
+            pack={pack}
+            onRequirementClick={handleRequirementClick}
+            selectedIds={selectedIds}
+            onSelectionChange={handleSelectionChange}
+          />
+        ) : (
+          <div className="mt-4">
+            <CandidateReview pack={pack} />
+          </div>
+        )}
       </div>
       {rightPanel === "generation" && (
         <GenerationConfig
