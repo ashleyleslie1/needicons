@@ -1,0 +1,113 @@
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { useSettings, useUpdateProviderSettings } from "@/hooks/api/use-settings";
+
+export function AiProviderSettings() {
+  const { data: settings, isLoading } = useSettings();
+  const updateProvider = useUpdateProviderSettings();
+
+  const [editingKey, setEditingKey] = useState(false);
+  const [newKey, setNewKey] = useState("");
+
+  const provider = settings?.provider;
+
+  async function handleSaveKey() {
+    await updateProvider.mutateAsync({ api_key: newKey });
+    setNewKey("");
+    setEditingKey(false);
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-xl font-semibold mb-1">AI Provider</h1>
+        <p className="text-sm text-muted-foreground">
+          Configure your OpenAI API key and default generation model.
+        </p>
+      </div>
+
+      {/* API Key Section */}
+      <div className="space-y-3">
+        <h2 className="text-sm font-semibold text-foreground">API Key</h2>
+        {isLoading ? (
+          <p className="text-xs text-muted-foreground">Loading…</p>
+        ) : (
+          <div className="space-y-2">
+            <div className="flex items-center gap-3">
+              <code className="text-xs font-mono bg-muted px-2 py-1 rounded flex-1">
+                {provider?.api_key ?? "Not set"}
+              </code>
+              {provider?.api_key_set && (
+                <span className="text-xs text-green-500 flex items-center gap-1">
+                  <span>✓</span>
+                  <span>key verified</span>
+                </span>
+              )}
+            </div>
+            {!editingKey ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setEditingKey(true)}
+              >
+                Change
+              </Button>
+            ) : (
+              <div className="space-y-2">
+                <Input
+                  type="password"
+                  placeholder="sk-..."
+                  value={newKey}
+                  onChange={(e) => setNewKey(e.target.value)}
+                  className="text-sm"
+                />
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    onClick={handleSaveKey}
+                    disabled={!newKey || updateProvider.isPending}
+                  >
+                    Save
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => { setEditingKey(false); setNewKey(""); }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Default Model */}
+      <div className="space-y-3">
+        <h2 className="text-sm font-semibold text-foreground">Default Model</h2>
+        {isLoading ? (
+          <p className="text-xs text-muted-foreground">Loading…</p>
+        ) : (
+          <div className="flex gap-2">
+            {(["gpt-4o", "dall-e-3"] as const).map((model) => (
+              <button
+                key={model}
+                type="button"
+                onClick={() => updateProvider.mutate({ default_model: model })}
+                className={`px-3 py-2 rounded-md border text-sm transition-colors ${
+                  provider?.default_model === model
+                    ? "border-accent bg-accent/10 text-foreground"
+                    : "border-border text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {model === "gpt-4o" ? "GPT-4o" : "DALL-E 3"}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

@@ -1,15 +1,41 @@
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { Panel } from "@/components/layout/panel";
 import { Canvas } from "@/components/layout/canvas";
+import { AiProviderSettings } from "@/components/settings/ai-provider";
+import { GpuPerformanceSettings } from "@/components/settings/gpu-performance";
+import { ExportDefaultsSettings } from "@/components/settings/export-defaults";
+import { AppearanceSettings } from "@/components/settings/appearance";
+import { AboutSettings } from "@/components/settings/about";
+import { cn } from "@/lib/utils";
 
 const SETTINGS_TABS = [
-  { id: "general", label: "General" },
-  { id: "api-keys", label: "API Keys" },
+  { id: "provider", label: "AI Provider" },
+  { id: "gpu", label: "GPU & Performance" },
+  { id: "export", label: "Export Defaults" },
   { id: "appearance", label: "Appearance" },
+  { id: "about", label: "About" },
 ];
 
+function SettingsContent({ tab }: { tab: string }) {
+  switch (tab) {
+    case "provider":
+      return <AiProviderSettings />;
+    case "gpu":
+      return <GpuPerformanceSettings />;
+    case "export":
+      return <ExportDefaultsSettings />;
+    case "appearance":
+      return <AppearanceSettings />;
+    case "about":
+      return <AboutSettings />;
+    default:
+      return <AiProviderSettings />;
+  }
+}
+
 export function SettingsPage() {
-  const { tab = "general" } = useParams<{ tab?: string }>();
+  const { tab = "provider" } = useParams<{ tab?: string }>();
+  const navigate = useNavigate();
 
   return (
     <>
@@ -17,24 +43,24 @@ export function SettingsPage() {
         <h2 className="text-sm font-semibold text-foreground mb-2">Settings</h2>
         <nav className="flex flex-col gap-1">
           {SETTINGS_TABS.map((t) => (
-            <span
+            <button
               key={t.id}
-              className={
+              type="button"
+              onClick={() => navigate(`/settings/${t.id}`)}
+              className={cn(
+                "text-xs text-left px-1 py-0.5 rounded transition-colors",
                 t.id === tab
-                  ? "text-xs font-medium text-foreground"
-                  : "text-xs text-muted-foreground"
-              }
+                  ? "font-medium text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
             >
               {t.label}
-            </span>
+            </button>
           ))}
         </nav>
       </Panel>
       <Canvas>
-        <h1 className="text-xl font-semibold capitalize mb-4">{tab}</h1>
-        <p className="text-sm text-muted-foreground">
-          Settings content will be implemented in Task 13.
-        </p>
+        <SettingsContent tab={tab} />
       </Canvas>
     </>
   );
