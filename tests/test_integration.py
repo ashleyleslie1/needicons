@@ -48,16 +48,32 @@ async def test_full_workflow(tmp_path):
         assert resp.status_code == 200
         assert resp.headers["content-type"] == "image/png"
 
-        # 5. Export
+        # 5. Export (async job-based)
         export_resp = await c.post(f"/api/projects/{project_id}/export", json={
             "sizes": [64, 32],
             "formats": ["png"],
         })
         assert export_resp.status_code == 200
-        assert export_resp.headers["content-type"] == "application/zip"
+        export_data = export_resp.json()
+        job_id = export_data["job_id"]
+
+        # Poll until complete
+        import asyncio as _asyncio
+        for _ in range(60):
+            status_resp = await c.get(f"/api/projects/{project_id}/export/{job_id}/status")
+            status = status_resp.json()
+            if status["status"] in ("completed", "failed"):
+                break
+            await _asyncio.sleep(0.1)
+        assert status["status"] == "completed"
+
+        # Download ZIP
+        dl_resp = await c.get(f"/api/projects/{project_id}/export/{job_id}/download")
+        assert dl_resp.status_code == 200
+        assert dl_resp.headers["content-type"] == "application/zip"
 
         # 6. Verify ZIP contents
-        zf = zipfile.ZipFile(io.BytesIO(export_resp.content))
+        zf = zipfile.ZipFile(io.BytesIO(dl_resp.content))
         names = zf.namelist()
         assert "64x/tent.png" in names
         assert "64x/jerky.png" in names
