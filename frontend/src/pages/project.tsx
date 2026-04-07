@@ -3,6 +3,7 @@ import { useSidebar } from "@/hooks/ui/use-sidebar";
 import { useProject, useUpdateProject, useRemoveIcon } from "@/hooks/api/use-projects";
 import { ControlsBar } from "@/components/project/controls-bar";
 import { ProjectIconGrid } from "@/components/project/project-icon-grid";
+import { ExportDialog } from "@/components/project/export-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { PostProcessingSettings } from "@/lib/types";
 
@@ -11,7 +12,7 @@ export function ProjectPage() {
   const { data: project } = useProject(activeProjectId ?? undefined);
   const updateProject = useUpdateProject();
   const removeIcon = useRemoveIcon();
-  const [_showExport, setShowExport] = useState(false);
+  const [showExport, setShowExport] = useState(false);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
@@ -52,6 +53,9 @@ export function ProjectPage() {
           <ProjectIconGrid icons={project.icons} onRemoveIcon={handleRemoveIcon} />
         </div>
       </ScrollArea>
+      {showExport && (
+        <ExportDialog project={project} onClose={() => setShowExport(false)} />
+      )}
     </div>
   );
 }
