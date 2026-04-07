@@ -27,11 +27,12 @@ export function useGenerateIcons(projectId: string | undefined): UseGenerateResu
   const progressRef = useRef<GenerationProgress | null>(null);
   const jobIdRef = useRef<string | null>(null);
 
-  // Check for active jobs on mount (reconnect after page refresh)
+  // Poll for active jobs so we reconnect after backend restart or page refresh
+  const activeJobId = qc.getQueryData<string>(["active-generation-job"]) ?? null;
   const { data: activeJobs } = useQuery({
     queryKey: ["active-generation-jobs"],
     queryFn: () => api.getActiveJobs(),
-    refetchInterval: false,
+    refetchInterval: activeJobId ? false : 3000,
   });
 
   const handleEvent = useCallback((event: { type: string; data: unknown }) => {
@@ -61,11 +62,14 @@ export function useGenerateIcons(projectId: string | undefined): UseGenerateResu
     unsubRef.current = api.subscribeToJob(jobId, handleEvent);
   }, [handleEvent, qc]);
 
-  // Reconnect to active job on mount
+  // Reconnect to active job on mount or after backend restart
   useEffect(() => {
     if (!activeJobs?.length) return;
-    const activeJob = activeJobs.find((j) => j.project_id === projectId);
-    if (activeJob) {
+    // Prefer job matching current project, but reconnect to any active job
+    const activeJob =
+      activeJobs.find((j) => j.project_id === projectId) ??
+      activeJobs[0];
+    if (activeJob && activeJob.job_id !== jobIdRef.current) {
       subscribe(activeJob.job_id);
     }
   }, [activeJobs, projectId, subscribe]);
@@ -82,7 +86,6 @@ export function useGenerateIcons(projectId: string | undefined): UseGenerateResu
     },
   });
 
-  const activeJobId = qc.getQueryData<string>(["active-generation-job"]) ?? null;
   const currentProgress = qc.getQueryData<GenerationProgress | null>(["generation-progress", activeJobId]);
 
   return {
@@ -130,6 +133,29 @@ export function useDeleteGeneration() {
     onSettled: () => {
       qc.invalidateQueries({ queryKey: ["projects"] });
       qc.invalidateQueries({ queryKey: ["generation-history"] });
+    },
+  });
+}
+
+export function useRemoveBackground() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      generationId,
+      enabled,
+      aggressiveness,
+    }: {
+      generationId: string;
+      enabled: boolean;
+      aggressiveness: number;
+    }) => api.removeBackground(generationId, enabled, aggressiveness),
+    onSuccess: (updatedRecord) => {
+      qc.setQueriesData<GenerationRecord[]>(
+        { queryKey: ["generation-history"] },
+        (old) =>
+          old?.map((r) => (r.id === updatedRecord.id ? updatedRecord : r)),
+      );
+      qc.invalidateQueries({ queryKey: ["projects"] });
     },
   });
 }

@@ -6,6 +6,7 @@ import type {
   GenerateIconsRequest,
   GenerationRecord,
   ExportProjectRequest,
+  ModelCapabilities,
 } from "./types";
 
 export class ApiError extends Error {
@@ -90,6 +91,10 @@ export const api = {
     return request<GpuResponse>("/settings/gpu");
   },
 
+  getModelCapabilities(): Promise<Record<string, ModelCapabilities>> {
+    return request<Record<string, ModelCapabilities>>("/settings/models");
+  },
+
   updateGpuProvider(provider: string): Promise<{ status: string }> {
     return request<{ status: string }>("/settings/gpu", {
       method: "PUT",
@@ -170,7 +175,11 @@ export const api = {
       }
       es.close();
     });
-    es.onerror = () => es.close();
+    es.onerror = () => {
+      es.close();
+      // Notify as error so the hook can clean up and rediscover resumed jobs
+      onEvent({ type: "error", data: { message: "Connection lost" } });
+    };
     return () => es.close();
   },
 
@@ -189,6 +198,17 @@ export const api = {
   deleteGeneration(generationId: string): Promise<{ status: string }> {
     return request<{ status: string }>(`/generations/${generationId}`, {
       method: "DELETE",
+    });
+  },
+
+  removeBackground(
+    generationId: string,
+    enabled: boolean,
+    aggressiveness: number,
+  ): Promise<GenerationRecord> {
+    return request<GenerationRecord>(`/generations/${generationId}/remove-bg`, {
+      method: "POST",
+      body: JSON.stringify({ enabled, aggressiveness }),
     });
   },
 

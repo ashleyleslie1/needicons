@@ -159,6 +159,8 @@ export interface GenerationRecord {
   model: string;
   variations: GenerationVariation[];
   original_count: number;
+  bg_removal_applied: boolean;
+  bg_removal_aggressiveness: number;
   created_at: string;
 }
 
@@ -181,4 +183,16 @@ export interface GenerateIconsRequest {
 export interface ExportProjectRequest {
   sizes: number[];
   formats: string[];
+}
+
+export interface ModelCapabilities {
+  label: string;
+  description: string;
+  supports_n: boolean;
+  max_n: number;
+  supports_transparent_bg: boolean;
+  sizes: string[];
+  qualities: string[];
+  economy_mode: string;
+  precision_mode: string;
 }
