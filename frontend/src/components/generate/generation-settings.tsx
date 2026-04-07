@@ -1,4 +1,5 @@
 import { useModelCapabilities, useSettings } from "@/hooks/api/use-settings";
+import { useEdition } from "@/hooks/use-edition";
 import type { QualityMode } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -18,6 +19,7 @@ export function GenerationSettings({
   const { data: capabilities } = useModelCapabilities();
   const { data: settings } = useSettings();
 
+  const { showAllQualityOptions } = useEdition();
   const currentModel = settings?.provider?.default_model ?? "gpt-image-1.5";
   const modelCaps = capabilities?.[currentModel];
   const qualities = modelCaps?.qualities ?? [];
@@ -51,7 +53,7 @@ export function GenerationSettings({
       </div>
 
       {/* API Quality dropdown (model-specific) */}
-      {qualities.length > 0 && (
+      {showAllQualityOptions && qualities.length > 0 && (
         <select
           value={apiQuality || qualities[qualities.length - 1]}
           onChange={(e) => onApiQualityChange(e.target.value)}

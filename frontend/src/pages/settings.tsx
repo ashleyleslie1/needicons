@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Panel } from "@/components/layout/panel";
 import { Canvas } from "@/components/layout/canvas";
@@ -6,9 +7,10 @@ import { GpuSettings } from "@/components/settings/gpu-settings";
 import { RunPodSettings } from "@/components/settings/runpod-settings";
 import { AppearanceSettings } from "@/components/settings/appearance";
 import { AboutSettings } from "@/components/settings/about";
+import { useEdition } from "@/hooks/use-edition";
 import { cn } from "@/lib/utils";
 
-const SETTINGS_TABS = [
+const ALL_SETTINGS_TABS = [
   { id: "provider", label: "AI Provider" },
   { id: "gpu", label: "GPU / Performance" },
   { id: "runpod", label: "RunPod" },
@@ -36,13 +38,22 @@ function SettingsContent({ tab }: { tab: string }) {
 export function SettingsPage() {
   const { tab = "provider" } = useParams<{ tab?: string }>();
   const navigate = useNavigate();
+  const { showGpuSettings, showRunPodSettings } = useEdition();
+
+  const tabs = useMemo(() => {
+    return ALL_SETTINGS_TABS.filter((t) => {
+      if (t.id === "gpu" && !showGpuSettings) return false;
+      if (t.id === "runpod" && !showRunPodSettings) return false;
+      return true;
+    });
+  }, [showGpuSettings, showRunPodSettings]);
 
   return (
     <div className="flex flex-1 overflow-hidden">
       <Panel>
         <h2 className="text-base font-semibold text-foreground mb-4">Settings</h2>
         <nav className="flex flex-col gap-1">
-          {SETTINGS_TABS.map((t) => (
+          {tabs.map((t) => (
             <button
               key={t.id}
               type="button"

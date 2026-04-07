@@ -98,11 +98,17 @@ export interface Job {
 }
 
 // API Request/Response types
+export type Edition = "oss" | "commercial";
+
 export interface SettingsResponse {
+  edition: Edition;
   provider: {
     api_key: string;
     default_model: string;
     api_key_set: boolean;
+  };
+  processing?: {
+    active_backend: string;
   };
 }
 

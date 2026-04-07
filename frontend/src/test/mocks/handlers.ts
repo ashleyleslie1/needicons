@@ -2,6 +2,7 @@ import { http, HttpResponse } from "msw";
 import type { SettingsResponse, GpuResponse } from "@/lib/types";
 
 const mockSettings: SettingsResponse = {
+  edition: "oss",
   provider: {
     api_key: "sk-••••kF3w",
     default_model: "gpt-4o",
