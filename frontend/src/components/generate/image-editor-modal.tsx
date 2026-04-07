@@ -71,6 +71,15 @@ export function ImageEditorModal({ record, variationIndex, open, onOpenChange }:
     return "Heavy";
   }
 
+  const toolIcons: Record<string, React.ReactNode> = {
+    bg: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 3l18 18"/></svg>,
+    denoise: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v18"/><path d="M8 7v10"/><path d="M16 7v10"/><path d="M4 11v2"/><path d="M20 11v2"/></svg>,
+    color: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2"/><path d="M12 21v2"/><path d="M4.22 4.22l1.42 1.42"/><path d="M18.36 18.36l1.42 1.42"/><path d="M1 12h2"/><path d="M21 12h2"/><path d="M4.22 19.78l1.42-1.42"/><path d="M18.36 5.64l1.42-1.42"/></svg>,
+    edge: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l9 4.5v9L12 21l-9-4.5v-9L12 3z"/></svg>,
+    upscale: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>,
+    lasso: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><ellipse cx="12" cy="10" rx="9" ry="7"/><path d="M21 10c0 2.5-1.5 5-3 6.5"/><circle cx="18" cy="18" r="3"/></svg>,
+  };
+
   const tools: { id: Exclude<ToolId, null>; label: string; desc: string; active: boolean }[] = [
     { id: "bg", label: "BG Remove", desc: "Remove background", active: record.bg_removal_level > 0 },
     { id: "denoise", label: "Denoise", desc: "Reduce noise", active: record.denoise_strength > 0 },
@@ -117,7 +126,8 @@ export function ImageEditorModal({ record, variationIndex, open, onOpenChange }:
               <img
                 src={`/api/images/${variation.preview_path}?t=${cacheBust(record)}`}
                 alt={`${record.name} v${variationIndex + 1}`}
-                className="max-h-[420px] max-w-full object-contain drop-shadow-lg transition-transform duration-100"
+                draggable={false}
+                className="max-h-[420px] max-w-full object-contain drop-shadow-lg transition-transform duration-100 select-none"
                 style={{ transform: `scale(${zoom})` }}
               />
               {activeTool === "lasso" && (
@@ -189,6 +199,9 @@ export function ImageEditorModal({ record, variationIndex, open, onOpenChange }:
                       : "bg-muted/30 border border-border hover:bg-muted/60 hover:border-border",
                   )}
                 >
+                  <div className={cn("shrink-0", activeTool === tool.id ? "text-accent" : "text-muted-foreground")}>
+                    {toolIcons[tool.id]}
+                  </div>
                   <div className="flex-1 min-w-0">
                     <div className={cn(
                       "text-xs font-medium",
