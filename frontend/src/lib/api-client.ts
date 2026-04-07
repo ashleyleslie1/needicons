@@ -9,6 +9,10 @@ import type {
   ExportRequest,
   SettingsResponse,
   GpuResponse,
+  Project,
+  GenerateIconsRequest,
+  GenerationRecord,
+  ExportProjectRequest,
 } from "./types";
 
 export class ApiError extends Error {
@@ -170,5 +174,70 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     });
+  },
+
+  // Projects
+  listProjects(): Promise<Project[]> {
+    return request<Project[]>("/projects");
+  },
+
+  createProject(name: string): Promise<Project> {
+    return request<Project>("/projects", {
+      method: "POST",
+      body: JSON.stringify({ name }),
+    });
+  },
+
+  getProject(id: string): Promise<Project> {
+    return request<Project>(`/projects/${id}`);
+  },
+
+  updateProject(id: string, data: Record<string, unknown>): Promise<Project> {
+    return request<Project>(`/projects/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
+
+  deleteProject(id: string): Promise<{ status: string }> {
+    return request<{ status: string }>(`/projects/${id}`, {
+      method: "DELETE",
+    });
+  },
+
+  removeIconFromProject(projectId: string, iconId: string): Promise<{ status: string }> {
+    return request<{ status: string }>(`/projects/${projectId}/icons/${iconId}`, {
+      method: "DELETE",
+    });
+  },
+
+  getGenerationHistory(projectId: string): Promise<GenerationRecord[]> {
+    return request<GenerationRecord[]>(`/projects/${projectId}/history`);
+  },
+
+  // Generation v2
+  generateIcons(data: GenerateIconsRequest): Promise<GenerationRecord[]> {
+    return request<GenerationRecord[]>("/generate", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  pickVariation(generationId: string, variationIndex: number): Promise<GenerationRecord> {
+    return request<GenerationRecord>(`/generations/${generationId}/pick/${variationIndex}`, {
+      method: "POST",
+    });
+  },
+
+  // Project Export (returns blob, not JSON)
+  async exportProject(projectId: string, data: ExportProjectRequest): Promise<Blob> {
+    const url = `/api/projects/${projectId}/export`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new ApiError(res.status, "Export failed");
+    return res.blob();
   },
 };

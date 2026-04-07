@@ -155,3 +155,65 @@ export interface GpuResponse {
   available: boolean;
   detail: string;
 }
+
+// --- New UX Redesign Types ---
+
+export type IconStyle = "solid" | "outline" | "color" | "flat" | "sticker";
+export type QualityMode = "hq" | "normal";
+
+export interface PostProcessingSettings {
+  stroke: StrokeConfig;
+  mask: MaskConfig;
+  fill: FillConfig;
+  shadow: ShadowConfig;
+  padding: PaddingConfig;
+}
+
+export interface SavedIcon {
+  id: string;
+  name: string;
+  prompt: string;
+  source_path: string;
+  preview_path: string;
+  style: IconStyle;
+  created_at: string;
+}
+
+export interface GenerationVariation {
+  index: number;
+  source_path: string;
+  preview_path: string;
+  picked: boolean;
+}
+
+export interface GenerationRecord {
+  id: string;
+  project_id: string;
+  name: string;
+  prompt: string;
+  style: IconStyle;
+  quality: QualityMode;
+  variations: GenerationVariation[];
+  created_at: string;
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  post_processing: PostProcessingSettings;
+  style_preference: IconStyle;
+  quality_preference: QualityMode;
+  icons: SavedIcon[];
+}
+
+export interface GenerateIconsRequest {
+  prompts: Array<{ name: string; prompt: string }>;
+  style: IconStyle;
+  quality: QualityMode;
+  project_id: string;
+}
+
+export interface ExportProjectRequest {
+  sizes: number[];
+  formats: string[];
+}
