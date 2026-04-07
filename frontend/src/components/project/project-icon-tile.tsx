@@ -13,8 +13,9 @@ interface ProjectIconTileProps {
 export function ProjectIconTile({
   icon, projectId, previewVersion, isPreview, onRemove, onSetPreview,
 }: ProjectIconTileProps) {
-  // Preview icon: live post-processing. Others: raw preview from generation.
-  const src = isPreview && previewVersion > 0
+  // All icons show processed state via the preview endpoint.
+  // Falls back to static generation preview if no settings have been applied yet.
+  const src = previewVersion > 0
     ? `/api/projects/${projectId}/icons/${icon.id}/preview?v=${previewVersion}`
     : `/api/images/${icon.preview_path}`;
 

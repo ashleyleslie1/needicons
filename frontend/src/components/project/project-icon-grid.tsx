@@ -39,7 +39,7 @@ export function ProjectIconGrid({ icons, projectId, previewVersion, onRemoveIcon
             key={icon.id}
             icon={icon}
             projectId={projectId}
-            previewVersion={isPreview ? previewVersion : 0}
+            previewVersion={previewVersion}
             isPreview={isPreview}
             onRemove={() => onRemoveIcon(icon.id)}
             onSetPreview={() => setPreviewIconId(icon.id)}
