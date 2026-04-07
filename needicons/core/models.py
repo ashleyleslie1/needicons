@@ -4,7 +4,7 @@ from __future__ import annotations
 import datetime
 import uuid
 from enum import Enum
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -175,6 +175,13 @@ class GenerationVariation(BaseModel):
     picked: bool = False
 
 
+class LassoMask(BaseModel):
+    id: str
+    polygon: list[tuple[float, float]]  # normalized 0-1 coords
+    mode: Literal["remove", "protect"]
+    strategy: str  # "grabcut" | "sam" | "cascadepsp"
+
+
 class GenerationRecord(BaseModel):
     id: str = Field(default_factory=_new_id)
     project_id: str
@@ -197,6 +204,7 @@ class GenerationRecord(BaseModel):
     edge_feather: int = 0
     upscale_factor: int = 1  # 1=none, 2, 4
     denoise_strength: int = 0
+    lasso_masks: list[LassoMask] = Field(default_factory=list)
     created_at: str = Field(default_factory=lambda: datetime.datetime.utcnow().isoformat())
 
     @model_validator(mode="before")
