@@ -49,6 +49,8 @@ def create_app(
 
         @app.get("/{full_path:path}")
         async def serve_spa(full_path: str):
+            if full_path.startswith("api/"):
+                raise HTTPException(status_code=404, detail="Not found")
             file_path = frontend_dist / full_path
             if file_path.is_file():
                 return FileResponse(file_path)
