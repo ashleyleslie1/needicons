@@ -21,7 +21,10 @@ class AppState:
         self.packs: dict[str, Any] = {}
         self.profiles: dict[str, Any] = {}
         self.jobs: dict = {}
+        self.generation_records: dict[str, Any] = {}
+        self.projects: dict[str, Any] = {}
         self._load_data()
+        self._ensure_default_project()
 
     def _load_data(self) -> None:
         packs_file = self.data_dir / "packs.yaml"
@@ -36,6 +39,18 @@ class AppState:
                 raw = yaml.safe_load(f) or {}
                 from needicons.core.models import ProcessingProfile
                 self.profiles = {k: ProcessingProfile(**v) for k, v in raw.items()}
+        projects_file = self.data_dir / "projects.yaml"
+        generations_file = self.data_dir / "generations.yaml"
+        if projects_file.exists():
+            with open(projects_file) as f:
+                raw = yaml.safe_load(f) or {}
+                from needicons.core.models import Project
+                self.projects = {k: Project(**v) for k, v in raw.items()}
+        if generations_file.exists():
+            with open(generations_file) as f:
+                raw = yaml.safe_load(f) or {}
+                from needicons.core.models import GenerationRecord
+                self.generation_records = {k: GenerationRecord(**v) for k, v in raw.items()}
 
     def save_data(self) -> None:
         self.data_dir.mkdir(parents=True, exist_ok=True)
@@ -43,6 +58,17 @@ class AppState:
             yaml.dump({k: v.model_dump() for k, v in self.packs.items()}, f)
         with open(self.data_dir / "profiles.yaml", "w") as f:
             yaml.dump({k: v.model_dump() for k, v in self.profiles.items()}, f)
+        with open(self.data_dir / "projects.yaml", "w") as f:
+            yaml.dump({k: v.model_dump(mode="json") for k, v in self.projects.items()}, f)
+        with open(self.data_dir / "generations.yaml", "w") as f:
+            yaml.dump({k: v.model_dump(mode="json") for k, v in self.generation_records.items()}, f)
+
+    def _ensure_default_project(self) -> None:
+        if not self.projects:
+            from needicons.core.models import Project
+            default = Project(name="My Icons")
+            self.projects[default.id] = default
+            self.save_data()
 
     def _load_config(self) -> dict:
         if self._config_path.exists():
