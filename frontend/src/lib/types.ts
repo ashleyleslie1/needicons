@@ -185,6 +185,8 @@ export interface GenerationRecord {
   quality: QualityMode;
   model: string;
   api_quality: string;
+  mood: string;
+  ai_enhance: boolean;
   variations: GenerationVariation[];
   original_count: number;
   bg_removal_level: number;
@@ -206,6 +208,8 @@ export interface GenerateIconsRequest {
   style: IconStyle;
   quality: QualityMode;
   api_quality: string;
+  mood: string;
+  ai_enhance: boolean;
   project_id: string;
 }
 

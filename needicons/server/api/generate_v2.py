@@ -16,6 +16,7 @@ from needicons.core.pipeline.detection import detect_icons
 from needicons.core.pipeline.normalize import CenteringStep, WeightNormalizationStep
 from needicons.core.pipeline.background import BackgroundRemovalStep, cleanup_background_residue, remove_background
 from needicons.server.api.settings import get_api_key
+from needicons.core.prompt_enhance import enhance_prompt
 
 router = APIRouter(tags=["generate_v2"])
 
@@ -48,24 +49,24 @@ def _make_preview(image: Image.Image, gpu_provider: str = "auto") -> Image.Image
     return image.resize((256, 256), Image.LANCZOS)
 
 
-async def _generate_hq(provider, name, prompt, style, style_prompt, api_quality=""):
+async def _generate_hq(provider, name, prompt, style, style_prompt, api_quality="", mood=""):
     images = []
     for _ in range(4):
         config = GenerationConfig(
             style_prompt=style_prompt, subject=name,
             description=prompt if prompt != name else "",
-            mode=GenerationMode.PRECISION, style=style, api_quality=api_quality,
+            mode=GenerationMode.PRECISION, style=style, api_quality=api_quality, mood=mood,
         )
         result = await provider.generate(config)
         images.extend(result)
     return images, images
 
 
-async def _generate_normal(provider, name, prompt, style, style_prompt, api_quality=""):
+async def _generate_normal(provider, name, prompt, style, style_prompt, api_quality="", mood=""):
     config = GenerationConfig(
         style_prompt=style_prompt, subject=name,
         description=prompt if prompt != name else "",
-        mode=GenerationMode.ECONOMY, style=style, api_quality=api_quality,
+        mode=GenerationMode.ECONOMY, style=style, api_quality=api_quality, mood=mood,
     )
     raw_images = await provider.generate(config)
     if len(raw_images) >= 4:
@@ -95,6 +96,8 @@ async def _run_generation(state, job: dict):
     project_id = params.get("project_id", "")
     default_model = params["model"]
     api_quality = params.get("api_quality", "")
+    mood = params.get("mood", "")
+    ai_enhance = params.get("ai_enhance", False)
     style_prompt = ""
     completed_idx = job.get("completed_idx", -1)
     gpu_provider = state.config.get("gpu", {}).get("provider", "auto")
@@ -121,16 +124,33 @@ async def _run_generation(state, job: dict):
 
         _emit(job, "progress", {"index": idx, "total": total, "name": name, "status": "generating"})
 
+        if ai_enhance and api_key:
+            try:
+                enhanced = await enhance_prompt(
+                    subject=item["name"],
+                    description=item.get("prompt", ""),
+                    style=style.value,
+                    mood=mood,
+                    style_prompt=style_prompt,
+                    api_key=api_key,
+                )
+                if enhanced:
+                    item["prompt"] = enhanced
+                    prompt = enhanced
+            except Exception:
+                pass  # Fall back to static prompt on failure
+
         record = GenerationRecord(
             project_id=project_id, name=name, prompt=prompt,
             style=style, quality=quality, model=default_model, api_quality=api_quality,
+            mood=mood, ai_enhance=ai_enhance,
         )
 
         try:
             if quality == QualityMode.HQ:
-                images, raw_images = await _generate_hq(provider, name, prompt, style, style_prompt, api_quality=api_quality)
+                images, raw_images = await _generate_hq(provider, name, prompt, style, style_prompt, api_quality=api_quality, mood=mood)
             else:
-                images, raw_images = await _generate_normal(provider, name, prompt, style, style_prompt, api_quality=api_quality)
+                images, raw_images = await _generate_normal(provider, name, prompt, style, style_prompt, api_quality=api_quality, mood=mood)
         except Exception as e:
             msg = str(e)
             if "401" in msg or "auth" in msg.lower() or "api key" in msg.lower():
@@ -201,6 +221,8 @@ async def generate_icons(request: Request):
     style = IconStyle(body.get("style", "solid"))
     quality = QualityMode(body.get("quality", "normal"))
     api_quality = body.get("api_quality", "")
+    mood = body.get("mood", "")
+    ai_enhance = body.get("ai_enhance", False)
 
     api_key = get_api_key(state)
     if not api_key:
@@ -228,6 +250,8 @@ async def generate_icons(request: Request):
             "model": default_model,
             "project_id": project_id,
             "api_quality": api_quality,
+            "mood": mood,
+            "ai_enhance": ai_enhance,
         },
         "completed_idx": -1,
         "events": [],

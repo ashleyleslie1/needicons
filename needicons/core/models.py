@@ -185,6 +185,7 @@ class GenerationRecord(BaseModel):
     model: str = ""
     api_quality: str = ""
     mood: str = ""
+    ai_enhance: bool = False
     variations: list[GenerationVariation] = Field(default_factory=list)
     original_count: int = 0  # number of raw API response images saved for debug
     bg_removal_level: int = 0  # 0=off, 1-10=active

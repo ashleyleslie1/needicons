@@ -47,7 +47,7 @@ export function GeneratePage() {
 
   function handleGenerate() {
     if (!activeProjectId || parsedPrompts.length === 0) return;
-    gen.start({ prompts: parsedPrompts, style, quality, api_quality: apiQuality, project_id: activeProjectId });
+    gen.start({ prompts: parsedPrompts, style, quality, api_quality: apiQuality, mood: "", ai_enhance: false, project_id: activeProjectId });
     setPromptText("");
   }
 
