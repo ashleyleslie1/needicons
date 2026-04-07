@@ -43,6 +43,7 @@ async def _setup_project_with_icons(client, state):
 
 @pytest.mark.asyncio
 async def test_export_creates_zip(app):
+    import asyncio
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
         project_id = await _setup_project_with_icons(c, app.state.app_state)
@@ -51,8 +52,25 @@ async def test_export_creates_zip(app):
             "formats": ["png"],
         })
         assert resp.status_code == 200
-        assert resp.headers["content-type"] == "application/zip"
-        zf = zipfile.ZipFile(io.BytesIO(resp.content))
+        data = resp.json()
+        assert "job_id" in data
+        job_id = data["job_id"]
+
+        # Poll until export completes
+        for _ in range(50):
+            status_resp = await c.get(f"/api/projects/{project_id}/export/{job_id}/status")
+            status = status_resp.json()
+            if status["status"] in ("completed", "failed"):
+                break
+            await asyncio.sleep(0.1)
+
+        assert status["status"] == "completed", f"Export failed: {status.get('error')}"
+
+        # Download the ZIP
+        dl_resp = await c.get(f"/api/projects/{project_id}/export/{job_id}/download")
+        assert dl_resp.status_code == 200
+        assert dl_resp.headers["content-type"] == "application/zip"
+        zf = zipfile.ZipFile(io.BytesIO(dl_resp.content))
         names = zf.namelist()
         assert "128x/tent.png" in names
         assert "64x/jerky.png" in names

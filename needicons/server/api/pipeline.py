@@ -1,8 +1,10 @@
 """Pipeline preview and export API endpoints."""
 from __future__ import annotations
+import asyncio
 import hashlib
 import io
 import json
+import pathlib
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import Response
 from PIL import Image
@@ -11,6 +13,9 @@ from needicons.core.export.packager import build_zip
 from needicons.core.models import ProcessingProfile
 
 router = APIRouter(tags=["pipeline"])
+
+_refresh_jobs: dict[str, dict] = {}
+_export_jobs: dict[str, dict] = {}
 
 
 def _profile_to_configs(profile, gpu_provider: str = "auto") -> dict[str, dict]:
@@ -62,35 +67,13 @@ def _settings_hash(project, icon_id: str) -> str:
     return hashlib.sha256(key.encode()).hexdigest()[:16]
 
 
-@router.get("/api/projects/{project_id}/icons/{icon_id}/preview")
-async def preview_icon(project_id: str, icon_id: str, request: Request):
-    """Return a 256x256 preview of an icon with the project's post-processing applied."""
-    state = request.app.state.app_state
-    project = state.projects.get(project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-
-    icon = next((i for i in project.icons if i.id == icon_id), None)
-    if not icon:
-        raise HTTPException(status_code=404, detail="Icon not found")
-
-    source_file = state.data_dir / icon.source_path
-    if not source_file.exists():
-        raise HTTPException(status_code=404, detail="Source image not found")
-
-    # Check disk cache
-    cache_key = _settings_hash(project, icon_id)
-    cache_dir = state.data_dir / "cache" / "previews"
-    cache_file = cache_dir / f"{cache_key}.png"
-    if cache_file.exists():
-        return Response(content=cache_file.read_bytes(), media_type="image/png")
-
+def _render_preview_sync(source_file, project, cache_dir, cache_file, gpu_provider: str = "auto") -> bytes:
+    """Synchronous preview rendering — called from thread pool."""
     profile = _project_settings_to_profile(project)
     profile.background_removal.enabled = False
     profile.output.sizes = [256]
     profile.output.formats = ["png"]
 
-    gpu_provider = state.config.get("gpu", {}).get("provider", "auto")
     pipeline = build_default_pipeline()
     configs = _profile_to_configs(profile, gpu_provider)
 
@@ -108,11 +91,101 @@ async def preview_icon(project_id: str, icon_id: str, request: Request):
     img_out.save(buf, format="PNG")
     png_bytes = buf.getvalue()
 
-    # Write to cache
     cache_dir.mkdir(parents=True, exist_ok=True)
     cache_file.write_bytes(png_bytes)
 
+    return png_bytes
+
+
+@router.get("/api/projects/{project_id}/icons/{icon_id}/preview")
+async def preview_icon(project_id: str, icon_id: str, request: Request):
+    state = request.app.state.app_state
+    project = state.projects.get(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    icon = next((i for i in project.icons if i.id == icon_id), None)
+    if not icon:
+        raise HTTPException(status_code=404, detail="Icon not found")
+
+    source_file = state.data_dir / icon.source_path
+    if not source_file.exists():
+        raise HTTPException(status_code=404, detail="Source image not found")
+
+    cache_key = _settings_hash(project, icon_id)
+    cache_dir = state.data_dir / "cache" / "previews"
+    cache_file = cache_dir / f"{cache_key}.png"
+    if cache_file.exists():
+        return Response(content=cache_file.read_bytes(), media_type="image/png")
+
+    gpu_provider = state.config.get("gpu", {}).get("provider", "auto")
+    png_bytes = await asyncio.to_thread(
+        _render_preview_sync, source_file, project, cache_dir, cache_file, gpu_provider
+    )
+
     return Response(content=png_bytes, media_type="image/png")
+
+
+@router.post("/api/projects/{project_id}/refresh-previews")
+async def refresh_previews(project_id: str, request: Request):
+    state = request.app.state.app_state
+    project = state.projects.get(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    if not project.icons:
+        return {"status": "no_icons", "total": 0}
+
+    # Clear preview cache for this project
+    cache_dir = state.data_dir / "cache" / "previews"
+    if cache_dir.exists():
+        for icon in project.icons:
+            cache_key = _settings_hash(project, icon.id)
+            cache_file = cache_dir / f"{cache_key}.png"
+            if cache_file.exists():
+                cache_file.unlink()
+
+    from needicons.core.models import _new_id
+    job_id = _new_id()
+    _refresh_jobs[job_id] = {"status": "running", "total": len(project.icons), "completed": 0}
+
+    asyncio.create_task(_run_refresh(state, project, job_id))
+    return {"status": "started", "job_id": job_id, "total": len(project.icons)}
+
+
+async def _run_refresh(state, project, job_id: str):
+    job = _refresh_jobs.get(job_id)
+    if not job:
+        return
+    cache_dir = state.data_dir / "cache" / "previews"
+    gpu_provider = state.config.get("gpu", {}).get("provider", "auto")
+
+    for icon in project.icons:
+        source_file = state.data_dir / icon.source_path
+        if not source_file.exists():
+            job["completed"] += 1
+            continue
+        cache_key = _settings_hash(project, icon.id)
+        cache_file = cache_dir / f"{cache_key}.png"
+        try:
+            await asyncio.to_thread(
+                _render_preview_sync, source_file, project, cache_dir, cache_file, gpu_provider
+            )
+        except Exception:
+            pass
+        job["completed"] += 1
+
+    job["status"] = "completed"
+    await asyncio.sleep(30)
+    _refresh_jobs.pop(job_id, None)
+
+
+@router.get("/api/projects/{project_id}/refresh-previews/{job_id}")
+async def refresh_status(project_id: str, job_id: str):
+    job = _refresh_jobs.get(job_id)
+    if not job:
+        return {"status": "not_found"}
+    return {"status": job["status"], "completed": job["completed"], "total": job["total"]}
 
 
 @router.post("/api/projects/{project_id}/export")
@@ -126,41 +199,106 @@ async def export_project(project_id: str, request: Request):
     sizes = body.get("sizes", [256, 128, 64, 32])
     formats = body.get("formats", ["png"])
 
-    profile = _project_settings_to_profile(project)
-    profile.background_removal.enabled = False  # already done during generation
-    profile.output.sizes = []  # skip resize step — build_zip handles multi-size
-
-    gpu_provider = state.config.get("gpu", {}).get("provider", "auto")
-    pipeline = build_default_pipeline()
-    configs = _profile_to_configs(profile, gpu_provider)
-
-    processed_icons = {}
-    for icon in project.icons:
-        source_file = state.data_dir / icon.source_path
-        if not source_file.exists():
-            continue
-        img = Image.open(source_file).convert("RGBA")
-        processed = pipeline.run(img, configs)
-        processed_icons[icon.name] = processed
-
-    if not processed_icons:
+    if not project.icons:
         raise HTTPException(status_code=400, detail="No icons to export")
 
-    zip_data = build_zip(
-        icons=processed_icons,
-        pack_name=project.name,
-        sizes=sizes,
-        formats=formats,
-        sharpen_below=profile.output.sharpen_below,
-        profile_name=profile.name,
-    )
+    from needicons.core.models import _new_id
+    job_id = _new_id()
+    _export_jobs[job_id] = {
+        "status": "running", "total": len(project.icons),
+        "completed": 0, "current_icon": "", "result_path": None, "error": None,
+    }
+
+    asyncio.create_task(_run_export(state, project, sizes, formats, job_id))
+    return {"job_id": job_id, "total": len(project.icons)}
+
+
+async def _run_export(state, project, sizes, formats, job_id: str):
+    job = _export_jobs.get(job_id)
+    if not job:
+        return
+
+    try:
+        profile = _project_settings_to_profile(project)
+        profile.background_removal.enabled = False
+        profile.output.sizes = []
+
+        gpu_provider = state.config.get("gpu", {}).get("provider", "auto")
+        pipeline = build_default_pipeline()
+        configs = _profile_to_configs(profile, gpu_provider)
+
+        processed_icons = {}
+        for icon in project.icons:
+            job["current_icon"] = icon.name
+            source_file = state.data_dir / icon.source_path
+            if not source_file.exists():
+                job["completed"] += 1
+                continue
+            img = Image.open(source_file).convert("RGBA")
+            processed = await asyncio.to_thread(pipeline.run, img, configs)
+            processed_icons[icon.name] = processed
+            job["completed"] += 1
+
+        if not processed_icons:
+            job["status"] = "failed"
+            job["error"] = "No icons to export"
+            return
+
+        zip_data = await asyncio.to_thread(
+            build_zip, icons=processed_icons, pack_name=project.name,
+            sizes=sizes, formats=formats, sharpen_below=profile.output.sharpen_below,
+            profile_name=profile.name,
+        )
+
+        export_dir = state.data_dir / "cache" / "exports"
+        export_dir.mkdir(parents=True, exist_ok=True)
+        export_path = export_dir / f"{job_id}.zip"
+        export_path.write_bytes(zip_data)
+
+        job["status"] = "completed"
+        job["result_path"] = str(export_path)
+
+    except Exception as e:
+        job["status"] = "failed"
+        job["error"] = str(e)[:200]
+
+    await asyncio.sleep(600)
+    if job.get("result_path"):
+        p = pathlib.Path(job["result_path"])
+        if p.exists():
+            p.unlink()
+    _export_jobs.pop(job_id, None)
+
+
+@router.get("/api/projects/{project_id}/export/{job_id}/status")
+async def export_status(project_id: str, job_id: str):
+    job = _export_jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Export job not found")
+    return {
+        "status": job["status"], "completed": job["completed"],
+        "total": job["total"], "current_icon": job["current_icon"],
+        "error": job.get("error"),
+    }
+
+
+@router.get("/api/projects/{project_id}/export/{job_id}/download")
+async def export_download(project_id: str, job_id: str, request: Request):
+    job = _export_jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Export job not found")
+    if job["status"] != "completed":
+        raise HTTPException(status_code=400, detail="Export not ready")
+
+    result_path = pathlib.Path(job["result_path"])
+    if not result_path.exists():
+        raise HTTPException(status_code=404, detail="Export file not found")
+
+    project = request.app.state.app_state.projects.get(project_id)
+    name = project.name if project else "export"
 
     return Response(
-        content=zip_data,
+        content=result_path.read_bytes(),
         media_type="application/zip",
-        headers={
-            "Content-Disposition": f'attachment; filename="needicons-{project.name}.zip"',
-        },
+        headers={"Content-Disposition": f'attachment; filename="needicons-{name}.zip"'},
     )
-
-
