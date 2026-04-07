@@ -15,7 +15,7 @@ async def test_get_settings(app):
         resp = await client.get("/api/settings")
         data = resp.json()
         assert "provider" in data
-        assert data["provider"]["default_model"] == "gpt-4o"
+        assert data["provider"]["default_model"] == "dall-e-3"
 
 
 @pytest.mark.asyncio

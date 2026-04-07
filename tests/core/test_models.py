@@ -1,64 +1,19 @@
 import pytest
 from needicons.core.models import (
-    Pack,
-    Requirement,
-    Candidate,
     ProcessingProfile,
-    StepConfig,
-    BackgroundRemovalConfig,
     StrokeConfig,
     MaskConfig,
     FillConfig,
-    ShadowConfig,
-    ColorConfig,
     OutputConfig,
-    RequirementStatus,
     GenerationMode,
+    IconStyle,
+    QualityMode,
+    Project,
+    SavedIcon,
+    GenerationRecord,
+    GenerationVariation,
+    PostProcessingSettings,
 )
-
-
-def test_pack_creation():
-    pack = Pack(name="Test Pack", style_prompt="flat minimalist icons")
-    assert pack.name == "Test Pack"
-    assert pack.style_prompt == "flat minimalist icons"
-    assert pack.requirements == []
-    assert pack.profile_id is None
-    assert pack.id is not None
-
-
-def test_requirement_creation():
-    req = Requirement(name="tent", description="camping tent, triangular")
-    assert req.name == "tent"
-    assert req.description == "camping tent, triangular"
-    assert req.status == RequirementStatus.PENDING
-    assert req.candidates == []
-
-
-def test_requirement_default_description():
-    req = Requirement(name="backpack")
-    assert req.description is None
-    assert req.status == RequirementStatus.PENDING
-
-
-def test_candidate_creation():
-    cand = Candidate(
-        requirement_id="req-123",
-        source_path="data/raw/abc.png",
-        preview_path="data/preview/abc.png",
-        origin="single",
-    )
-    assert cand.selected is False
-    assert cand.origin == "single"
-
-
-def test_candidate_grid_origin():
-    cand = Candidate(
-        requirement_id="req-123",
-        source_path="data/raw/abc.png",
-        preview_path="data/preview/abc.png",
-        origin="grid_0",
-    )
-    assert cand.origin == "grid_0"
 
 
 def test_processing_profile_defaults():
@@ -89,7 +44,44 @@ def test_generation_mode_enum():
     assert GenerationMode.ECONOMY == "economy"
 
 
-def test_requirement_status_transitions():
-    assert RequirementStatus.PENDING == "pending"
-    assert RequirementStatus.GENERATED == "generated"
-    assert RequirementStatus.ACCEPTED == "accepted"
+def test_icon_style_enum():
+    assert IconStyle.SOLID == "solid"
+    assert IconStyle.OUTLINE == "outline"
+    assert IconStyle.COLOR == "color"
+    assert IconStyle.FLAT == "flat"
+    assert IconStyle.STICKER == "sticker"
+
+
+def test_quality_mode_enum():
+    assert QualityMode.HQ == "hq"
+    assert QualityMode.NORMAL == "normal"
+
+
+def test_project_creation():
+    project = Project(name="Test Pack")
+    assert project.name == "Test Pack"
+    assert project.icons == []
+    assert project.style_preference == IconStyle.SOLID
+    assert project.quality_preference == QualityMode.NORMAL
+    assert project.post_processing.stroke.enabled is False
+    assert project.post_processing.padding.percent == 10.0
+
+
+def test_saved_icon():
+    icon = SavedIcon(name="tent", prompt="camping tent", source_path="images/test.png")
+    assert icon.name == "tent"
+    assert icon.style == IconStyle.SOLID
+    assert icon.id is not None
+
+
+def test_generation_record():
+    record = GenerationRecord(project_id="p1", name="tent", prompt="tent")
+    assert record.variations == []
+    assert record.style == IconStyle.SOLID
+    assert record.quality == QualityMode.NORMAL
+
+
+def test_generation_variation():
+    v = GenerationVariation(index=0, source_path="raw/v0.png", preview_path="preview/v0.png")
+    assert v.picked is False
+    assert v.index == 0

@@ -149,7 +149,9 @@ export interface GenerationRecord {
   prompt: string;
   style: IconStyle;
   quality: QualityMode;
+  model: string;
   variations: GenerationVariation[];
+  original_count: number;
   created_at: string;
 }
 

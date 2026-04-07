@@ -23,7 +23,7 @@ def test_provider_is_abc():
 def test_generation_config_defaults():
     cfg = GenerationConfig(style_prompt="flat icons", subject="tent")
     assert cfg.mode == GenerationMode.PRECISION
-    assert cfg.model == "gpt-4o"
+    assert cfg.model == ""
 
 
 @pytest.mark.asyncio

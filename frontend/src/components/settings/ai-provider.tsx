@@ -86,29 +86,34 @@ export function AiProviderSettings() {
 
       {/* Default Model */}
       <div className="space-y-3">
-        <h2 className="text-sm font-semibold text-foreground">Default Model</h2>
+        <h2 className="text-sm font-semibold text-foreground">Image Model</h2>
         {isLoading ? (
           <p className="text-xs text-muted-foreground">Loading…</p>
         ) : (
-          <div className="flex gap-2">
-            {(["gpt-4o", "dall-e-3"] as const).map((model) => (
+          <div className="flex flex-wrap gap-2">
+            {([
+              { id: "gpt-image-1.5", label: "GPT Image 1.5", desc: "Best quality" },
+              { id: "gpt-image-1-mini", label: "GPT Image Mini", desc: "Fast & cheap" },
+              { id: "dall-e-3", label: "DALL-E 3", desc: "Classic" },
+            ] as const).map((model) => (
               <button
-                key={model}
+                key={model.id}
                 type="button"
-                onClick={() => updateProvider.mutate({ default_model: model })}
-                className={`px-3 py-2 rounded-md border text-sm transition-colors ${
-                  provider?.default_model === model
+                onClick={() => updateProvider.mutate({ default_model: model.id })}
+                className={`flex flex-col items-start px-3 py-2 rounded-md border text-sm transition-colors ${
+                  provider?.default_model === model.id
                     ? "border-accent bg-accent/10 text-foreground"
                     : "border-border text-muted-foreground hover:text-foreground"
                 }`}
               >
-                {model === "gpt-4o" ? "GPT-4o" : "DALL-E 3"}
+                <span className="font-medium">{model.label}</span>
+                <span className="text-[10px] opacity-60">{model.desc}</span>
               </button>
             ))}
           </div>
         )}
         <p className="mt-3 text-xs text-muted-foreground">
-          HQ mode uses 4x more resources than Normal mode.
+          GPT Image models support transparent backgrounds. HQ mode uses 4x more API calls.
         </p>
       </div>
     </div>

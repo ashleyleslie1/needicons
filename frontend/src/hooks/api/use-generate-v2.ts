@@ -1,16 +1,96 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef, useCallback } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
-import type { GenerateIconsRequest } from "@/lib/types";
+import type { GenerateIconsRequest, GenerationRecord } from "@/lib/types";
 
-export function useGenerateIcons() {
+interface GenerationProgress {
+  index: number;
+  total: number;
+  name: string;
+  status: "generating" | "processing";
+}
+
+interface UseGenerateResult {
+  start: (data: GenerateIconsRequest) => void;
+  isPending: boolean;
+  progress: GenerationProgress | null;
+  jobId: string | null;
+}
+
+/**
+ * Hook for icon generation with background job support.
+ * Survives page navigation — reconnects to active jobs on mount.
+ */
+export function useGenerateIcons(projectId: string | undefined): UseGenerateResult {
   const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (data: GenerateIconsRequest) => api.generateIcons(data),
-    onSuccess: (_, vars) => {
-      qc.invalidateQueries({ queryKey: ["projects", vars.project_id] });
-      qc.invalidateQueries({ queryKey: ["generation-history", vars.project_id] });
+  const unsubRef = useRef<(() => void) | null>(null);
+  const progressRef = useRef<GenerationProgress | null>(null);
+  const jobIdRef = useRef<string | null>(null);
+
+  // Check for active jobs on mount (reconnect after page refresh)
+  const { data: activeJobs } = useQuery({
+    queryKey: ["active-generation-jobs"],
+    queryFn: () => api.getActiveJobs(),
+    refetchInterval: false,
+  });
+
+  const handleEvent = useCallback((event: { type: string; data: unknown }) => {
+    if (event.type === "progress") {
+      progressRef.current = event.data as GenerationProgress;
+      // Force re-render by updating query data
+      qc.setQueryData(["generation-progress", jobIdRef.current], event.data);
+    } else if (event.type === "record") {
+      // A new record arrived — refresh history
+      qc.invalidateQueries({ queryKey: ["generation-history"] });
+      qc.invalidateQueries({ queryKey: ["projects"] });
+    } else if (event.type === "done" || event.type === "error") {
+      progressRef.current = null;
+      jobIdRef.current = null;
+      qc.setQueryData(["generation-progress", jobIdRef.current], null);
+      qc.setQueryData(["active-generation-job"], null);
+      qc.invalidateQueries({ queryKey: ["generation-history"] });
+      qc.invalidateQueries({ queryKey: ["projects"] });
+      qc.invalidateQueries({ queryKey: ["active-generation-jobs"] });
+    }
+  }, [qc]);
+
+  const subscribe = useCallback((jobId: string) => {
+    unsubRef.current?.();
+    jobIdRef.current = jobId;
+    qc.setQueryData(["active-generation-job"], jobId);
+    unsubRef.current = api.subscribeToJob(jobId, handleEvent);
+  }, [handleEvent, qc]);
+
+  // Reconnect to active job on mount
+  useEffect(() => {
+    if (!activeJobs?.length) return;
+    const activeJob = activeJobs.find((j) => j.project_id === projectId);
+    if (activeJob) {
+      subscribe(activeJob.job_id);
+    }
+  }, [activeJobs, projectId, subscribe]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => { unsubRef.current?.(); };
+  }, []);
+
+  const mutation = useMutation({
+    mutationFn: (data: GenerateIconsRequest) => api.startGeneration(data),
+    onSuccess: (result) => {
+      subscribe(result.job_id);
     },
   });
+
+  const activeJobId = qc.getQueryData<string>(["active-generation-job"]) ?? null;
+  const currentProgress = qc.getQueryData<GenerationProgress | null>(["generation-progress", activeJobId]);
+
+  return {
+    start: (data: GenerateIconsRequest) => mutation.mutate(data),
+    isPending: mutation.isPending || !!activeJobId,
+    progress: currentProgress ?? null,
+    jobId: activeJobId,
+  };
 }
 
 export function usePickVariation() {
@@ -40,7 +120,14 @@ export function useDeleteGeneration() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (generationId: string) => api.deleteGeneration(generationId),
-    onSuccess: () => {
+    onMutate: async (generationId) => {
+      await qc.cancelQueries({ queryKey: ["generation-history"] });
+      qc.setQueriesData<GenerationRecord[]>(
+        { queryKey: ["generation-history"] },
+        (old) => old?.filter((r) => r.id !== generationId),
+      );
+    },
+    onSettled: () => {
       qc.invalidateQueries({ queryKey: ["projects"] });
       qc.invalidateQueries({ queryKey: ["generation-history"] });
     },

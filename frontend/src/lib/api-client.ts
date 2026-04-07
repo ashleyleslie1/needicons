@@ -129,12 +129,41 @@ export const api = {
     return request<GenerationRecord[]>(`/projects/${projectId}/history`);
   },
 
-  // Generation v2
-  generateIcons(data: GenerateIconsRequest): Promise<GenerationRecord[]> {
-    return request<GenerationRecord[]>("/generate", {
+  // Generation v2 (background job)
+  async startGeneration(data: GenerateIconsRequest): Promise<{ job_id: string; total: number }> {
+    return request<{ job_id: string; total: number }>("/generate", {
       method: "POST",
       body: JSON.stringify(data),
     });
+  },
+
+  getActiveJobs(): Promise<Array<{ job_id: string; project_id: string; status: string }>> {
+    return request<Array<{ job_id: string; project_id: string; status: string }>>("/generate/active");
+  },
+
+  subscribeToJob(
+    jobId: string,
+    onEvent: (event: { type: string; data: unknown }) => void,
+  ): () => void {
+    const es = new EventSource(`/api/generate/jobs/${jobId}/stream`);
+    const handler = (e: MessageEvent) => {
+      try {
+        onEvent({ type: e.type, data: JSON.parse(e.data) });
+      } catch { /* ignore */ }
+    };
+    es.addEventListener("progress", handler);
+    es.addEventListener("record", handler);
+    es.addEventListener("error", handler);
+    es.addEventListener("done", (e) => {
+      try {
+        onEvent({ type: "done", data: JSON.parse(e.data) });
+      } catch {
+        onEvent({ type: "done", data: {} });
+      }
+      es.close();
+    });
+    es.onerror = () => es.close();
+    return () => es.close();
   },
 
   pickVariation(generationId: string, variationIndex: number): Promise<GenerationRecord> {

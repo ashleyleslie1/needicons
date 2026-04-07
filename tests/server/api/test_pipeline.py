@@ -1,7 +1,6 @@
 import pytest
 import io
 import zipfile
-from unittest.mock import patch
 from PIL import Image
 from httpx import AsyncClient, ASGITransport
 from needicons.server.app import create_app
@@ -14,35 +13,40 @@ def app(tmp_path):
     return a
 
 
-def _fake_image():
-    return Image.new("RGBA", (256, 256), (255, 0, 0, 255))
+def _save_fake_icon(state, path: str):
+    """Save a fake icon image to the data directory."""
+    img = Image.new("RGBA", (256, 256), (255, 0, 0, 255))
+    full_path = state.data_dir / path
+    full_path.parent.mkdir(parents=True, exist_ok=True)
+    img.save(full_path, format="PNG")
 
 
-async def _setup_accepted_pack(c):
-    """Create pack with accepted requirement + profile."""
-    pack = (await c.post("/api/packs", json={"name": "ExportPack"})).json()
-    reqs = (await c.post(f"/api/packs/{pack['id']}/requirements", json=[
-        {"name": "tent"}, {"name": "jerky"},
-    ])).json()
+async def _setup_project_with_icons(client, state):
+    """Create a project and manually add saved icons."""
+    from needicons.core.models import SavedIcon
 
-    for req in reqs:
-        with patch("needicons.server.api.generate._generate_for_requirement") as mock_gen:
-            mock_gen.return_value = [_fake_image()]
-            await c.post(f"/api/requirements/{req['id']}/generate", json={"mode": "precision"})
-        cands = (await c.get(f"/api/requirements/{req['id']}/candidates")).json()
-        await c.post(f"/api/candidates/{cands[0]['id']}/pick")
+    # Get the default project
+    resp = await client.get("/api/projects")
+    project_id = resp.json()[0]["id"]
+    project = state.projects[project_id]
 
-    profile = (await c.post("/api/profiles", json={"name": "TestProfile"})).json()
-    return pack["id"], profile["id"]
+    # Create fake source images and add icons
+    for name in ["tent", "jerky"]:
+        path = f"images/fake/{name}.png"
+        _save_fake_icon(state, path)
+        icon = SavedIcon(name=name, prompt=name, source_path=path)
+        project.icons.append(icon)
+
+    state.save_data()
+    return project_id
 
 
 @pytest.mark.asyncio
 async def test_export_creates_zip(app):
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
-        pack_id, profile_id = await _setup_accepted_pack(c)
-        resp = await c.post(f"/api/packs/{pack_id}/export", json={
-            "profile_id": profile_id,
+        project_id = await _setup_project_with_icons(c, app.state.app_state)
+        resp = await c.post(f"/api/projects/{project_id}/export", json={
             "sizes": [128, 64],
             "formats": ["png"],
         })
@@ -53,3 +57,46 @@ async def test_export_creates_zip(app):
         assert "128x/tent.png" in names
         assert "64x/jerky.png" in names
         assert "manifest.json" in names
+
+
+@pytest.mark.asyncio
+async def test_export_no_icons_returns_400(app):
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as c:
+        resp = await c.get("/api/projects")
+        project_id = resp.json()[0]["id"]
+        resp = await c.post(f"/api/projects/{project_id}/export", json={
+            "sizes": [128],
+            "formats": ["png"],
+        })
+        assert resp.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_preview_icon(app):
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as c:
+        project_id = await _setup_project_with_icons(c, app.state.app_state)
+        project = app.state.app_state.projects[project_id]
+        icon_id = project.icons[0].id
+        resp = await c.get(f"/api/projects/{project_id}/icons/{icon_id}/preview")
+        assert resp.status_code == 200
+        assert resp.headers["content-type"] == "image/png"
+
+
+@pytest.mark.asyncio
+async def test_preview_caching(app):
+    """Second request for same settings should hit cache."""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as c:
+        project_id = await _setup_project_with_icons(c, app.state.app_state)
+        project = app.state.app_state.projects[project_id]
+        icon_id = project.icons[0].id
+
+        resp1 = await c.get(f"/api/projects/{project_id}/icons/{icon_id}/preview")
+        assert resp1.status_code == 200
+
+        # Second request should return same content (from cache)
+        resp2 = await c.get(f"/api/projects/{project_id}/icons/{icon_id}/preview")
+        assert resp2.status_code == 200
+        assert resp1.content == resp2.content

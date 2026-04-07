@@ -1,5 +1,7 @@
+import { useState } from "react";
 import type { SavedIcon } from "@/lib/types";
 import { ProjectIconTile } from "./project-icon-tile";
+
 
 interface ProjectIconGridProps {
   icons: SavedIcon[];
@@ -9,6 +11,8 @@ interface ProjectIconGridProps {
 }
 
 export function ProjectIconGrid({ icons, projectId, previewVersion, onRemoveIcon }: ProjectIconGridProps) {
+  const [previewIconId, setPreviewIconId] = useState<string | null>(null);
+
   if (icons.length === 0) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center py-20 text-center">
@@ -22,17 +26,26 @@ export function ProjectIconGrid({ icons, projectId, previewVersion, onRemoveIcon
       </div>
     );
   }
+
+  // Default preview icon: first icon or user-selected
+  const activePreviewId = previewIconId ?? icons[0]?.id;
+
   return (
     <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-4">
-      {icons.map((icon) => (
-        <ProjectIconTile
-          key={icon.id}
-          icon={icon}
-          projectId={projectId}
-          previewVersion={previewVersion}
-          onRemove={() => onRemoveIcon(icon.id)}
-        />
-      ))}
+      {icons.map((icon) => {
+        const isPreview = icon.id === activePreviewId;
+        return (
+          <ProjectIconTile
+            key={icon.id}
+            icon={icon}
+            projectId={projectId}
+            previewVersion={isPreview ? previewVersion : 0}
+            isPreview={isPreview}
+            onRemove={() => onRemoveIcon(icon.id)}
+            onSetPreview={() => setPreviewIconId(icon.id)}
+          />
+        );
+      })}
     </div>
   );
 }

@@ -38,8 +38,10 @@ node_modules/
 # Docs (specs, plans, checkpoints — internal only)
 docs/
 
-# Claude config
+# Claude / Superpowers / Playwright MCP
 .claude/
+.superpowers/
+.playwright-mcp/
 
 # Test
 .pytest_cache/
@@ -48,3 +50,6 @@ htmlcov/
 
 # TypeScript build cache
 *.tsbuildinfo
+
+# Pip install artifacts
+=*

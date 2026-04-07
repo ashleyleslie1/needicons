@@ -1,11 +1,14 @@
-"""Generation API v2 — style-aware, batch, HQ/Normal modes."""
+"""Generation API v2 — style-aware, batch, HQ/Normal modes with persistent background jobs."""
 from __future__ import annotations
+import asyncio
 import io
+import json
 from fastapi import APIRouter, Request, HTTPException
+from fastapi.responses import StreamingResponse
 from PIL import Image
 from needicons.core.models import (
     GenerationMode, IconStyle, QualityMode,
-    GenerationRecord, GenerationVariation, SavedIcon,
+    GenerationRecord, GenerationVariation, SavedIcon, _new_id,
 )
 from needicons.core.providers.base import GenerationConfig
 from needicons.core.providers.openai import OpenAIProvider
@@ -16,7 +19,7 @@ from needicons.core.pipeline.background import BackgroundRemovalStep
 router = APIRouter(tags=["generate_v2"])
 
 
-def _save_image(image: Image.Image, path: str, state) -> None:
+def _save_image(image: Image.Image, path: str) -> None:
     buf = io.BytesIO()
     image.save(buf, format="PNG")
     state.data_dir.joinpath(path).parent.mkdir(parents=True, exist_ok=True)
@@ -34,7 +37,6 @@ def _make_preview(image: Image.Image) -> Image.Image:
 
 
 async def _generate_hq(provider, name, prompt, style, style_prompt):
-    """HQ: 4 separate API calls, each producing 1 icon = 4 variations."""
     images = []
     for _ in range(4):
         config = GenerationConfig(
@@ -44,22 +46,126 @@ async def _generate_hq(provider, name, prompt, style, style_prompt):
         )
         result = await provider.generate(config)
         images.extend(result)
-    return images
+    return images, images
 
 
 async def _generate_normal(provider, name, prompt, style, style_prompt):
-    """Normal: 1 API call with 2x2 grid, auto-split into 4 variations."""
     config = GenerationConfig(
         style_prompt=style_prompt, subject=name,
         description=prompt if prompt != name else "",
         mode=GenerationMode.ECONOMY, style=style,
     )
     raw_images = await provider.generate(config)
+    if len(raw_images) >= 4:
+        return raw_images[:4], raw_images
     all_icons = []
     for img in raw_images:
         icons = detect_icons(img)
         all_icons.extend(icons)
-    return all_icons[:4]
+    return all_icons[:4], raw_images
+
+
+def _emit(job: dict, event_type: str, data: dict):
+    """Append an SSE event to a job's event list (in-memory only)."""
+    job["events"].append({"type": event_type, **data})
+
+
+async def _run_generation(state, job: dict):
+    """Background task: generate icons and emit events. Skips already-completed prompts."""
+    params = job["params"]
+    prompts = params["prompts"]
+    style = IconStyle(params["style"])
+    quality = QualityMode(params["quality"])
+    project_id = params.get("project_id", "")
+    default_model = params["model"]
+    style_prompt = ""
+    completed_idx = job.get("completed_idx", -1)
+
+    provider_config = state.config.get("provider", {})
+    api_key = provider_config.get("api_key", "")
+    if not api_key:
+        _emit(job, "error", {"message": "No API key configured"})
+        job["status"] = "failed"
+        await asyncio.sleep(5)
+        state.jobs.pop(job["id"], None)
+        state.save_jobs()
+        return
+
+    provider = OpenAIProvider(api_key=api_key, default_model=default_model)
+    total = len(prompts)
+
+    for idx, item in enumerate(prompts):
+        # Skip already completed prompts (for resume)
+        if idx <= completed_idx:
+            continue
+
+        name = item["name"]
+        prompt = item.get("prompt", name)
+
+        _emit(job, "progress", {"index": idx, "total": total, "name": name, "status": "generating"})
+
+        record = GenerationRecord(
+            project_id=project_id, name=name, prompt=prompt,
+            style=style, quality=quality, model=default_model,
+        )
+
+        try:
+            if quality == QualityMode.HQ:
+                images, raw_images = await _generate_hq(provider, name, prompt, style, style_prompt)
+            else:
+                images, raw_images = await _generate_normal(provider, name, prompt, style, style_prompt)
+        except Exception as e:
+            msg = str(e)
+            if "401" in msg or "auth" in msg.lower() or "api key" in msg.lower():
+                _emit(job, "error", {"message": "Invalid API key. Check your key in Settings."})
+                job["status"] = "failed"
+                await asyncio.sleep(5)
+                state.jobs.pop(job["id"], None)
+                state.save_jobs()
+                return
+            _emit(job, "error", {"message": f"Generation failed: {msg[:200]}", "name": name})
+            job["completed_idx"] = idx
+            state.save_jobs()
+            continue
+
+        _emit(job, "progress", {"index": idx, "total": total, "name": name, "status": "processing"})
+
+        # Save original API response for debug
+        for ri, raw_img in enumerate(raw_images):
+            raw_path = f"images/{record.id}/original/r{ri}.png"
+            _save_image(raw_img, raw_path)
+        record.original_count = len(raw_images)
+
+        for i, img in enumerate(images):
+            source_path = f"images/{record.id}/raw/v{i}.png"
+            preview_path = f"images/{record.id}/preview/v{i}.png"
+            _save_image(img, source_path)
+            preview = _make_preview(img)
+            _save_image(preview, preview_path)
+            record.variations.append(GenerationVariation(
+                index=i, source_path=source_path, preview_path=preview_path,
+            ))
+
+        state.generation_records[record.id] = record
+        job["completed_idx"] = idx
+        state.save_data()
+
+        _emit(job, "record", record.model_dump(mode="json"))
+
+    _emit(job, "done", {"total": total})
+    job["status"] = "completed"
+    # Clean up after a short delay (let SSE clients read final events)
+    await asyncio.sleep(5)
+    state.jobs.pop(job["id"], None)
+    state.save_jobs()
+
+
+def resume_jobs(state):
+    """Resume any jobs that were interrupted (called on app startup)."""
+    for job in state.jobs.values():
+        if job.get("status") == "resumable":
+            job["status"] = "running"
+            asyncio.create_task(_run_generation(state, job))
 
 
 @router.post("/api/generate")
@@ -84,52 +190,73 @@ async def generate_icons(request: Request):
         raise HTTPException(status_code=400, detail="No API key configured")
 
     default_model = provider_config.get("default_model", "dall-e-3")
-    provider = OpenAIProvider(api_key=api_key, default_model=default_model)
-    style_prompt = ""
 
     if project_id:
         project = state.projects[project_id]
         project.style_preference = style
         project.quality_preference = quality
 
-    records = []
-    for item in prompts:
-        name = item.get("name", "")
-        prompt = item.get("prompt", name)
-        if not name:
-            continue
+    valid_prompts = [p for p in prompts if p.get("name")]
 
-        record = GenerationRecord(
-            project_id=project_id or "", name=name, prompt=prompt,
-            style=style, quality=quality,
-        )
+    job_id = _new_id()
+    job = {
+        "id": job_id,
+        "status": "running",
+        "project_id": project_id,
+        "params": {
+            "prompts": valid_prompts,
+            "style": style.value,
+            "quality": quality.value,
+            "model": default_model,
+            "project_id": project_id,
+        },
+        "completed_idx": -1,
+        "events": [],
+    }
+    state.jobs[job_id] = job
+    state.save_jobs()
 
-        try:
-            if quality == QualityMode.HQ:
-                images = await _generate_hq(provider, name, prompt, style, style_prompt)
-            else:
-                images = await _generate_normal(provider, name, prompt, style, style_prompt)
-        except Exception as e:
-            msg = str(e)
-            if "401" in msg or "auth" in msg.lower() or "api key" in msg.lower():
-                raise HTTPException(status_code=401, detail="Invalid API key. Check your key in Settings.")
-            raise HTTPException(status_code=502, detail=f"Generation failed: {msg[:200]}")
+    asyncio.create_task(_run_generation(state, job))
 
-        for i, img in enumerate(images):
-            source_path = f"images/{record.id}/raw/v{i}.png"
-            preview_path = f"images/{record.id}/preview/v{i}.png"
-            _save_image(img, source_path, state)
-            preview = _make_preview(img)
-            _save_image(preview, preview_path, state)
-            record.variations.append(GenerationVariation(
-                index=i, source_path=source_path, preview_path=preview_path,
-            ))
+    return {"job_id": job_id, "total": len(valid_prompts)}
 
-        state.generation_records[record.id] = record
-        records.append(record.model_dump())
 
-    state.save_data()
-    return records
+@router.get("/api/generate/jobs/{job_id}/stream")
+async def stream_generation(job_id: str, request: Request):
+    """SSE stream for a generation job. Reconnectable — replays all past events then streams new ones."""
+    state = request.app.state.app_state
+    job = state.jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    async def event_stream():
+        last_idx = 0
+        while True:
+            if await request.is_disconnected():
+                break
+            events = job["events"]
+            if len(events) > last_idx:
+                for event in events[last_idx:]:
+                    event_type = event.get("type", "message")
+                    yield f"event: {event_type}\ndata: {json.dumps(event)}\n\n"
+                last_idx = len(events)
+            if job["status"] in ("completed", "failed"):
+                break
+            await asyncio.sleep(0.3)
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
+@router.get("/api/generate/active")
+async def get_active_jobs(request: Request):
+    """Return any running/resumable generation jobs."""
+    state = request.app.state.app_state
+    active = [
+        {"job_id": j["id"], "project_id": j.get("project_id"), "status": j["status"]}
+        for j in state.jobs.values()
+        if j.get("status") in ("running", "resumable")
+    ]
+    return active
 
 
 @router.post("/api/generations/{gen_id}/pick/{variation_index}")
@@ -169,7 +296,6 @@ async def pick_variation(gen_id: str, variation_index: int, request: Request):
 
 @router.post("/api/generations/{gen_id}/unpick")
 async def unpick_variation(gen_id: str, request: Request):
-    """Deselect the picked variation and remove the icon from the project."""
     state = request.app.state.app_state
     record = state.generation_records.get(gen_id)
     if not record:
@@ -189,13 +315,11 @@ async def unpick_variation(gen_id: str, request: Request):
 
 @router.delete("/api/generations/{gen_id}")
 async def delete_generation(gen_id: str, request: Request):
-    """Delete a generation record and remove its icon from the project."""
     state = request.app.state.app_state
     record = state.generation_records.get(gen_id)
     if not record:
         raise HTTPException(status_code=404, detail="Generation record not found")
 
-    # Remove icon from project if picked
     if record.project_id:
         project = state.projects.get(record.project_id)
         if project:

@@ -1,73 +1,62 @@
-"""End-to-end integration test: create pack → add requirements → generate → pick → export."""
+"""End-to-end integration test: create project → add icons → preview → export."""
 import pytest
 import zipfile
 import io
 import json
-from unittest.mock import patch
 from PIL import Image
 from httpx import AsyncClient, ASGITransport
 from needicons.server.app import create_app
+from needicons.core.models import SavedIcon
 
 
-def _fake_image(color=(255, 0, 0, 255)):
-    return Image.new("RGBA", (256, 256), color)
+def _save_fake_icon(state, path: str):
+    img = Image.new("RGBA", (256, 256), (255, 0, 0, 255))
+    full_path = state.data_dir / path
+    full_path.parent.mkdir(parents=True, exist_ok=True)
+    img.save(full_path, format="PNG")
 
 
 @pytest.mark.asyncio
 async def test_full_workflow(tmp_path):
     app = create_app(data_dir=tmp_path / "data")
     app.state.app_state.update_config("provider", {"api_key": "sk-test"})
+    state = app.state.app_state
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
-        # 1. Create pack
-        pack = (await c.post("/api/packs", json={
-            "name": "IntegrationPack",
-            "style_prompt": "flat minimalist icons",
-        })).json()
-        assert pack["name"] == "IntegrationPack"
+        # 1. Create project
+        resp = await c.post("/api/projects", json={"name": "IntegrationPack"})
+        project = resp.json()
+        assert project["name"] == "IntegrationPack"
+        project_id = project["id"]
 
-        # 2. Add requirements
-        reqs = (await c.post(f"/api/packs/{pack['id']}/requirements", json=[
-            {"name": "tent", "description": "camping tent"},
-            {"name": "jerky", "description": "beef jerky"},
-        ])).json()
-        assert len(reqs) == 2
+        # 2. Add icons directly (simulating pick after generation)
+        for name in ["tent", "jerky"]:
+            path = f"images/test/{name}.png"
+            _save_fake_icon(state, path)
+            icon = SavedIcon(name=name, prompt=name, source_path=path)
+            state.projects[project_id].icons.append(icon)
+        state.save_data()
 
-        # 3. Create profile
-        profile = (await c.post("/api/profiles", json={
-            "name": "TestProfile",
-            "stroke": {"enabled": False},
-            "mask": {"shape": "none"},
-            "output": {"sizes": [64, 32], "formats": ["png"]},
-        })).json()
+        # 3. Verify project has icons
+        resp = await c.get(f"/api/projects/{project_id}")
+        assert len(resp.json()["icons"]) == 2
 
-        # 4. Generate for each requirement (mocked)
-        for req in reqs:
-            with patch("needicons.server.api.generate._generate_for_requirement") as mock_gen:
-                mock_gen.return_value = [_fake_image()]
-                gen_resp = await c.post(
-                    f"/api/requirements/{req['id']}/generate",
-                    json={"mode": "precision"},
-                )
-                assert gen_resp.status_code == 200
+        # 4. Preview an icon
+        icon_id = state.projects[project_id].icons[0].id
+        resp = await c.get(f"/api/projects/{project_id}/icons/{icon_id}/preview")
+        assert resp.status_code == 200
+        assert resp.headers["content-type"] == "image/png"
 
-        # 5. Pick candidates
-        for req in reqs:
-            cands = (await c.get(f"/api/requirements/{req['id']}/candidates")).json()
-            assert len(cands) >= 1
-            await c.post(f"/api/candidates/{cands[0]['id']}/pick")
-
-        # 6. Export
-        export_resp = await c.post(f"/api/packs/{pack['id']}/export", json={
-            "profile_id": profile["id"],
+        # 5. Export
+        export_resp = await c.post(f"/api/projects/{project_id}/export", json={
             "sizes": [64, 32],
             "formats": ["png"],
         })
         assert export_resp.status_code == 200
         assert export_resp.headers["content-type"] == "application/zip"
 
-        # 7. Verify ZIP contents
+        # 6. Verify ZIP contents
         zf = zipfile.ZipFile(io.BytesIO(export_resp.content))
         names = zf.namelist()
         assert "64x/tent.png" in names
@@ -84,3 +73,9 @@ async def test_full_workflow(tmp_path):
         # Verify actual image sizes
         img = Image.open(io.BytesIO(zf.read("32x/tent.png")))
         assert img.size == (32, 32)
+
+        # 7. Remove icon from project
+        resp = await c.delete(f"/api/projects/{project_id}/icons/{icon_id}")
+        assert resp.status_code == 200
+        resp = await c.get(f"/api/projects/{project_id}")
+        assert len(resp.json()["icons"]) == 1

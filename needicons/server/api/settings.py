@@ -30,7 +30,7 @@ async def get_settings(request: Request):
         "provider": {
             "api_key": (api_key[:8] + "..." if len(api_key) > 8 else "***") if api_key else "",
             "api_key_set": bool(api_key),
-            "default_model": provider.get("default_model", "gpt-4o"),
+            "default_model": provider.get("default_model", "dall-e-3"),
         }
     }
 

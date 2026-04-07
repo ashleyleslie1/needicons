@@ -10,6 +10,7 @@ import { GenerateButton } from "@/components/generate/generate-button";
 import { ResultsHistory } from "@/components/generate/results-history";
 import { ApiKeyModal } from "@/components/generation/api-key-modal";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Progress } from "@/components/ui/progress";
 import type { IconStyle, QualityMode } from "@/lib/types";
 
 function parsePrompts(input: string): Array<{ name: string; prompt: string }> {
@@ -32,8 +33,8 @@ function parsePrompts(input: string): Array<{ name: string; prompt: string }> {
 export function GeneratePage() {
   const { activeProjectId } = useSidebar();
   const { data: project } = useProject(activeProjectId ?? undefined);
-  const generateIcons = useGenerateIcons();
   const { data: history } = useGenerationHistory(activeProjectId ?? undefined);
+  const gen = useGenerateIcons(activeProjectId ?? undefined);
 
   const [promptText, setPromptText] = useState("");
   const [style, setStyle] = useState<IconStyle>(project?.style_preference ?? "solid");
@@ -45,23 +46,16 @@ export function GeneratePage() {
 
   function handleGenerate() {
     if (!activeProjectId || parsedPrompts.length === 0) return;
-    generateIcons.mutate(
-      { prompts: parsedPrompts, style, quality, project_id: activeProjectId },
-      {
-        onSuccess: () => setPromptText(""),
-        onError: (err) => {
-          if (err.message?.includes("No API key")) {
-            setShowApiKeyModal(true);
-          }
-        },
-      },
-    );
+    gen.start({ prompts: parsedPrompts, style, quality, project_id: activeProjectId });
+    setPromptText("");
   }
 
   function handleApiKeySaved() {
     setShowApiKeyModal(false);
     handleGenerate();
   }
+
+  const progress = gen.progress;
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
@@ -70,7 +64,7 @@ export function GeneratePage() {
           value={promptText}
           onChange={setPromptText}
           onSubmit={handleGenerate}
-          disabled={generateIcons.isPending}
+          disabled={gen.isPending}
         />
         <div className="mt-4 flex items-center gap-4">
           <StyleTabs value={style} onChange={setStyle} />
@@ -80,7 +74,7 @@ export function GeneratePage() {
               iconCount={iconCount}
               onClick={handleGenerate}
               disabled={!activeProjectId || iconCount === 0}
-              loading={generateIcons.isPending}
+              loading={gen.isPending}
             />
           </div>
         </div>
@@ -88,15 +82,46 @@ export function GeneratePage() {
 
       <ScrollArea className="flex-1">
         <div className="p-8">
-          {generateIcons.isPending && (
-            <div className="mb-4 flex items-center gap-3 rounded-xl border border-accent/30 bg-accent/5 p-4">
-              <div className="h-5 w-5 animate-spin rounded-full border-2 border-accent border-t-transparent" />
-              <span className="text-sm text-foreground">Generating icons...</span>
+          {gen.isPending && (
+            <div className="mb-4 rounded-xl border border-border bg-card p-4">
+              <div className="mb-3 flex items-center gap-2">
+                <span className="text-sm font-semibold text-foreground">
+                  {progress?.name ?? "..."}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  {progress
+                    ? progress.status === "generating" ? "Generating..." : "Processing..."
+                    : "Starting..."}
+                </span>
+                {progress && progress.total > 1 && (
+                  <span className="ml-auto text-xs text-muted-foreground">{progress.index + 1}/{progress.total}</span>
+                )}
+              </div>
+              <div className="flex gap-3">
+                {[0, 1, 2, 3].map((i) => (
+                  <div key={i} className="relative aspect-square w-24 overflow-hidden rounded-lg bg-muted">
+                    <div className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-foreground/10 to-transparent" />
+                  </div>
+                ))}
+              </div>
+              {progress && progress.total > 1 && (
+                <Progress
+                  className="mt-3"
+                  value={((progress.index + (progress.status === "processing" ? 0.5 : 0)) / progress.total) * 100}
+                />
+              )}
             </div>
           )}
           {history && history.length > 0 ? (
-            <ResultsHistory records={history} />
-          ) : !generateIcons.isPending ? (
+            <ResultsHistory
+              records={history}
+              onRegenerate={(record) => {
+                setPromptText(`${record.name}: ${record.prompt}`);
+                setStyle(record.style);
+                setQuality(record.quality);
+              }}
+            />
+          ) : !gen.isPending ? (
             <div className="flex flex-col items-center justify-center py-20 text-center">
               <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-muted text-2xl">
                 {"\u2726"}

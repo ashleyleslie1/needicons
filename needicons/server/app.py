@@ -34,6 +34,11 @@ def create_app(
     app.state.app_state = AppState(storage=storage, queue=queue, auth=auth, data_dir=data_dir)
     app.include_router(api_router)
 
+    @app.on_event("startup")
+    async def _resume_jobs():
+        from needicons.server.api.generate_v2 import resume_jobs
+        resume_jobs(app.state.app_state)
+
     @app.get("/api/images/{path:path}")
     async def serve_image(path: str, request: Request):
         state = request.app.state.app_state

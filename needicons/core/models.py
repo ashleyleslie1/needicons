@@ -13,12 +13,6 @@ def _new_id() -> str:
     return uuid.uuid4().hex[:12]
 
 
-class RequirementStatus(str, Enum):
-    PENDING = "pending"
-    GENERATED = "generated"
-    ACCEPTED = "accepted"
-
-
 class GenerationMode(str, Enum):
     PRECISION = "precision"
     ECONOMY = "economy"
@@ -124,31 +118,6 @@ class ProcessingProfile(BaseModel):
     output: OutputConfig = Field(default_factory=OutputConfig)
 
 
-class Candidate(BaseModel):
-    id: str = Field(default_factory=_new_id)
-    requirement_id: str
-    source_path: str
-    preview_path: str = ""
-    origin: str = "single"  # "single" or "grid_N"
-    selected: bool = False
-
-
-class Requirement(BaseModel):
-    id: str = Field(default_factory=_new_id)
-    name: str
-    description: Optional[str] = None
-    status: RequirementStatus = RequirementStatus.PENDING
-    candidates: list[Candidate] = Field(default_factory=list)
-
-
-class Pack(BaseModel):
-    id: str = Field(default_factory=_new_id)
-    name: str
-    description: str = ""
-    style_prompt: str = ""
-    profile_id: Optional[str] = None
-    requirements: list[Requirement] = Field(default_factory=list)
-
 
 class Job(BaseModel):
     id: str = Field(default_factory=_new_id)
@@ -207,7 +176,9 @@ class GenerationRecord(BaseModel):
     prompt: str
     style: IconStyle = IconStyle.SOLID
     quality: QualityMode = QualityMode.NORMAL
+    model: str = ""
     variations: list[GenerationVariation] = Field(default_factory=list)
+    original_count: int = 0  # number of raw API response images saved for debug
     created_at: str = Field(default_factory=lambda: datetime.datetime.utcnow().isoformat())
 
 

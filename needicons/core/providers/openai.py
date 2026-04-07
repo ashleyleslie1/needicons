@@ -1,4 +1,4 @@
-"""OpenAI image generation provider (GPT-4o + DALL-E 3)."""
+"""OpenAI image generation provider (DALL-E 3, gpt-image-1.5, gpt-image-1-mini)."""
 from __future__ import annotations
 import base64
 import io
@@ -7,6 +7,8 @@ from PIL import Image
 from needicons.core.models import GenerationMode
 from needicons.core.providers.base import GenerationConfig, ImageProvider
 
+# Models that use the newer gpt-image API (transparent bg, output_format, n>1)
+_GPT_IMAGE_MODELS = {"gpt-image-1", "gpt-image-1.5", "gpt-image-1-mini"}
 
 _SYSTEM_PREFIX = (
     "You are generating icons for a consistent icon pack. "
@@ -23,7 +25,8 @@ _STYLE_PROMPTS = {
 }
 
 
-def _build_prompt(config: GenerationConfig) -> str:
+def _build_single_prompt(config: GenerationConfig) -> str:
+    """Prompt for a single icon (used by PRECISION mode and gpt-image ECONOMY)."""
     parts = [_SYSTEM_PREFIX]
     style_desc = _STYLE_PROMPTS.get(config.style.value, _STYLE_PROMPTS["solid"])
     parts.append(f"Style: {style_desc}")
@@ -32,17 +35,28 @@ def _build_prompt(config: GenerationConfig) -> str:
     subject = config.subject
     if config.description:
         subject = f"{config.subject}: {config.description}"
-    if config.mode == GenerationMode.PRECISION:
-        parts.append(
-            f"Generate exactly ONE icon of: {subject}. "
-            "Single isolated object, centered on the canvas. "
-            "Do not generate multiple icons or a grid."
-        )
-    else:
-        parts.append(
-            f"Generate exactly FOUR distinct icons of: {subject} "
-            "arranged in a 2x2 grid. Each should be a distinct variation."
-        )
+    parts.append(
+        f"Generate exactly ONE icon of: {subject}. "
+        "Single isolated object, centered on the canvas. "
+        "Do not generate multiple icons or a grid."
+    )
+    return "\n".join(parts)
+
+
+def _build_grid_prompt(config: GenerationConfig) -> str:
+    """Prompt for a 2x2 grid (DALL-E only, since it doesn't support n>1)."""
+    parts = [_SYSTEM_PREFIX]
+    style_desc = _STYLE_PROMPTS.get(config.style.value, _STYLE_PROMPTS["solid"])
+    parts.append(f"Style: {style_desc}")
+    if config.style_prompt:
+        parts.append(f"Additional style guide: {config.style_prompt}")
+    subject = config.subject
+    if config.description:
+        subject = f"{config.subject}: {config.description}"
+    parts.append(
+        f"Generate exactly FOUR distinct icons of: {subject} "
+        "arranged in a 2x2 grid. Each should be a distinct variation."
+    )
     return "\n".join(parts)
 
 
@@ -51,32 +65,58 @@ class OpenAIProvider(ImageProvider):
         self._client = AsyncOpenAI(api_key=api_key)
         self._default_model = default_model
 
+    def _is_gpt_image(self, model: str) -> bool:
+        return model in _GPT_IMAGE_MODELS or model.startswith("gpt-image")
+
     async def generate(self, config: GenerationConfig) -> list[Image.Image]:
-        prompt = _build_prompt(config)
         model = config.model or self._default_model
 
-        # dall-e-3 supports response_format=b64_json; newer models (gpt-image-1) use URL
-        kwargs: dict = {
-            "model": model,
-            "prompt": prompt,
-            "n": 1,
-            "size": config.size,
-        }
-        if model.startswith("dall-e"):
-            kwargs["response_format"] = "b64_json"
+        if self._is_gpt_image(model):
+            return await self._generate_gpt_image(model, config)
+        else:
+            return await self._generate_dalle(model, config)
 
-        response = await self._client.images.generate(**kwargs)
+    async def _generate_dalle(self, model: str, config: GenerationConfig) -> list[Image.Image]:
+        """DALL-E 3/2: n=1 only. Uses grid prompt for ECONOMY mode."""
+        if config.mode == GenerationMode.ECONOMY:
+            prompt = _build_grid_prompt(config)
+        else:
+            prompt = _build_single_prompt(config)
 
+        response = await self._client.images.generate(
+            model=model,
+            prompt=prompt,
+            n=1,
+            size=config.size,
+            response_format="b64_json",
+        )
+        images = []
+        for item in response.data:
+            data = base64.b64decode(item.b64_json)
+            images.append(Image.open(io.BytesIO(data)).convert("RGBA"))
+        return images
+
+    async def _generate_gpt_image(self, model: str, config: GenerationConfig) -> list[Image.Image]:
+        """gpt-image-1.5 / gpt-image-1-mini: supports n>1, transparent bg."""
+        prompt = _build_single_prompt(config)
+        # ECONOMY: 4 images in one call. PRECISION: 1 image per call.
+        n = 4 if config.mode == GenerationMode.ECONOMY else 1
+
+        response = await self._client.images.generate(
+            model=model,
+            prompt=prompt,
+            n=n,
+            size=config.size,
+            background="transparent",
+            output_format="png",
+        )
         images = []
         for item in response.data:
             if item.b64_json:
                 data = base64.b64decode(item.b64_json)
-                img = Image.open(io.BytesIO(data)).convert("RGBA")
-            else:
-                # URL-based response — download the image
+                images.append(Image.open(io.BytesIO(data)).convert("RGBA"))
+            elif getattr(item, "url", None):
                 import httpx
                 resp = httpx.get(item.url)
-                img = Image.open(io.BytesIO(resp.content)).convert("RGBA")
-            images.append(img)
-
+                images.append(Image.open(io.BytesIO(resp.content)).convert("RGBA"))
         return images
