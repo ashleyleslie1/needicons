@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import type { Project } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -8,9 +9,10 @@ interface ProjectItemProps {
 }
 
 export function ProjectItem({ project, isActive, onClick }: ProjectItemProps) {
+  const navigate = useNavigate();
   return (
     <button
-      onClick={onClick}
+      onClick={() => { onClick(); navigate("/"); }}
       className={cn(
         "flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors",
         isActive
