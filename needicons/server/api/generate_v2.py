@@ -103,10 +103,16 @@ async def generate_icons(request: Request):
             style=style, quality=quality,
         )
 
-        if quality == QualityMode.HQ:
-            images = await _generate_hq(provider, name, prompt, style, style_prompt)
-        else:
-            images = await _generate_normal(provider, name, prompt, style, style_prompt)
+        try:
+            if quality == QualityMode.HQ:
+                images = await _generate_hq(provider, name, prompt, style, style_prompt)
+            else:
+                images = await _generate_normal(provider, name, prompt, style, style_prompt)
+        except Exception as e:
+            msg = str(e)
+            if "401" in msg or "auth" in msg.lower() or "api key" in msg.lower():
+                raise HTTPException(status_code=401, detail="Invalid API key. Check your key in Settings.")
+            raise HTTPException(status_code=502, detail=f"Generation failed: {msg[:200]}")
 
         for i, img in enumerate(images):
             source_path = f"images/{record.id}/raw/v{i}.png"
