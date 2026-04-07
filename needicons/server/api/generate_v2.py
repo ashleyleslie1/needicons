@@ -13,14 +13,14 @@ from needicons.core.models import (
 from needicons.core.providers.base import GenerationConfig
 from needicons.core.providers.openai import OpenAIProvider
 from needicons.core.pipeline.detection import detect_icons
-from needicons.core.pipeline.normalize import CenteringStep
+from needicons.core.pipeline.normalize import CenteringStep, WeightNormalizationStep
 from needicons.core.pipeline.background import BackgroundRemovalStep
 from needicons.server.api.settings import get_api_key
 
 router = APIRouter(tags=["generate_v2"])
 
 
-def _save_image(image: Image.Image, path: str) -> None:
+def _save_image(state, image: Image.Image, path: str) -> None:
     buf = io.BytesIO()
     image.save(buf, format="PNG")
     state.data_dir.joinpath(path).parent.mkdir(parents=True, exist_ok=True)
@@ -31,10 +31,38 @@ def _save_image(image: Image.Image, path: str) -> None:
 def _make_preview(image: Image.Image, gpu_provider: str = "auto") -> Image.Image:
     bg = BackgroundRemovalStep()
     if not bg.can_skip(image, {"enabled": True}):
-        image = bg.process(image, {"model": "u2net", "alpha_matting": False, "gpu_provider": gpu_provider})
+        image = bg.process(image, {
+            "model": "isnet-general-use",
+            "alpha_matting": True,
+            "alpha_matting_foreground_threshold": 240,
+            "alpha_matting_background_threshold": 20,
+            "gpu_provider": gpu_provider,
+        })
+        # Clean up near-white residual pixels that rembg sometimes leaves
+        image = _cleanup_background(image)
+    # Normalize size so all icons fill ~80% of the preview canvas uniformly
+    wn = WeightNormalizationStep()
+    image = wn.process(image, {"enabled": True, "target_fill": 0.80})
     centering = CenteringStep()
     image = centering.process(image, {})
     return image.resize((256, 256), Image.LANCZOS)
+
+
+def _cleanup_background(image: Image.Image) -> Image.Image:
+    """Remove near-white pixels with partial transparency left by rembg."""
+    import numpy as np
+    arr = np.array(image, dtype=np.float32)
+    # Pixels that are bright (near-white) and semi-transparent are likely
+    # background remnants — fade them out proportionally.
+    rgb = arr[:, :, :3]
+    alpha = arr[:, :, 3]
+    brightness = rgb.mean(axis=2)
+    # For bright pixels (>230), reduce alpha based on how close to white they are
+    bright_mask = brightness > 230
+    fade = np.clip((brightness - 230) / 25, 0, 1)  # 0 at 230, 1 at 255
+    alpha[bright_mask] *= (1 - fade[bright_mask] * 0.8)
+    arr[:, :, 3] = alpha
+    return Image.fromarray(arr.astype(np.uint8))
 
 
 async def _generate_hq(provider, name, prompt, style, style_prompt):
@@ -59,6 +87,10 @@ async def _generate_normal(provider, name, prompt, style, style_prompt):
     raw_images = await provider.generate(config)
     if len(raw_images) >= 4:
         return raw_images[:4], raw_images
+    # Single composite image (e.g. DALL-E 2x2 grid).
+    # Split into quadrants first, then remove background per icon.
+    # This is more reliable than running rembg on the full composite
+    # (which treats 4 icons as one scene and produces bad masks).
     all_icons = []
     for img in raw_images:
         icons = detect_icons(img)
@@ -134,15 +166,15 @@ async def _run_generation(state, job: dict):
         # Save original API response for debug
         for ri, raw_img in enumerate(raw_images):
             raw_path = f"images/{record.id}/original/r{ri}.png"
-            _save_image(raw_img, raw_path)
+            _save_image(state, raw_img, raw_path)
         record.original_count = len(raw_images)
 
         for i, img in enumerate(images):
             source_path = f"images/{record.id}/raw/v{i}.png"
             preview_path = f"images/{record.id}/preview/v{i}.png"
-            _save_image(img, source_path)
+            _save_image(state, img, source_path)
             preview = _make_preview(img, gpu_provider)
-            _save_image(preview, preview_path)
+            _save_image(state, preview, preview_path)
             record.variations.append(GenerationVariation(
                 index=i, source_path=source_path, preview_path=preview_path,
             ))
