@@ -54,8 +54,9 @@ def _build_grid_prompt(config: GenerationConfig) -> str:
     if config.description:
         subject = f"{config.subject}: {config.description}"
     parts.append(
-        f"Generate exactly FOUR distinct icons of: {subject} "
-        "arranged in a 2x2 grid. Each should be a distinct variation."
+        f"Generate exactly 4 variations of: {subject}. "
+        "Arrange them in a 2x2 grid on a plain white background. "
+        "Each cell contains one icon. Do not nest grids."
     )
     return "\n".join(parts)
 
@@ -83,13 +84,16 @@ class OpenAIProvider(ImageProvider):
         else:
             prompt = _build_single_prompt(config)
 
-        response = await self._client.images.generate(
-            model=model,
-            prompt=prompt,
-            n=1,
-            size=config.size,
-            response_format="b64_json",
-        )
+        kwargs = {
+            "model": model,
+            "prompt": prompt,
+            "n": 1,
+            "size": config.size,
+            "response_format": "b64_json",
+        }
+        if config.api_quality:
+            kwargs["quality"] = config.api_quality
+        response = await self._client.images.generate(**kwargs)
         images = []
         for item in response.data:
             data = base64.b64decode(item.b64_json)
@@ -102,14 +106,17 @@ class OpenAIProvider(ImageProvider):
         # ECONOMY: 4 images in one call. PRECISION: 1 image per call.
         n = 4 if config.mode == GenerationMode.ECONOMY else 1
 
-        response = await self._client.images.generate(
-            model=model,
-            prompt=prompt,
-            n=n,
-            size=config.size,
-            background="transparent",
-            output_format="png",
-        )
+        kwargs = {
+            "model": model,
+            "prompt": prompt,
+            "n": n,
+            "size": config.size,
+            "background": "transparent",
+            "output_format": "png",
+        }
+        if config.api_quality:
+            kwargs["quality"] = config.api_quality
+        response = await self._client.images.generate(**kwargs)
         images = []
         for item in response.data:
             if item.b64_json:

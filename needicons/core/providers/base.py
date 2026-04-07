@@ -14,6 +14,7 @@ class GenerationConfig(BaseModel):
     style: IconStyle = IconStyle.SOLID
     model: str = ""
     size: str = "1024x1024"
+    api_quality: str = ""
 
 
 class ImageProvider(ABC):

@@ -177,6 +177,7 @@ class GenerationRecord(BaseModel):
     style: IconStyle = IconStyle.SOLID
     quality: QualityMode = QualityMode.NORMAL
     model: str = ""
+    api_quality: str = ""
     variations: list[GenerationVariation] = Field(default_factory=list)
     original_count: int = 0  # number of raw API response images saved for debug
     bg_removal_applied: bool = False

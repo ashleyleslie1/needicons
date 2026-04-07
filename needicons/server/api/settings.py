@@ -104,6 +104,60 @@ async def gpu_info(request: Request):
     return gpu
 
 
+# Hardcoded model capabilities — OpenAI has no API to discover these.
+_MODEL_CAPABILITIES = {
+    "gpt-image-1.5": {
+        "label": "GPT Image 1.5",
+        "description": "Best quality, transparent backgrounds",
+        "supports_n": True,
+        "max_n": 10,
+        "supports_transparent_bg": True,
+        "sizes": ["1024x1024"],
+        "qualities": ["low", "medium", "high", "auto"],
+        "economy_mode": "n=4 (single call, 4 separate images)",
+        "precision_mode": "n=1 (4 calls, 1 image each)",
+    },
+    "gpt-image-1": {
+        "label": "GPT Image 1",
+        "description": "High quality, transparent backgrounds",
+        "supports_n": True,
+        "max_n": 10,
+        "supports_transparent_bg": True,
+        "sizes": ["1024x1024"],
+        "qualities": ["low", "medium", "high", "auto"],
+        "economy_mode": "n=4 (single call, 4 separate images)",
+        "precision_mode": "n=1 (4 calls, 1 image each)",
+    },
+    "gpt-image-1-mini": {
+        "label": "GPT Image Mini",
+        "description": "Fast & cheap, transparent backgrounds",
+        "supports_n": True,
+        "max_n": 10,
+        "supports_transparent_bg": True,
+        "sizes": ["1024x1024"],
+        "qualities": ["low", "medium", "high", "auto"],
+        "economy_mode": "n=4 (single call, 4 separate images)",
+        "precision_mode": "n=1 (4 calls, 1 image each)",
+    },
+    "dall-e-3": {
+        "label": "DALL-E 3",
+        "description": "Classic, no transparent bg support",
+        "supports_n": False,
+        "max_n": 1,
+        "supports_transparent_bg": False,
+        "sizes": ["1024x1024"],
+        "qualities": ["standard", "hd"],
+        "economy_mode": "2x2 grid in single image (needs splitting)",
+        "precision_mode": "1 image per call (4 calls)",
+    },
+}
+
+
+@router.get("/models")
+async def get_model_capabilities():
+    return _MODEL_CAPABILITIES
+
+
 @router.put("/gpu")
 async def update_gpu(request: Request):
     body = await request.json()

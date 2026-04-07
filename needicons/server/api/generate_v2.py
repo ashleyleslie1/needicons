@@ -48,24 +48,24 @@ def _make_preview(image: Image.Image, gpu_provider: str = "auto") -> Image.Image
     return image.resize((256, 256), Image.LANCZOS)
 
 
-async def _generate_hq(provider, name, prompt, style, style_prompt):
+async def _generate_hq(provider, name, prompt, style, style_prompt, api_quality=""):
     images = []
     for _ in range(4):
         config = GenerationConfig(
             style_prompt=style_prompt, subject=name,
             description=prompt if prompt != name else "",
-            mode=GenerationMode.PRECISION, style=style,
+            mode=GenerationMode.PRECISION, style=style, api_quality=api_quality,
         )
         result = await provider.generate(config)
         images.extend(result)
     return images, images
 
 
-async def _generate_normal(provider, name, prompt, style, style_prompt):
+async def _generate_normal(provider, name, prompt, style, style_prompt, api_quality=""):
     config = GenerationConfig(
         style_prompt=style_prompt, subject=name,
         description=prompt if prompt != name else "",
-        mode=GenerationMode.ECONOMY, style=style,
+        mode=GenerationMode.ECONOMY, style=style, api_quality=api_quality,
     )
     raw_images = await provider.generate(config)
     if len(raw_images) >= 4:
@@ -94,6 +94,7 @@ async def _run_generation(state, job: dict):
     quality = QualityMode(params["quality"])
     project_id = params.get("project_id", "")
     default_model = params["model"]
+    api_quality = params.get("api_quality", "")
     style_prompt = ""
     completed_idx = job.get("completed_idx", -1)
     gpu_provider = state.config.get("gpu", {}).get("provider", "auto")
@@ -122,14 +123,14 @@ async def _run_generation(state, job: dict):
 
         record = GenerationRecord(
             project_id=project_id, name=name, prompt=prompt,
-            style=style, quality=quality, model=default_model,
+            style=style, quality=quality, model=default_model, api_quality=api_quality,
         )
 
         try:
             if quality == QualityMode.HQ:
-                images, raw_images = await _generate_hq(provider, name, prompt, style, style_prompt)
+                images, raw_images = await _generate_hq(provider, name, prompt, style, style_prompt, api_quality=api_quality)
             else:
-                images, raw_images = await _generate_normal(provider, name, prompt, style, style_prompt)
+                images, raw_images = await _generate_normal(provider, name, prompt, style, style_prompt, api_quality=api_quality)
         except Exception as e:
             msg = str(e)
             if "401" in msg or "auth" in msg.lower() or "api key" in msg.lower():
@@ -199,6 +200,7 @@ async def generate_icons(request: Request):
 
     style = IconStyle(body.get("style", "solid"))
     quality = QualityMode(body.get("quality", "normal"))
+    api_quality = body.get("api_quality", "")
 
     api_key = get_api_key(state)
     if not api_key:
@@ -225,6 +227,7 @@ async def generate_icons(request: Request):
             "quality": quality.value,
             "model": default_model,
             "project_id": project_id,
+            "api_quality": api_quality,
         },
         "completed_idx": -1,
         "events": [],
