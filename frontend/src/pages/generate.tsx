@@ -88,9 +88,15 @@ export function GeneratePage() {
 
       <ScrollArea className="flex-1">
         <div className="p-8">
+          {generateIcons.isPending && (
+            <div className="mb-4 flex items-center gap-3 rounded-xl border border-accent/30 bg-accent/5 p-4">
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+              <span className="text-sm text-foreground">Generating icons...</span>
+            </div>
+          )}
           {history && history.length > 0 ? (
             <ResultsHistory records={history} />
-          ) : (
+          ) : !generateIcons.isPending ? (
             <div className="flex flex-col items-center justify-center py-20 text-center">
               <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-muted text-2xl">
                 {"\u2726"}
@@ -100,7 +106,7 @@ export function GeneratePage() {
                 Type an icon name above and hit Generate. You'll get 4 variations to pick from.
               </p>
             </div>
-          )}
+          ) : null}
         </div>
       </ScrollArea>
 

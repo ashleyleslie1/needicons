@@ -37,7 +37,7 @@ def create_app(
     @app.get("/api/images/{path:path}")
     async def serve_image(path: str, request: Request):
         state = request.app.state.app_state
-        file_path = state.data_dir / "images" / path
+        file_path = state.data_dir / path
         if not file_path.is_file():
             raise HTTPException(status_code=404, detail="Image not found")
         return FastFileResponse(file_path)
