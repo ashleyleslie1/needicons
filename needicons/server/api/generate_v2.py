@@ -15,6 +15,7 @@ from needicons.core.providers.openai import OpenAIProvider
 from needicons.core.pipeline.detection import detect_icons
 from needicons.core.pipeline.normalize import CenteringStep
 from needicons.core.pipeline.background import BackgroundRemovalStep
+from needicons.server.api.settings import get_api_key
 
 router = APIRouter(tags=["generate_v2"])
 
@@ -81,8 +82,7 @@ async def _run_generation(state, job: dict):
     style_prompt = ""
     completed_idx = job.get("completed_idx", -1)
 
-    provider_config = state.config.get("provider", {})
-    api_key = provider_config.get("api_key", "")
+    api_key = get_api_key(state)
     if not api_key:
         _emit(job, "error", {"message": "No API key configured"})
         job["status"] = "failed"
@@ -184,11 +184,11 @@ async def generate_icons(request: Request):
     style = IconStyle(body.get("style", "solid"))
     quality = QualityMode(body.get("quality", "normal"))
 
-    provider_config = state.config.get("provider", {})
-    api_key = provider_config.get("api_key", "")
+    api_key = get_api_key(state)
     if not api_key:
         raise HTTPException(status_code=400, detail="No API key configured")
 
+    provider_config = state.config.get("provider", {})
     default_model = provider_config.get("default_model", "dall-e-3")
 
     if project_id:

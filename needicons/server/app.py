@@ -42,7 +42,9 @@ def create_app(
     @app.get("/api/images/{path:path}")
     async def serve_image(path: str, request: Request):
         state = request.app.state.app_state
-        file_path = state.data_dir / path
+        file_path = (state.data_dir / path).resolve()
+        if not file_path.is_relative_to(state.data_dir.resolve()):
+            raise HTTPException(status_code=403, detail="Forbidden")
         if not file_path.is_file():
             raise HTTPException(status_code=404, detail="Image not found")
         return FastFileResponse(file_path)
@@ -56,7 +58,9 @@ def create_app(
         async def serve_spa(full_path: str):
             if full_path.startswith("api/"):
                 raise HTTPException(status_code=404, detail="Not found")
-            file_path = frontend_dist / full_path
+            file_path = (frontend_dist / full_path).resolve()
+            if not file_path.is_relative_to(frontend_dist.resolve()):
+                raise HTTPException(status_code=403, detail="Forbidden")
             if file_path.is_file():
                 return FileResponse(file_path)
             return FileResponse(frontend_dist / "index.html")
