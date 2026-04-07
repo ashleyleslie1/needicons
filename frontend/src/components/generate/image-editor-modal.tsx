@@ -186,39 +186,29 @@ export function ImageEditorModal({ record, variationIndex, open, onOpenChange }:
               <p className="text-[10px] text-muted-foreground mt-0.5">{record.style} / {record.model || "default"}</p>
             </div>
 
-            {/* Tool buttons + controls — scrollable */}
-            <div className="flex-1 overflow-y-auto min-h-0">
-            <div className="p-2 space-y-1">
+            {/* Tool buttons — compact icon row */}
+            <div className="flex flex-wrap gap-1 p-2 border-b border-border">
               {tools.map((tool) => (
                 <button
                   key={tool.id}
                   onClick={() => setActiveTool(activeTool === tool.id ? null : tool.id)}
+                  title={`${tool.label} — ${tool.desc}`}
                   className={cn(
-                    "w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors",
+                    "relative flex flex-col items-center gap-0.5 rounded-lg px-2.5 py-2 transition-colors",
                     activeTool === tool.id
-                      ? "bg-accent/10 border border-accent/30"
-                      : "bg-muted/30 border border-transparent hover:bg-muted/60 hover:border-border",
+                      ? "bg-accent/10 border border-accent/30 text-accent"
+                      : "bg-muted/30 border border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground",
                   )}
                 >
-                  <div className={cn("shrink-0", activeTool === tool.id ? "text-accent" : "text-muted-foreground")}>
-                    {toolIcons[tool.id]}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className={cn(
-                      "text-xs font-medium",
-                      activeTool === tool.id ? "text-accent" : "text-foreground",
-                    )}>
-                      {tool.label}
-                    </div>
-                    <div className="text-[10px] text-muted-foreground">{tool.desc}</div>
-                  </div>
-                  {tool.active && <span className="w-2 h-2 rounded-full bg-accent shrink-0" />}
+                  {toolIcons[tool.id]}
+                  <span className="text-[9px] font-medium leading-none">{tool.label}</span>
+                  {tool.active && <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-accent" />}
                 </button>
               ))}
             </div>
 
-            {/* Active tool controls */}
-            <div className="px-3 pb-3">
+            {/* Active tool controls — fixed area */}
+            <div className="flex-1 px-3 py-3 overflow-hidden">
               {activeTool === "bg" && (
                 <div className="rounded-lg bg-muted/30 border border-border p-3 space-y-3">
                   <div className="flex items-center justify-between">
@@ -393,8 +383,6 @@ export function ImageEditorModal({ record, variationIndex, open, onOpenChange }:
                 </div>
               )}
             </div>
-
-            </div>{/* end scrollable wrapper */}
 
             {/* Info footer */}
             <div className="shrink-0 border-t border-border px-4 py-3 space-y-1.5">
