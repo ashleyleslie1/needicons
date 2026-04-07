@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect, memo } from "react";
 import type { GenerationRecord } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { usePickVariation, useUnpickVariation, useDeleteGeneration } from "@/hooks/api/use-generate-v2";
+import { usePickVariation, useUnpickVariation, useDeleteGeneration, useRemoveBackground } from "@/hooks/api/use-generate-v2";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Slider } from "@/components/ui/slider";
 import {
   Dialog,
   DialogContent,
@@ -50,6 +52,13 @@ export const GenerationRow = memo(function GenerationRow({ record, layout, onReg
   const pickVariation = usePickVariation();
   const unpickVariation = useUnpickVariation();
   const deleteGeneration = useDeleteGeneration();
+  const removeBackground = useRemoveBackground();
+
+  // BG removal local state — initialized from the record
+  const [bgEnabled, setBgEnabled] = useState(record.bg_removal_applied);
+  const [bgAggressiveness, setBgAggressiveness] = useState(record.bg_removal_aggressiveness);
+  const bgProcessing = removeBackground.isPending;
+
   const timeAgo = getTimeAgo(record.created_at);
   const [inspectOpen, setInspectOpen] = useState(false);
   const [showDebug, setShowDebug] = useState(false);
@@ -68,7 +77,34 @@ export const GenerationRow = memo(function GenerationRow({ record, layout, onReg
     deleteGeneration.mutate(record.id);
   }
 
-  const busy = pickVariation.isPending || unpickVariation.isPending || deleteGeneration.isPending;
+  function handleBgToggle(checked: boolean) {
+    setBgEnabled(checked);
+    removeBackground.mutate({
+      generationId: record.id,
+      enabled: checked,
+      aggressiveness: bgAggressiveness,
+    });
+  }
+
+  function handleBgAggressivenessCommit(value: number[]) {
+    const newValue = value[0];
+    setBgAggressiveness(newValue);
+    if (bgEnabled) {
+      removeBackground.mutate({
+        generationId: record.id,
+        enabled: true,
+        aggressiveness: newValue,
+      });
+    }
+  }
+
+  function getStrategyLabel(value: number): string {
+    if (value <= 30) return "Lite";
+    if (value <= 70) return "Medium";
+    return "Aggressive";
+  }
+
+  const busy = pickVariation.isPending || unpickVariation.isPending || deleteGeneration.isPending || bgProcessing;
   const hasOriginals = record.original_count > 0;
   const isGrid = layout === "grid";
 
@@ -85,21 +121,24 @@ export const GenerationRow = memo(function GenerationRow({ record, layout, onReg
         onMouseEnter={() => hasOriginals && setShowDebug(true)}
         onMouseLeave={() => setShowDebug(false)}
       >
-        <div className={cn("flex items-center gap-2", isGrid ? "mb-2" : "mb-3")}>
+        <div className={cn("flex items-center gap-2 flex-wrap", isGrid ? "mb-2" : "mb-3")}>
+          <span className="text-sm font-semibold text-foreground truncate">
+            {record.name}
+          </span>
+          <Badge variant="secondary" className="text-[10px]">{record.style}</Badge>
+          <Badge variant="secondary" className="text-[10px]">{record.quality.toUpperCase()}</Badge>
+          {record.model && <Badge variant="secondary" className="text-[10px]">{record.model}</Badge>}
+          <span className="ml-auto text-xs text-muted-foreground">{timeAgo}</span>
           <button
             onClick={() => setInspectOpen(true)}
-            className="text-sm font-semibold text-foreground hover:text-accent transition-colors truncate"
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-muted-foreground/60 transition-colors hover:bg-muted hover:text-foreground"
+            title="Generation details"
           >
-            {record.name}
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <circle cx="8" cy="8" r="6.5" />
+              <path d="M8 7v4M8 5.5v-.01" strokeLinecap="round" />
+            </svg>
           </button>
-          {!isGrid && (
-            <>
-              <Badge variant="secondary" className="text-[10px]">{record.style}</Badge>
-              <Badge variant="secondary" className="text-[10px]">{record.quality.toUpperCase()}</Badge>
-              {record.model && <Badge variant="secondary" className="text-[10px]">{record.model}</Badge>}
-            </>
-          )}
-          <span className="ml-auto text-xs text-muted-foreground">{timeAgo}</span>
           <button
             onClick={handleDelete}
             disabled={deleteGeneration.isPending}
@@ -108,6 +147,47 @@ export const GenerationRow = memo(function GenerationRow({ record, layout, onReg
           >
             {"\u00D7"}
           </button>
+        </div>
+
+        {/* BG Removal controls */}
+        <div className={cn(
+          "flex items-center gap-3 rounded-lg bg-muted/40 px-3 py-1.5",
+          isGrid ? "mb-2" : "mb-3",
+        )}>
+          <div className="flex items-center gap-2">
+            <Switch
+              checked={bgEnabled}
+              onCheckedChange={handleBgToggle}
+              disabled={bgProcessing}
+              className="scale-90"
+            />
+            <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">
+              BG Remove
+            </span>
+          </div>
+          <div className="flex flex-1 items-center gap-2 min-w-[120px]">
+            <Slider
+              value={[bgAggressiveness]}
+              onValueCommit={handleBgAggressivenessCommit}
+              onValueChange={(v) => setBgAggressiveness(v[0])}
+              min={0}
+              max={100}
+              step={1}
+              disabled={!bgEnabled || bgProcessing}
+              className="flex-1"
+            />
+            <span className={cn(
+              "text-[10px] font-medium tabular-nums w-16 text-right",
+              bgEnabled ? "text-foreground" : "text-muted-foreground/50",
+            )}>
+              {getStrategyLabel(bgAggressiveness)}
+            </span>
+          </div>
+          {bgProcessing && (
+            <svg className="h-3.5 w-3.5 animate-spin text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10" strokeDasharray="60" strokeDashoffset="20" strokeLinecap="round" />
+            </svg>
+          )}
         </div>
 
         <div className={cn(
@@ -128,7 +208,7 @@ export const GenerationRow = memo(function GenerationRow({ record, layout, onReg
               )}
             >
               <img
-                src={`/api/images/${variation.preview_path}`}
+                src={`/api/images/${variation.preview_path}?bg=${record.bg_removal_applied ? record.bg_removal_aggressiveness : "off"}`}
                 alt={`${record.name} v${variation.index + 1}`}
                 className="h-full w-full object-contain bg-muted/30"
                 loading="lazy"
@@ -140,6 +220,13 @@ export const GenerationRow = memo(function GenerationRow({ record, layout, onReg
               {variation.picked && (
                 <div className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-accent text-[10px] text-white shadow-sm">
                   {"\u2713"}
+                </div>
+              )}
+              {bgProcessing && (
+                <div className="absolute inset-0 flex items-center justify-center bg-background/60 backdrop-blur-[1px]">
+                  <svg className="h-5 w-5 animate-spin text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="12" cy="12" r="10" strokeDasharray="60" strokeDashoffset="20" strokeLinecap="round" />
+                  </svg>
                 </div>
               )}
             </button>
@@ -218,7 +305,7 @@ export const GenerationRow = memo(function GenerationRow({ record, layout, onReg
               {record.variations.map((variation) => (
                 <div key={variation.index} className="relative">
                   <img
-                    src={`/api/images/${variation.preview_path}`}
+                    src={`/api/images/${variation.preview_path}?bg=${record.bg_removal_applied ? record.bg_removal_aggressiveness : "off"}`}
                     alt={`v${variation.index + 1}`}
                     className={cn(
                       "h-32 w-32 rounded-lg border-2 object-contain bg-muted/30",
