@@ -2,7 +2,8 @@
 from __future__ import annotations
 from pathlib import Path
 from typing import Optional
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import FileResponse as FastFileResponse
 from needicons.server.deps import AppState
 from needicons.server.storage.base import StorageBackend
 from needicons.server.storage.local import LocalStorage
@@ -32,6 +33,14 @@ def create_app(
     app = FastAPI(title="NeedIcons", version="0.1.0")
     app.state.app_state = AppState(storage=storage, queue=queue, auth=auth, data_dir=data_dir)
     app.include_router(api_router)
+
+    @app.get("/api/images/{path:path}")
+    async def serve_image(path: str, request: Request):
+        state = request.app.state.app_state
+        file_path = state.data_dir / "images" / path
+        if not file_path.is_file():
+            raise HTTPException(status_code=404, detail="Image not found")
+        return FastFileResponse(file_path)
 
     # Serve frontend static files if dist/ exists
     frontend_dist = Path(__file__).parent.parent.parent / "frontend" / "dist"

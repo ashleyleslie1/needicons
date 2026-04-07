@@ -30,10 +30,13 @@ class AppState:
         packs_file = self.data_dir / "packs.yaml"
         profiles_file = self.data_dir / "profiles.yaml"
         if packs_file.exists():
-            with open(packs_file) as f:
-                raw = yaml.safe_load(f) or {}
-                from needicons.core.models import Pack
-                self.packs = {k: Pack(**v) for k, v in raw.items()}
+            try:
+                with open(packs_file) as f:
+                    raw = yaml.safe_load(f) or {}
+                    from needicons.core.models import Pack
+                    self.packs = {k: Pack(**v) for k, v in raw.items()}
+            except (yaml.YAMLError, Exception):
+                self.packs = {}  # Corrupt/incompatible packs file — start fresh
         if profiles_file.exists():
             with open(profiles_file) as f:
                 raw = yaml.safe_load(f) or {}
