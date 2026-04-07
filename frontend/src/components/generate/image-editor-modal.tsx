@@ -186,15 +186,15 @@ export function ImageEditorModal({ record, variationIndex, open, onOpenChange }:
               <p className="text-[10px] text-muted-foreground mt-0.5">{record.style} / {record.model || "default"}</p>
             </div>
 
-            {/* Tool buttons — compact icon row */}
-            <div className="flex flex-wrap gap-1 p-2 border-b border-border">
+            {/* Tool buttons — 3x2 grid */}
+            <div className="grid grid-cols-3 gap-1 p-2 border-b border-border">
               {tools.map((tool) => (
                 <button
                   key={tool.id}
                   onClick={() => setActiveTool(activeTool === tool.id ? null : tool.id)}
-                  title={`${tool.label} — ${tool.desc}`}
+                  title={tool.desc}
                   className={cn(
-                    "relative flex flex-col items-center gap-0.5 rounded-lg px-2.5 py-2 transition-colors",
+                    "relative flex flex-col items-center justify-center gap-1 rounded-lg py-2.5 transition-colors",
                     activeTool === tool.id
                       ? "bg-accent/10 border border-accent/30 text-accent"
                       : "bg-muted/30 border border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground",
