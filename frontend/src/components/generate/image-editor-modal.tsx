@@ -82,7 +82,7 @@ export function ImageEditorModal({ record, variationIndex, open, onOpenChange }:
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl p-0 gap-0 overflow-hidden border-border">
+      <DialogContent className="max-w-4xl p-0 gap-0 overflow-hidden border-border bg-background">
         <div className="flex" style={{ minHeight: "540px" }}>
           {/* Left: Image preview with checkerboard */}
           <div className="flex-1 flex flex-col relative">
@@ -147,7 +147,7 @@ export function ImageEditorModal({ record, variationIndex, open, onOpenChange }:
             )}
 
             {/* Bottom bar */}
-            <div className="flex items-center gap-3 border-t border-border px-4 py-3 bg-card/50">
+            <div className="flex items-center gap-3 border-t border-border px-4 py-3 bg-background">
               <Button
                 variant={variation.picked ? "default" : "outline"}
                 size="sm"
@@ -169,7 +169,7 @@ export function ImageEditorModal({ record, variationIndex, open, onOpenChange }:
           </div>
 
           {/* Right: Tools sidebar */}
-          <div className="w-[240px] shrink-0 border-l border-border flex flex-col bg-card/80">
+          <div className="w-[240px] shrink-0 border-l border-border flex flex-col bg-background">
             {/* Header */}
             <div className="px-4 py-3 border-b border-border">
               <h3 className="text-sm font-semibold text-foreground">Edit</h3>
