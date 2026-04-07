@@ -64,6 +64,20 @@ def _has_transparency(image: Image.Image, threshold: float = 0.05) -> bool:
     return bool(transparent_ratio > threshold)
 
 
+def _is_bimodal_alpha(image: Image.Image, threshold: float = 0.80) -> bool:
+    """Check if alpha channel is bimodal (clean transparency — most pixels fully opaque or fully transparent).
+
+    Returns True if >= threshold fraction of pixels have alpha < 10 or alpha > 245.
+    This detects images that already have clean transparency and don't need aggressive BG removal.
+    Also returns True for fully opaque or RGB images (all pixels count as alpha > 245).
+    """
+    if image.mode != "RGBA":
+        return True  # No alpha channel = all pixels effectively opaque = bimodal
+    alpha = np.array(image.split()[3])
+    extreme_ratio = np.sum((alpha < 10) | (alpha > 245)) / alpha.size
+    return bool(extreme_ratio >= threshold)
+
+
 def _color_threshold_remove(image: Image.Image, aggressiveness: int) -> Image.Image:
     """Lite strategy (0-30): detect bg color from corners, remove within color distance."""
     arr = np.array(image.convert("RGBA"), dtype=np.float32)

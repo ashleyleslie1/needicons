@@ -6,6 +6,7 @@ from needicons.core.pipeline.background import (
     BackgroundRemovalStep,
     remove_background,
     _color_threshold_remove,
+    _is_bimodal_alpha,
 )
 
 
@@ -102,3 +103,39 @@ def test_color_threshold_preserves_transparency(icon_on_transparent):
     result = _color_threshold_remove(icon_on_transparent, 15)
     corner_alpha = result.getpixel((0, 0))[3]
     assert corner_alpha == 0
+
+
+def test_bimodal_alpha_clean_transparent():
+    """Image with fully opaque foreground + fully transparent background is bimodal."""
+    img = Image.new("RGBA", (128, 128), (0, 0, 0, 0))
+    for x in range(30, 98):
+        for y in range(30, 98):
+            img.putpixel((x, y), (255, 0, 0, 255))
+    assert _is_bimodal_alpha(img) is True
+
+
+def test_bimodal_alpha_all_opaque():
+    """Fully opaque image is bimodal (all pixels alpha > 245)."""
+    img = Image.new("RGBA", (128, 128), (255, 255, 255, 255))
+    assert _is_bimodal_alpha(img) is True
+
+
+def test_bimodal_alpha_gradient_not_bimodal():
+    """Image with gradual alpha gradient is NOT bimodal."""
+    arr = np.zeros((128, 128, 4), dtype=np.uint8)
+    arr[:, :, 0] = 200
+    arr[:, :, 3] = np.linspace(0, 255, 128, dtype=np.uint8)[np.newaxis, :]
+    img = Image.fromarray(arr)
+    assert _is_bimodal_alpha(img) is False
+
+
+def test_bimodal_alpha_partial_transparency():
+    """Image where many pixels have mid-range alpha is NOT bimodal."""
+    img = Image.new("RGBA", (128, 128), (100, 100, 100, 128))
+    assert _is_bimodal_alpha(img) is False
+
+
+def test_bimodal_alpha_rgb_input():
+    """RGB image (no alpha) should return True (all pixels effectively opaque)."""
+    img = Image.new("RGB", (128, 128), (255, 0, 0))
+    assert _is_bimodal_alpha(img) is True
