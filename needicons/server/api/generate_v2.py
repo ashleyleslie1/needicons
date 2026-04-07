@@ -368,13 +368,18 @@ async def remove_generation_bg(gen_id: str, request: Request):
         state.save_data()
 
     if level == 0:
+        from needicons.core.pipeline.normalize import CenteringStep, WeightNormalizationStep
         for variation in record.variations:
             original_path = f"images/{record.id}/original/r{variation.index}.png"
             full_original = state.data_dir / original_path
             if full_original.exists():
                 raw_img = Image.open(full_original).convert("RGBA")
                 _save_image(state, raw_img, variation.source_path)
-                preview = _make_preview(raw_img, gpu_provider)
+                wn = WeightNormalizationStep()
+                preview = wn.process(raw_img, {"enabled": True, "target_fill": 0.80})
+                centering = CenteringStep()
+                preview = centering.process(preview, {})
+                preview = preview.resize((256, 256), Image.LANCZOS)
                 _save_image(state, preview, variation.preview_path)
         record.bg_removal_level = 0
         state.save_data()

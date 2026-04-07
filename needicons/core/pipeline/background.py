@@ -102,17 +102,23 @@ def _color_threshold_remove(image: Image.Image, level: int) -> Image.Image:
 
 
 def _rembg_medium_remove(image: Image.Image, level: int, gpu_provider: str = "auto") -> Image.Image:
-    """Medium strategy (levels 4-7): rembg isnet-general-use + alpha matting."""
+    """Medium strategy (levels 4-7): rembg isnet-general-use + alpha matting.
+
+    Falls back to no-matting if the system lacks sufficient memory for pymatting.
+    """
     from rembg import remove
     fg_threshold = int(240 - (level - 4) * 15)
     bg_threshold = int(10 + (level - 4) * 12)
     providers = _get_onnx_providers(gpu_provider)
     session = _get_session("isnet-general-use", providers)
-    result = remove(
-        image, session=session, alpha_matting=True,
-        alpha_matting_foreground_threshold=fg_threshold,
-        alpha_matting_background_threshold=bg_threshold,
-    )
+    try:
+        result = remove(
+            image, session=session, alpha_matting=True,
+            alpha_matting_foreground_threshold=fg_threshold,
+            alpha_matting_background_threshold=bg_threshold,
+        )
+    except MemoryError:
+        result = remove(image, session=session, alpha_matting=False)
     return result.convert("RGBA")
 
 
@@ -126,17 +132,23 @@ def _rembg_medium_remove_no_matting(image: Image.Image, gpu_provider: str = "aut
 
 
 def _rembg_aggressive_remove(image: Image.Image, level: int, gpu_provider: str = "auto") -> Image.Image:
-    """Aggressive strategy (levels 8-10): rembg u2net + tight alpha matting."""
+    """Aggressive strategy (levels 8-10): rembg u2net + tight alpha matting.
+
+    Falls back to no-matting if the system lacks sufficient memory for pymatting.
+    """
     from rembg import remove
     fg_threshold = int(220 - (level - 8) * 20)
     bg_threshold = int(30 + (level - 8) * 15)
     providers = _get_onnx_providers(gpu_provider)
     session = _get_session("u2net", providers)
-    result = remove(
-        image, session=session, alpha_matting=True,
-        alpha_matting_foreground_threshold=fg_threshold,
-        alpha_matting_background_threshold=bg_threshold,
-    )
+    try:
+        result = remove(
+            image, session=session, alpha_matting=True,
+            alpha_matting_foreground_threshold=fg_threshold,
+            alpha_matting_background_threshold=bg_threshold,
+        )
+    except MemoryError:
+        result = remove(image, session=session, alpha_matting=False)
     return result.convert("RGBA")
 
 
@@ -204,7 +216,10 @@ class BackgroundRemovalStep(PipelineStep):
                 "alpha_matting_background_threshold", 10
             )
 
-        result = remove(image, session=session, **kwargs)
+        try:
+            result = remove(image, session=session, **kwargs)
+        except MemoryError:
+            result = remove(image, session=session, alpha_matting=False)
         return result.convert("RGBA")
 
 

@@ -95,3 +95,59 @@ async def test_full_workflow(tmp_path):
         assert resp.status_code == 200
         resp = await c.get(f"/api/projects/{project_id}")
         assert len(resp.json()["icons"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_bg_removal_level_flow(tmp_path):
+    """Integration test: apply BG removal at different levels, then restore."""
+    app = create_app(data_dir=tmp_path / "data")
+    state = app.state.app_state
+
+    from needicons.core.models import GenerationRecord, GenerationVariation
+    gen_id = "bg-test-gen"
+    record = GenerationRecord(id=gen_id, project_id="", name="BGTest", prompt="test")
+
+    for i in range(2):
+        source_path = f"images/{gen_id}/raw/v{i}.png"
+        preview_path = f"images/{gen_id}/preview/v{i}.png"
+        original_path = f"images/{gen_id}/original/r{i}.png"
+
+        img = Image.new("RGBA", (256, 256), (255, 255, 255, 255))
+        for x in range(78, 178):
+            for y in range(78, 178):
+                img.putpixel((x, y), (255, 0, 0, 255))
+
+        for path in [source_path, preview_path, original_path]:
+            full = state.data_dir / path
+            full.parent.mkdir(parents=True, exist_ok=True)
+            buf = io.BytesIO()
+            img.save(buf, format="PNG")
+            with open(full, "wb") as f:
+                f.write(buf.getvalue())
+
+        record.variations.append(GenerationVariation(
+            index=i, source_path=source_path, preview_path=preview_path,
+        ))
+
+    state.generation_records[gen_id] = record
+    state.save_data()
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as c:
+        # Apply level 2 (lite color threshold)
+        resp = await c.post(f"/api/generations/{gen_id}/remove-bg", json={
+            "level": 2,
+            "request_id": "req-1",
+        })
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["bg_removal_level"] == 2
+
+        # Restore (level 0)
+        resp = await c.post(f"/api/generations/{gen_id}/remove-bg", json={
+            "level": 0,
+            "request_id": "req-2",
+        })
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["bg_removal_level"] == 0
