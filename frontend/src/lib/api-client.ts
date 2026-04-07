@@ -2,6 +2,9 @@ import type {
   ProcessingProfile,
   SettingsResponse,
   GpuResponse,
+  RunPodConfig,
+  RunPodTestResult,
+  ProcessingLogEntry,
   Project,
   GenerateIconsRequest,
   GenerationRecord,
@@ -101,6 +104,33 @@ export const api = {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ provider }),
+    });
+  },
+
+  getRunPodConfig(): Promise<RunPodConfig> {
+    return request<RunPodConfig>("/settings/runpod");
+  },
+
+  updateRunPodConfig(data: Partial<{ enabled: boolean; api_key: string; endpoint_id: string }>): Promise<{ status: string }> {
+    return request<{ status: string }>("/settings/runpod", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
+
+  testRunPodConnection(): Promise<RunPodTestResult> {
+    return request<RunPodTestResult>("/settings/runpod/test", {
+      method: "POST",
+    });
+  },
+
+  getProcessingLog(): Promise<{ entries: ProcessingLogEntry[] }> {
+    return request<{ entries: ProcessingLogEntry[] }>("/settings/processing-log");
+  },
+
+  clearProcessingLog(): Promise<{ status: string }> {
+    return request<{ status: string }>("/settings/processing-log", {
+      method: "DELETE",
     });
   },
 

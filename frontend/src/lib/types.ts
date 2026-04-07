@@ -119,6 +119,27 @@ export interface GpuResponse {
   preference: string;
 }
 
+export interface RunPodConfig {
+  enabled: boolean;
+  api_key: string;
+  api_key_set: boolean;
+  endpoint_id: string;
+}
+
+export interface RunPodTestResult {
+  status: "connected" | "error";
+  health?: Record<string, unknown>;
+  error?: string;
+}
+
+export interface ProcessingLogEntry {
+  timestamp: string;
+  operation: string;
+  backend: string;
+  duration_ms: number;
+  detail: string;
+}
+
 // --- New UX Redesign Types ---
 
 export type IconStyle = "solid" | "outline" | "color" | "flat" | "sticker";

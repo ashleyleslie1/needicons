@@ -44,3 +44,36 @@ export function useModelCapabilities() {
     staleTime: 60 * 60 * 1000,
   });
 }
+
+export function useRunPodConfig() {
+  return useQuery({
+    queryKey: ["runpod-config"],
+    queryFn: () => api.getRunPodConfig(),
+  });
+}
+
+export function useUpdateRunPodConfig() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Partial<{ enabled: boolean; api_key: string; endpoint_id: string }>) =>
+      api.updateRunPodConfig(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["runpod-config"] });
+      queryClient.invalidateQueries({ queryKey: ["settings"] });
+    },
+  });
+}
+
+export function useTestRunPodConnection() {
+  return useMutation({
+    mutationFn: () => api.testRunPodConnection(),
+  });
+}
+
+export function useProcessingLog() {
+  return useQuery({
+    queryKey: ["processing-log"],
+    queryFn: () => api.getProcessingLog(),
+    refetchInterval: 10000,
+  });
+}

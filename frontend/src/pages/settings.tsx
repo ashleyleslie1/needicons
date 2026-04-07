@@ -3,6 +3,7 @@ import { Panel } from "@/components/layout/panel";
 import { Canvas } from "@/components/layout/canvas";
 import { AiProviderSettings } from "@/components/settings/ai-provider";
 import { GpuSettings } from "@/components/settings/gpu-settings";
+import { RunPodSettings } from "@/components/settings/runpod-settings";
 import { AppearanceSettings } from "@/components/settings/appearance";
 import { AboutSettings } from "@/components/settings/about";
 import { cn } from "@/lib/utils";
@@ -10,6 +11,7 @@ import { cn } from "@/lib/utils";
 const SETTINGS_TABS = [
   { id: "provider", label: "AI Provider" },
   { id: "gpu", label: "GPU / Performance" },
+  { id: "runpod", label: "RunPod" },
   { id: "appearance", label: "Appearance" },
   { id: "about", label: "About" },
 ];
@@ -20,6 +22,8 @@ function SettingsContent({ tab }: { tab: string }) {
       return <AiProviderSettings />;
     case "gpu":
       return <GpuSettings />;
+    case "runpod":
+      return <RunPodSettings />;
     case "appearance":
       return <AppearanceSettings />;
     case "about":
