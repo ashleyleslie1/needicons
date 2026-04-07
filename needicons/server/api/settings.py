@@ -24,14 +24,15 @@ def _detect_gpu() -> dict:
 @router.get("")
 async def get_settings(request: Request):
     state = request.app.state.app_state
-    config = state.config.copy()
-    if "provider" in config and config["provider"].get("api_key"):
-        key = config["provider"]["api_key"]
-        config["provider"]["api_key_set"] = True
-        config["provider"]["api_key"] = key[:8] + "..." if len(key) > 8 else "***"
-    else:
-        config.setdefault("provider", {})["api_key_set"] = False
-    return config
+    provider = state.config.get("provider", {})
+    api_key = provider.get("api_key", "")
+    return {
+        "provider": {
+            "api_key": (api_key[:8] + "..." if len(api_key) > 8 else "***") if api_key else "",
+            "api_key_set": bool(api_key),
+            "default_model": provider.get("default_model", "gpt-4o"),
+        }
+    }
 
 
 @router.put("/provider")
