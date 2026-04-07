@@ -31,7 +31,7 @@ export function ToolPanel({ record, onColorAdjust, onEdgeCleanup, onUpscale, onD
   ];
 
   return (
-    <div className="rounded-lg bg-muted/30 border border-border p-2 space-y-2">
+    <div className="rounded-lg bg-black/20 border border-border p-2 space-y-2">
       {/* Tool tabs */}
       <div className="flex gap-1">
         {tools.map((tool) => (
@@ -40,7 +40,7 @@ export function ToolPanel({ record, onColorAdjust, onEdgeCleanup, onUpscale, onD
             variant={expanded === tool.id ? "secondary" : "ghost"}
             size="sm"
             className={cn(
-              "h-6 px-2.5 text-[10px] font-medium relative",
+              "h-6 px-2.5 text-[10px] font-medium relative rounded-md",
               expanded === tool.id && "bg-accent/15 text-accent",
             )}
             onClick={() => setExpanded(expanded === tool.id ? null : tool.id)}
