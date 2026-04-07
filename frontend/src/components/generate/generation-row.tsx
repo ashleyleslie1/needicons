@@ -4,7 +4,6 @@ import { cn } from "@/lib/utils";
 import { usePickVariation, useUnpickVariation, useDeleteGeneration, useRemoveBackground } from "@/hooks/api/use-generate-v2";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import {
   Dialog,
@@ -55,8 +54,7 @@ export const GenerationRow = memo(function GenerationRow({ record, layout, onReg
   const removeBackground = useRemoveBackground();
 
   // BG removal local state — initialized from the record
-  const [bgEnabled, setBgEnabled] = useState(record.bg_removal_applied);
-  const [bgAggressiveness, setBgAggressiveness] = useState(record.bg_removal_aggressiveness);
+  const [bgLevel, setBgLevel] = useState(record.bg_removal_level);
   const bgProcessing = removeBackground.isPending;
 
   const timeAgo = getTimeAgo(record.created_at);
@@ -77,31 +75,24 @@ export const GenerationRow = memo(function GenerationRow({ record, layout, onReg
     deleteGeneration.mutate(record.id);
   }
 
-  function handleBgToggle(checked: boolean) {
-    setBgEnabled(checked);
-    removeBackground.mutate({
-      generationId: record.id,
-      enabled: checked,
-      aggressiveness: bgAggressiveness,
-    });
+  function handleBgLevelChange(value: number[]) {
+    const newLevel = value[0];
+    setBgLevel(newLevel);
+    removeBackground.mutate(record.id, newLevel);
   }
 
-  function handleBgAggressivenessCommit(value: number[]) {
-    const newValue = value[0];
-    setBgAggressiveness(newValue);
-    if (bgEnabled) {
-      removeBackground.mutate({
-        generationId: record.id,
-        enabled: true,
-        aggressiveness: newValue,
-      });
-    }
+  function getLevelLabel(level: number): string {
+    if (level === 0) return "Off";
+    if (level <= 3) return "Lite";
+    if (level <= 7) return "Medium";
+    return "Heavy";
   }
 
-  function getStrategyLabel(value: number): string {
-    if (value <= 30) return "Lite";
-    if (value <= 70) return "Medium";
-    return "Aggressive";
+  function getLevelColor(level: number): string {
+    if (level === 0) return "text-muted-foreground/50";
+    if (level <= 3) return "text-emerald-500";
+    if (level <= 7) return "text-orange-500";
+    return "text-red-500";
   }
 
   const busy = pickVariation.isPending || unpickVariation.isPending || deleteGeneration.isPending || bgProcessing;
@@ -154,33 +145,24 @@ export const GenerationRow = memo(function GenerationRow({ record, layout, onReg
           "flex items-center gap-3 rounded-lg bg-muted/40 px-3 py-1.5",
           isGrid ? "mb-2" : "mb-3",
         )}>
-          <div className="flex items-center gap-2">
-            <Switch
-              checked={bgEnabled}
-              onCheckedChange={handleBgToggle}
-              disabled={bgProcessing}
-              className="scale-90"
-            />
-            <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">
-              BG Remove
-            </span>
-          </div>
+          <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">
+            BG
+          </span>
           <div className="flex flex-1 items-center gap-2 min-w-[120px]">
             <Slider
-              value={[bgAggressiveness]}
-              onValueCommit={handleBgAggressivenessCommit}
-              onValueChange={(v) => setBgAggressiveness(v[0])}
+              value={[bgLevel]}
+              onValueChange={handleBgLevelChange}
               min={0}
-              max={100}
+              max={10}
               step={1}
-              disabled={!bgEnabled || bgProcessing}
+              disabled={bgProcessing}
               className="flex-1"
             />
             <span className={cn(
-              "text-[10px] font-medium tabular-nums w-16 text-right",
-              bgEnabled ? "text-foreground" : "text-muted-foreground/50",
+              "text-[10px] font-medium tabular-nums w-20 text-right",
+              getLevelColor(bgLevel),
             )}>
-              {getStrategyLabel(bgAggressiveness)}
+              {bgLevel === 0 ? "Off" : `${bgLevel} — ${getLevelLabel(bgLevel)}`}
             </span>
           </div>
           {bgProcessing && (
@@ -208,7 +190,7 @@ export const GenerationRow = memo(function GenerationRow({ record, layout, onReg
               )}
             >
               <img
-                src={`/api/images/${variation.preview_path}?bg=${record.bg_removal_applied ? record.bg_removal_aggressiveness : "off"}`}
+                src={`/api/images/${variation.preview_path}?bg=${record.bg_removal_level}`}
                 alt={`${record.name} v${variation.index + 1}`}
                 className="h-full w-full object-contain bg-muted/30"
                 loading="lazy"
@@ -305,7 +287,7 @@ export const GenerationRow = memo(function GenerationRow({ record, layout, onReg
               {record.variations.map((variation) => (
                 <div key={variation.index} className="relative">
                   <img
-                    src={`/api/images/${variation.preview_path}?bg=${record.bg_removal_applied ? record.bg_removal_aggressiveness : "off"}`}
+                    src={`/api/images/${variation.preview_path}?bg=${record.bg_removal_level}`}
                     alt={`v${variation.index + 1}`}
                     className={cn(
                       "h-32 w-32 rounded-lg border-2 object-contain bg-muted/30",

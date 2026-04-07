@@ -234,12 +234,14 @@ export const api = {
 
   removeBackground(
     generationId: string,
-    enabled: boolean,
-    aggressiveness: number,
+    level: number,
+    requestId: string,
+    signal?: AbortSignal,
   ): Promise<GenerationRecord> {
     return request<GenerationRecord>(`/generations/${generationId}/remove-bg`, {
       method: "POST",
-      body: JSON.stringify({ enabled, aggressiveness }),
+      body: JSON.stringify({ level, request_id: requestId }),
+      signal,
     });
   },
 

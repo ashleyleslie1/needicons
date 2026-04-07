@@ -187,8 +187,8 @@ export interface GenerationRecord {
   api_quality: string;
   variations: GenerationVariation[];
   original_count: number;
-  bg_removal_applied: boolean;
-  bg_removal_aggressiveness: number;
+  bg_removal_level: number;
+  bg_removal_request_id: string;
   created_at: string;
 }
 

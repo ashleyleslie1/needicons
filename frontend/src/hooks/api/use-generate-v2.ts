@@ -139,16 +139,21 @@ export function useDeleteGeneration() {
 
 export function useRemoveBackground() {
   const qc = useQueryClient();
-  return useMutation({
+  const abortRef = useRef<AbortController | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const mutation = useMutation({
     mutationFn: ({
       generationId,
-      enabled,
-      aggressiveness,
+      level,
+      requestId,
+      signal,
     }: {
       generationId: string;
-      enabled: boolean;
-      aggressiveness: number;
-    }) => api.removeBackground(generationId, enabled, aggressiveness),
+      level: number;
+      requestId: string;
+      signal?: AbortSignal;
+    }) => api.removeBackground(generationId, level, requestId, signal),
     onSuccess: (updatedRecord) => {
       qc.setQueriesData<GenerationRecord[]>(
         { queryKey: ["generation-history"] },
@@ -158,4 +163,37 @@ export function useRemoveBackground() {
       qc.invalidateQueries({ queryKey: ["projects"] });
     },
   });
+
+  const debouncedMutate = useCallback(
+    (generationId: string, level: number) => {
+      abortRef.current?.abort();
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+
+      debounceRef.current = setTimeout(() => {
+        const controller = new AbortController();
+        abortRef.current = controller;
+        const requestId = String(Date.now());
+
+        mutation.mutate({
+          generationId,
+          level,
+          requestId,
+          signal: controller.signal,
+        });
+      }, 300);
+    },
+    [mutation],
+  );
+
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
+
+  return {
+    mutate: debouncedMutate,
+    isPending: mutation.isPending,
+  };
 }
