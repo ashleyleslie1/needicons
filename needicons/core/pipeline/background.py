@@ -78,8 +78,8 @@ def _is_bimodal_alpha(image: Image.Image, threshold: float = 0.80) -> bool:
     return bool(extreme_ratio >= threshold)
 
 
-def _color_threshold_remove(image: Image.Image, aggressiveness: int) -> Image.Image:
-    """Lite strategy (0-30): detect bg color from corners, remove within color distance."""
+def _color_threshold_remove(image: Image.Image, level: int) -> Image.Image:
+    """Lite strategy (levels 1-3): detect bg color from corners, remove within color distance."""
     arr = np.array(image.convert("RGBA"), dtype=np.float32)
     h, w = arr.shape[:2]
     patch = 5
@@ -91,7 +91,7 @@ def _color_threshold_remove(image: Image.Image, aggressiveness: int) -> Image.Im
     ]
     corner_pixels = np.concatenate([c.reshape(-1, 3) for c in corners], axis=0)
     bg_color = np.median(corner_pixels, axis=0)
-    tolerance = 20 + (aggressiveness / 30) * 60
+    tolerance = 20 + (level - 1) * 30
     rgb = arr[:, :, :3]
     dist = np.sqrt(np.sum((rgb - bg_color) ** 2, axis=2))
     inner = tolerance * 0.7
@@ -101,12 +101,11 @@ def _color_threshold_remove(image: Image.Image, aggressiveness: int) -> Image.Im
     return Image.fromarray(arr.astype(np.uint8))
 
 
-def _rembg_medium_remove(image: Image.Image, aggressiveness: int, gpu_provider: str = "auto") -> Image.Image:
-    """Medium strategy (31-70): rembg isnet-general-use + alpha matting."""
+def _rembg_medium_remove(image: Image.Image, level: int, gpu_provider: str = "auto") -> Image.Image:
+    """Medium strategy (levels 4-7): rembg isnet-general-use + alpha matting."""
     from rembg import remove
-    t = (aggressiveness - 31) / 39
-    fg_threshold = int(240 - t * 20)
-    bg_threshold = int(10 + t * 20)
+    fg_threshold = int(240 - (level - 4) * 15)
+    bg_threshold = int(10 + (level - 4) * 12)
     providers = _get_onnx_providers(gpu_provider)
     session = _get_session("isnet-general-use", providers)
     result = remove(
@@ -117,12 +116,20 @@ def _rembg_medium_remove(image: Image.Image, aggressiveness: int, gpu_provider: 
     return result.convert("RGBA")
 
 
-def _rembg_aggressive_remove(image: Image.Image, aggressiveness: int, gpu_provider: str = "auto") -> Image.Image:
-    """Aggressive strategy (71-100): rembg u2net + tight alpha matting."""
+def _rembg_medium_remove_no_matting(image: Image.Image, gpu_provider: str = "auto") -> Image.Image:
+    """Medium strategy without alpha matting: rembg isnet-general-use."""
     from rembg import remove
-    t = (aggressiveness - 71) / 29
-    fg_threshold = int(220 - t * 40)
-    bg_threshold = int(30 + t * 30)
+    providers = _get_onnx_providers(gpu_provider)
+    session = _get_session("isnet-general-use", providers)
+    result = remove(image, session=session, alpha_matting=False)
+    return result.convert("RGBA")
+
+
+def _rembg_aggressive_remove(image: Image.Image, level: int, gpu_provider: str = "auto") -> Image.Image:
+    """Aggressive strategy (levels 8-10): rembg u2net + tight alpha matting."""
+    from rembg import remove
+    fg_threshold = int(220 - (level - 8) * 20)
+    bg_threshold = int(30 + (level - 8) * 15)
     providers = _get_onnx_providers(gpu_provider)
     session = _get_session("u2net", providers)
     result = remove(
@@ -133,21 +140,42 @@ def _rembg_aggressive_remove(image: Image.Image, aggressiveness: int, gpu_provid
     return result.convert("RGBA")
 
 
-def remove_background(image: Image.Image, aggressiveness: int, gpu_provider: str = "auto") -> Image.Image:
-    """Remove background using strategy based on aggressiveness (0-100).
+def _rembg_aggressive_remove_no_matting(image: Image.Image, gpu_provider: str = "auto") -> Image.Image:
+    """Aggressive strategy without alpha matting: rembg u2net."""
+    from rembg import remove
+    providers = _get_onnx_providers(gpu_provider)
+    session = _get_session("u2net", providers)
+    result = remove(image, session=session, alpha_matting=False)
+    return result.convert("RGBA")
 
-    0-30: Color threshold (fast, for solid backgrounds)
-    31-70: rembg isnet-general-use + alpha matting
-    71-100: rembg u2net + tight alpha matting
+
+def remove_background(image: Image.Image, level: int, gpu_provider: str = "auto") -> Image.Image:
+    """Remove background using strategy based on level (1-10).
+
+    1-3: Color threshold (fast, for solid backgrounds); skips if alpha is already bimodal
+    4-7: rembg isnet-general-use + alpha matting; skips if alpha is already bimodal
+    8-10: rembg u2net; uses no-matting variant if alpha is already bimodal
+
+    Bimodal skip only applies when the image already has meaningful transparency —
+    fully opaque images are always processed.
     """
-    aggressiveness = max(0, min(100, aggressiveness))
+    level = max(1, min(10, level))
     image = image.convert("RGBA")
-    if aggressiveness <= 30:
-        return _color_threshold_remove(image, aggressiveness)
-    elif aggressiveness <= 70:
-        return _rembg_medium_remove(image, aggressiveness, gpu_provider)
+    # Only treat as bimodal (skip-worthy) if the image already has *some* transparency
+    has_transparency = _has_transparency(image)
+    bimodal = has_transparency and _is_bimodal_alpha(image)
+    if level <= 3:
+        if bimodal:
+            return image
+        return _color_threshold_remove(image, level)
+    elif level <= 7:
+        if bimodal:
+            return image
+        return _rembg_medium_remove(image, level, gpu_provider)
     else:
-        return _rembg_aggressive_remove(image, aggressiveness, gpu_provider)
+        if bimodal:
+            return _rembg_aggressive_remove_no_matting(image, gpu_provider)
+        return _rembg_aggressive_remove(image, level, gpu_provider)
 
 
 class BackgroundRemovalStep(PipelineStep):
