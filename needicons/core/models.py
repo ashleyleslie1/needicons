@@ -1,6 +1,7 @@
 """Domain models for NeedIcons."""
 from __future__ import annotations
 
+import datetime
 import uuid
 from enum import Enum
 from typing import Optional
@@ -156,3 +157,64 @@ class Job(BaseModel):
     progress: float = 0.0
     result: Optional[str] = None
     error: Optional[str] = None
+
+
+# --- UX Redesign Models ---
+
+
+class IconStyle(str, Enum):
+    SOLID = "solid"
+    OUTLINE = "outline"
+    COLOR = "color"
+    FLAT = "flat"
+    STICKER = "sticker"
+
+
+class QualityMode(str, Enum):
+    HQ = "hq"
+    NORMAL = "normal"
+
+
+class PostProcessingSettings(BaseModel):
+    stroke: StrokeConfig = Field(default_factory=StrokeConfig)
+    mask: MaskConfig = Field(default_factory=MaskConfig)
+    fill: FillConfig = Field(default_factory=FillConfig)
+    shadow: ShadowConfig = Field(default_factory=ShadowConfig)
+    padding: PaddingConfig = Field(default_factory=lambda: PaddingConfig(percent=10.0))
+
+
+class SavedIcon(BaseModel):
+    id: str = Field(default_factory=_new_id)
+    name: str
+    prompt: str
+    source_path: str
+    preview_path: str = ""
+    style: IconStyle = IconStyle.SOLID
+    created_at: str = Field(default_factory=lambda: datetime.datetime.utcnow().isoformat())
+
+
+class GenerationVariation(BaseModel):
+    index: int
+    source_path: str
+    preview_path: str
+    picked: bool = False
+
+
+class GenerationRecord(BaseModel):
+    id: str = Field(default_factory=_new_id)
+    project_id: str
+    name: str
+    prompt: str
+    style: IconStyle = IconStyle.SOLID
+    quality: QualityMode = QualityMode.NORMAL
+    variations: list[GenerationVariation] = Field(default_factory=list)
+    created_at: str = Field(default_factory=lambda: datetime.datetime.utcnow().isoformat())
+
+
+class Project(BaseModel):
+    id: str = Field(default_factory=_new_id)
+    name: str
+    post_processing: PostProcessingSettings = Field(default_factory=PostProcessingSettings)
+    style_preference: IconStyle = IconStyle.SOLID
+    quality_preference: QualityMode = QualityMode.NORMAL
+    icons: list[SavedIcon] = Field(default_factory=list)
