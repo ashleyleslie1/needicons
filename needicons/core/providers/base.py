@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from PIL import Image
 from pydantic import BaseModel
-from needicons.core.models import GenerationMode
+from needicons.core.models import GenerationMode, IconStyle
 
 
 class GenerationConfig(BaseModel):
@@ -11,6 +11,7 @@ class GenerationConfig(BaseModel):
     subject: str
     description: str = ""
     mode: GenerationMode = GenerationMode.PRECISION
+    style: IconStyle = IconStyle.SOLID
     model: str = "gpt-4o"
     size: str = "1024x1024"
 

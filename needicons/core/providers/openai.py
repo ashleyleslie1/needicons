@@ -14,16 +14,24 @@ _SYSTEM_PREFIX = (
     "Do not add text, labels, or watermarks."
 )
 
+_STYLE_PROMPTS = {
+    "solid": "Filled, single-color icon. Bold silhouette style, flat fill, no gradients.",
+    "outline": "Line-drawn, stroke-only icon. Clean outlines, no fill, uniform stroke weight.",
+    "color": "Full-color, detailed icon. Rich colors, subtle shading, polished look.",
+    "flat": "Minimal flat-design icon. Simple shapes, limited color palette, no shadows or gradients.",
+    "sticker": "Sticker-style icon with slight 3D effect. Soft shadow, rounded feel, playful.",
+}
+
 
 def _build_prompt(config: GenerationConfig) -> str:
     parts = [_SYSTEM_PREFIX]
+    style_desc = _STYLE_PROMPTS.get(config.style.value, _STYLE_PROMPTS["solid"])
+    parts.append(f"Style: {style_desc}")
     if config.style_prompt:
-        parts.append(f"Style guide: {config.style_prompt}")
-
+        parts.append(f"Additional style guide: {config.style_prompt}")
     subject = config.subject
     if config.description:
         subject = f"{config.subject}: {config.description}"
-
     if config.mode == GenerationMode.PRECISION:
         parts.append(
             f"Generate exactly ONE icon of: {subject}. "
@@ -35,7 +43,6 @@ def _build_prompt(config: GenerationConfig) -> str:
             f"Generate exactly FOUR distinct icons of: {subject} "
             "arranged in a 2x2 grid. Each should be a distinct variation."
         )
-
     return "\n".join(parts)
 
 
