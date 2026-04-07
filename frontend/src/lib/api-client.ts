@@ -143,6 +143,18 @@ export const api = {
     });
   },
 
+  unpickVariation(generationId: string): Promise<GenerationRecord> {
+    return request<GenerationRecord>(`/generations/${generationId}/unpick`, {
+      method: "POST",
+    });
+  },
+
+  deleteGeneration(generationId: string): Promise<{ status: string }> {
+    return request<{ status: string }>(`/generations/${generationId}`, {
+      method: "DELETE",
+    });
+  },
+
   // Project Export (returns blob, not JSON)
   async exportProject(projectId: string, data: ExportProjectRequest): Promise<Blob> {
     const url = `/api/projects/${projectId}/export`;

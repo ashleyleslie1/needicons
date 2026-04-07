@@ -57,6 +57,8 @@ async def preview_icon(project_id: str, icon_id: str, request: Request):
         raise HTTPException(status_code=404, detail="Source image not found")
 
     profile = _project_settings_to_profile(project)
+    # Skip bg removal for preview — it's already done on generation, and alpha matting OOMs on large images
+    profile.background_removal.enabled = False
     profile.output.sizes = [256]
     profile.output.formats = ["png"]
 
@@ -64,6 +66,9 @@ async def preview_icon(project_id: str, icon_id: str, request: Request):
     configs = _profile_to_configs(profile)
 
     img = Image.open(source_file).convert("RGBA")
+    # Downscale before processing to avoid memory issues
+    if img.width > 512 or img.height > 512:
+        img.thumbnail((512, 512), Image.LANCZOS)
     result = pipeline.run(img, configs)
 
     # result is {256: Image} from ResizeStep

@@ -165,3 +165,42 @@ async def pick_variation(gen_id: str, variation_index: int, request: Request):
 
     state.save_data()
     return record.model_dump()
+
+
+@router.post("/api/generations/{gen_id}/unpick")
+async def unpick_variation(gen_id: str, request: Request):
+    """Deselect the picked variation and remove the icon from the project."""
+    state = request.app.state.app_state
+    record = state.generation_records.get(gen_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Generation record not found")
+
+    for v in record.variations:
+        v.picked = False
+
+    if record.project_id:
+        project = state.projects.get(record.project_id)
+        if project:
+            project.icons = [i for i in project.icons if not i.source_path.startswith(f"images/{record.id}/")]
+
+    state.save_data()
+    return record.model_dump()
+
+
+@router.delete("/api/generations/{gen_id}")
+async def delete_generation(gen_id: str, request: Request):
+    """Delete a generation record and remove its icon from the project."""
+    state = request.app.state.app_state
+    record = state.generation_records.get(gen_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Generation record not found")
+
+    # Remove icon from project if picked
+    if record.project_id:
+        project = state.projects.get(record.project_id)
+        if project:
+            project.icons = [i for i in project.icons if not i.source_path.startswith(f"images/{record.id}/")]
+
+    del state.generation_records[gen_id]
+    state.save_data()
+    return {"status": "deleted"}

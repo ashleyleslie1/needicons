@@ -24,3 +24,25 @@ export function usePickVariation() {
     },
   });
 }
+
+export function useUnpickVariation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (generationId: string) => api.unpickVariation(generationId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["projects"] });
+      qc.invalidateQueries({ queryKey: ["generation-history"] });
+    },
+  });
+}
+
+export function useDeleteGeneration() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (generationId: string) => api.deleteGeneration(generationId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["projects"] });
+      qc.invalidateQueries({ queryKey: ["generation-history"] });
+    },
+  });
+}
