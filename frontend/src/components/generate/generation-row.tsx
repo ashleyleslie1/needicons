@@ -185,7 +185,7 @@ export const GenerationRow = memo(function GenerationRow({ record, layout, onReg
               disabled={pickVariation.isPending || unpickVariation.isPending}
               className={cn(
                 "group relative overflow-hidden rounded-lg transition-all",
-                isGrid ? "aspect-square" : "aspect-square w-[76px] shrink-0",
+                isGrid ? "aspect-square" : "aspect-square w-[100px] shrink-0",
                 variation.picked
                   ? "ring-2 ring-accent ring-offset-1 ring-offset-background shadow-md shadow-accent/10"
                   : "ring-1 ring-border hover:ring-accent/50",
@@ -194,7 +194,7 @@ export const GenerationRow = memo(function GenerationRow({ record, layout, onReg
               <img
                 src={`/api/images/${variation.preview_path}?t=${cacheBust(record)}`}
                 alt={`${record.name} v${variation.index + 1}`}
-                className="h-full w-full object-contain bg-surface"
+                className="h-full w-full object-contain bg-[#1a1a28]"
                 loading="lazy"
                 decoding="async"
               />
