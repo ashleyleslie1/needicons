@@ -5,7 +5,7 @@ import { useGenerationHistory } from "@/hooks/api/use-generation-history";
 import { useProject } from "@/hooks/api/use-projects";
 import { PromptInput } from "@/components/generate/prompt-input";
 import { StyleTabs } from "@/components/generate/style-tabs";
-import { QualityToggle } from "@/components/generate/quality-toggle";
+import { GenerationSettings } from "@/components/generate/generation-settings";
 import { GenerateButton } from "@/components/generate/generate-button";
 import { ResultsHistory } from "@/components/generate/results-history";
 import { ApiKeyModal } from "@/components/generation/api-key-modal";
@@ -39,6 +39,7 @@ export function GeneratePage() {
   const [promptText, setPromptText] = useState("");
   const [style, setStyle] = useState<IconStyle>(project?.style_preference ?? "solid");
   const [quality, setQuality] = useState<QualityMode>(project?.quality_preference ?? "normal");
+  const [apiQuality, setApiQuality] = useState("");
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
 
   const parsedPrompts = parsePrompts(promptText);
@@ -46,7 +47,7 @@ export function GeneratePage() {
 
   function handleGenerate() {
     if (!activeProjectId || parsedPrompts.length === 0) return;
-    gen.start({ prompts: parsedPrompts, style, quality, project_id: activeProjectId });
+    gen.start({ prompts: parsedPrompts, style, quality, api_quality: apiQuality, project_id: activeProjectId });
     setPromptText("");
   }
 
@@ -69,7 +70,12 @@ export function GeneratePage() {
         <div className="mt-4 flex items-center gap-4">
           <StyleTabs value={style} onChange={setStyle} />
           <div className="ml-auto flex items-center gap-3">
-            <QualityToggle value={quality} onChange={setQuality} />
+            <GenerationSettings
+              quality={quality}
+              onQualityChange={setQuality}
+              apiQuality={apiQuality}
+              onApiQualityChange={setApiQuality}
+            />
             <GenerateButton
               iconCount={iconCount}
               onClick={handleGenerate}
@@ -119,6 +125,7 @@ export function GeneratePage() {
                 setPromptText(`${record.name}: ${record.prompt}`);
                 setStyle(record.style);
                 setQuality(record.quality);
+                setApiQuality(record.api_quality ?? "");
               }}
             />
           ) : !gen.isPending ? (

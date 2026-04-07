@@ -157,6 +157,7 @@ export interface GenerationRecord {
   style: IconStyle;
   quality: QualityMode;
   model: string;
+  api_quality: string;
   variations: GenerationVariation[];
   original_count: number;
   bg_removal_applied: boolean;
@@ -177,6 +178,7 @@ export interface GenerateIconsRequest {
   prompts: Array<{ name: string; prompt: string }>;
   style: IconStyle;
   quality: QualityMode;
+  api_quality: string;
   project_id: string;
 }
 

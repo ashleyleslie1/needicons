@@ -36,3 +36,11 @@ export function useUpdateGpuProvider() {
     },
   });
 }
+
+export function useModelCapabilities() {
+  return useQuery({
+    queryKey: ["model-capabilities"],
+    queryFn: () => api.getModelCapabilities(),
+    staleTime: 60 * 60 * 1000,
+  });
+}

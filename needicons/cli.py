@@ -67,12 +67,12 @@ def _start_vite_dev(backend_port: int):
     """Start the Vite dev server in the background, proxying API to backend."""
     import subprocess
     import pathlib
+    import shutil
 
     frontend_dir = pathlib.Path(__file__).resolve().parent.parent / "frontend"
     if not (frontend_dir / "package.json").exists():
         return None
 
-    npx_cmd = "npx.cmd" if sys.platform == "win32" else "npx"
     npm_cmd = "npm.cmd" if sys.platform == "win32" else "npm"
 
     # Check if node_modules exist
@@ -80,35 +80,24 @@ def _start_vite_dev(backend_port: int):
         print("  Installing frontend dependencies...")
         subprocess.run([npm_cmd, "install"], cwd=frontend_dir, capture_output=True)
 
+    # Clear Vite dep cache to avoid stale module errors on restart
+    vite_cache = frontend_dir / "node_modules" / ".vite"
+    if vite_cache.exists():
+        shutil.rmtree(vite_cache, ignore_errors=True)
+
+    # Find an open port for Vite
+    vite_port = _find_open_port("127.0.0.1", 5173, 5173, 5200)
+
     env = os.environ.copy()
-    # Tell Vite which backend port to proxy to (read in vite.config.ts)
     env["VITE_API_PORT"] = str(backend_port)
 
+    # Run via "npm run dev" so Vite is launched through Node properly,
+    # passing the port via Vite CLI args after "--".
     proc = subprocess.Popen(
-        [npx_cmd, "vite", "--port", "5173", "--strictPort", "false"],
+        [npm_cmd, "run", "dev", "--", "--port", str(vite_port)],
         cwd=frontend_dir,
         env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
     )
-
-    # Wait briefly and read output to find the actual port
-    import time
-    time.sleep(2)
-    vite_port = 5173
-    try:
-        while proc.stdout and proc.stdout.readable():
-            line = proc.stdout.readline().decode(errors="replace")
-            if not line:
-                break
-            if "localhost:" in line:
-                import re
-                m = re.search(r"localhost:(\d+)", line)
-                if m:
-                    vite_port = int(m.group(1))
-                break
-    except Exception:
-        pass
 
     print(f"  Vite dev server at http://localhost:{vite_port} (hot reload)")
     return proc

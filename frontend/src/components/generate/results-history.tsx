@@ -51,7 +51,7 @@ export function ResultsHistory({ records, onRegenerate }: ResultsHistoryProps) {
       <div className={cn(
         layout === "list"
           ? "flex flex-col gap-4"
-          : "grid grid-cols-2 gap-4",
+          : "grid grid-cols-3 gap-4",
       )}>
         {records.map((record) => (
           <GenerationRow
