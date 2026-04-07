@@ -39,6 +39,15 @@ class CenteringStep(PipelineStep):
         return canvas
 
 
+_SHAPE_FILL_MULTIPLIERS = {
+    "none": 1.0,
+    "square": 1.0,
+    "rounded_rect": 0.92,
+    "squircle": 0.85,
+    "circle": 0.71,
+}
+
+
 class WeightNormalizationStep(PipelineStep):
     name = "weight_normalization"
 
@@ -46,7 +55,9 @@ class WeightNormalizationStep(PipelineStep):
         return not config.get("enabled", False)
 
     def process(self, image: Image.Image, config: dict) -> Image.Image:
-        target_fill = config.get("target_fill", 0.7)
+        shape = config.get("shape", "none")
+        multiplier = _SHAPE_FILL_MULTIPLIERS.get(shape, 1.0)
+        target_fill = config.get("target_fill", 0.7) * multiplier
         bbox = _content_bbox(image)
         if bbox is None:
             return image
