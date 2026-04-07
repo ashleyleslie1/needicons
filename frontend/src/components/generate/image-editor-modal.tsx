@@ -46,6 +46,7 @@ export function ImageEditorModal({ record, variationIndex, open, onOpenChange }:
   const [saturation, setSaturation] = useState(record.color_saturation);
   const [feather, setFeather] = useState(record.edge_feather);
   const [denoiseStr, setDenoiseStr] = useState(record.denoise_strength);
+  const [zoom, setZoom] = useState(1);
 
   const anyProcessing = removeBackground.isPending || colorAdjust.isPending || edgeCleanup.isPending || upscaleHook.isPending || denoiseHook.isPending;
 
@@ -88,7 +89,8 @@ export function ImageEditorModal({ record, variationIndex, open, onOpenChange }:
             )}
 
             {/* Checkerboard + image */}
-            <div className="flex-1 flex items-center justify-center p-8"
+            <div
+              className="flex-1 flex items-center justify-center p-6 overflow-hidden"
               style={{
                 backgroundImage: `
                   linear-gradient(45deg, var(--muted) 25%, transparent 25%),
@@ -99,14 +101,26 @@ export function ImageEditorModal({ record, variationIndex, open, onOpenChange }:
                 backgroundSize: "16px 16px",
                 backgroundPosition: "0 0, 0 8px, 8px -8px, -8px 0",
               }}
+              onWheel={(e) => {
+                e.preventDefault();
+                setZoom((z) => Math.min(3, Math.max(0.5, z + (e.deltaY > 0 ? -0.1 : 0.1))));
+              }}
             >
               <img
                 src={`/api/images/${variation.preview_path}?t=${cacheBust(record)}`}
                 alt={`${record.name} v${variationIndex + 1}`}
-                className="max-h-[420px] max-w-full object-contain drop-shadow-lg"
-                style={{ imageRendering: "auto" }}
+                className="max-h-[420px] max-w-full object-contain drop-shadow-lg transition-transform duration-100"
+                style={{ transform: `scale(${zoom})` }}
               />
             </div>
+
+            {/* Zoom indicator */}
+            {zoom !== 1 && (
+              <div className="absolute top-3 left-3 flex items-center gap-1.5 rounded-md bg-card/80 backdrop-blur-sm border border-border px-2 py-1 shadow-sm">
+                <span className="text-[10px] font-semibold text-foreground tabular-nums">{Math.round(zoom * 100)}%</span>
+                <button onClick={() => setZoom(1)} className="text-[10px] text-muted-foreground hover:text-foreground transition-colors">Reset</button>
+              </div>
+            )}
 
             {/* Bottom bar */}
             <div className="flex items-center gap-3 border-t border-border px-4 py-3 bg-card/50">
@@ -147,8 +161,8 @@ export function ImageEditorModal({ record, variationIndex, open, onOpenChange }:
                   className={cn(
                     "w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors",
                     activeTool === tool.id
-                      ? "bg-accent/10 border border-accent/20"
-                      : "hover:bg-muted/50 border border-transparent",
+                      ? "bg-accent/10 border border-accent/30 shadow-sm"
+                      : "bg-muted/30 border border-border hover:bg-muted/60 hover:border-border",
                   )}
                 >
                   <div className="flex-1 min-w-0">
