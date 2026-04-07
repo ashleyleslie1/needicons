@@ -64,6 +64,78 @@ def _has_transparency(image: Image.Image, threshold: float = 0.05) -> bool:
     return bool(transparent_ratio > threshold)
 
 
+def _color_threshold_remove(image: Image.Image, aggressiveness: int) -> Image.Image:
+    """Lite strategy (0-30): detect bg color from corners, remove within color distance."""
+    arr = np.array(image.convert("RGBA"), dtype=np.float32)
+    h, w = arr.shape[:2]
+    patch = 5
+    corners = [
+        arr[:patch, :patch, :3],
+        arr[:patch, w-patch:, :3],
+        arr[h-patch:, :patch, :3],
+        arr[h-patch:, w-patch:, :3],
+    ]
+    corner_pixels = np.concatenate([c.reshape(-1, 3) for c in corners], axis=0)
+    bg_color = np.median(corner_pixels, axis=0)
+    tolerance = 20 + (aggressiveness / 30) * 60
+    rgb = arr[:, :, :3]
+    dist = np.sqrt(np.sum((rgb - bg_color) ** 2, axis=2))
+    inner = tolerance * 0.7
+    alpha_factor = np.clip((dist - inner) / (tolerance - inner + 1e-6), 0, 1)
+    new_alpha = arr[:, :, 3] * alpha_factor
+    arr[:, :, 3] = new_alpha
+    return Image.fromarray(arr.astype(np.uint8))
+
+
+def _rembg_medium_remove(image: Image.Image, aggressiveness: int, gpu_provider: str = "auto") -> Image.Image:
+    """Medium strategy (31-70): rembg isnet-general-use + alpha matting."""
+    from rembg import remove
+    t = (aggressiveness - 31) / 39
+    fg_threshold = int(240 - t * 20)
+    bg_threshold = int(10 + t * 20)
+    providers = _get_onnx_providers(gpu_provider)
+    session = _get_session("isnet-general-use", providers)
+    result = remove(
+        image, session=session, alpha_matting=True,
+        alpha_matting_foreground_threshold=fg_threshold,
+        alpha_matting_background_threshold=bg_threshold,
+    )
+    return result.convert("RGBA")
+
+
+def _rembg_aggressive_remove(image: Image.Image, aggressiveness: int, gpu_provider: str = "auto") -> Image.Image:
+    """Aggressive strategy (71-100): rembg u2net + tight alpha matting."""
+    from rembg import remove
+    t = (aggressiveness - 71) / 29
+    fg_threshold = int(220 - t * 40)
+    bg_threshold = int(30 + t * 30)
+    providers = _get_onnx_providers(gpu_provider)
+    session = _get_session("u2net", providers)
+    result = remove(
+        image, session=session, alpha_matting=True,
+        alpha_matting_foreground_threshold=fg_threshold,
+        alpha_matting_background_threshold=bg_threshold,
+    )
+    return result.convert("RGBA")
+
+
+def remove_background(image: Image.Image, aggressiveness: int, gpu_provider: str = "auto") -> Image.Image:
+    """Remove background using strategy based on aggressiveness (0-100).
+
+    0-30: Color threshold (fast, for solid backgrounds)
+    31-70: rembg isnet-general-use + alpha matting
+    71-100: rembg u2net + tight alpha matting
+    """
+    aggressiveness = max(0, min(100, aggressiveness))
+    image = image.convert("RGBA")
+    if aggressiveness <= 30:
+        return _color_threshold_remove(image, aggressiveness)
+    elif aggressiveness <= 70:
+        return _rembg_medium_remove(image, aggressiveness, gpu_provider)
+    else:
+        return _rembg_aggressive_remove(image, aggressiveness, gpu_provider)
+
+
 class BackgroundRemovalStep(PipelineStep):
     name = "background_removal"
 
