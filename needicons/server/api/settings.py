@@ -1,6 +1,11 @@
 """Settings API endpoints."""
 from __future__ import annotations
-from fastapi import APIRouter, Request
+import asyncio
+import subprocess
+import sys
+import json as _json
+from fastapi import APIRouter, Request, HTTPException
+from fastapi.responses import StreamingResponse
 from needicons.server.crypto import encrypt_value, decrypt_value
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
@@ -73,12 +78,17 @@ async def get_settings(request: Request):
     provider = state.config.get("provider", {})
     raw_key = provider.get("api_key", "")
     api_key = _get_plaintext_key(raw_key)
+    from needicons.core.pipeline.runner import select_backend
+    backend = select_backend(state.config)
     return {
         "provider": {
             "api_key": (api_key[:8] + "..." if len(api_key) > 8 else "***") if api_key else "",
             "api_key_set": bool(api_key),
             "default_model": provider.get("default_model", "dall-e-3"),
-        }
+        },
+        "processing": {
+            "active_backend": backend.value,
+        },
     }
 
 
@@ -168,3 +178,123 @@ async def update_gpu(request: Request):
     from needicons.core.pipeline.background import clear_session_cache
     clear_session_cache()
     return {"status": "ok", "provider": preference}
+
+
+# Security: only these packages can be installed via the GUI
+_ALLOWED_GPU_PACKAGES = {
+    "onnxruntime-directml": "DirectML (DirectX 12 GPU)",
+    "onnxruntime-gpu": "CUDA (NVIDIA GPU)",
+}
+
+
+@router.post("/gpu/install")
+async def gpu_install(request: Request):
+    """Validate package and return instructions for streaming install."""
+    body = await request.json()
+    package = body.get("package", "")
+    if package not in _ALLOWED_GPU_PACKAGES:
+        raise HTTPException(status_code=400, detail=f"Package not allowed. Must be one of: {', '.join(_ALLOWED_GPU_PACKAGES.keys())}")
+    try:
+        subprocess.run([sys.executable, "-m", "pip", "--version"], capture_output=True, check=True, timeout=10)
+    except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
+        raise HTTPException(status_code=500, detail="pip is not available")
+    return {"status": "ok", "package": package}
+
+
+@router.get("/gpu/install/stream")
+async def gpu_install_stream(package: str):
+    """SSE stream of pip install output for a GPU package."""
+    if package not in _ALLOWED_GPU_PACKAGES:
+        raise HTTPException(status_code=400, detail=f"Package not allowed")
+
+    async def event_stream():
+        yield f"event: start\ndata: {_json.dumps({'package': package, 'message': f'Installing {package}...'})}\n\n"
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                sys.executable, "-m", "pip", "install", "--user", package,
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
+            )
+            async for line in proc.stdout:
+                text = line.decode("utf-8", errors="replace").rstrip()
+                if text:
+                    yield f"event: output\ndata: {_json.dumps({'line': text})}\n\n"
+            await proc.wait()
+            if proc.returncode == 0:
+                gpu_info = _detect_gpu()
+                yield f"event: complete\ndata: {_json.dumps({'success': True, 'providers': gpu_info['available_providers'], 'active_provider': gpu_info['active_provider']})}\n\n"
+            else:
+                yield f"event: complete\ndata: {_json.dumps({'success': False, 'error': f'pip exited with code {proc.returncode}'})}\n\n"
+        except Exception as e:
+            yield f"event: complete\ndata: {_json.dumps({'success': False, 'error': str(e)[:200]})}\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
+@router.get("/runpod")
+async def get_runpod_settings(request: Request):
+    state = request.app.state.app_state
+    runpod_config = state.config.get("runpod", {})
+    api_key = runpod_config.get("api_key", "")
+    if api_key:
+        try:
+            api_key = _get_plaintext_key(api_key)
+        except Exception:
+            api_key = ""
+    return {
+        "enabled": runpod_config.get("enabled", False),
+        "api_key": (api_key[:8] + "..." if len(api_key) > 8 else "***") if api_key else "",
+        "api_key_set": bool(api_key),
+        "endpoint_id": runpod_config.get("endpoint_id", ""),
+    }
+
+
+@router.put("/runpod")
+async def update_runpod_settings(request: Request):
+    body = await request.json()
+    state = request.app.state.app_state
+    update = {}
+    if "enabled" in body:
+        update["enabled"] = bool(body["enabled"])
+    if "api_key" in body and body["api_key"]:
+        update["api_key"] = encrypt_value(body["api_key"])
+    if "endpoint_id" in body:
+        update["endpoint_id"] = body["endpoint_id"]
+    state.update_config("runpod", update)
+    return {"status": "ok"}
+
+
+@router.post("/runpod/test")
+async def test_runpod_connection(request: Request):
+    state = request.app.state.app_state
+    runpod_config = state.config.get("runpod", {})
+    api_key = runpod_config.get("api_key", "")
+    if api_key:
+        try:
+            api_key = decrypt_value(api_key)
+        except Exception:
+            pass
+    endpoint_id = runpod_config.get("endpoint_id", "")
+    if not api_key or not endpoint_id:
+        raise HTTPException(status_code=400, detail="RunPod API key and endpoint ID are required")
+    from needicons.core.processing.runpod import RunPodClient, RunPodError
+    client = RunPodClient(api_key=api_key, endpoint_id=endpoint_id)
+    try:
+        health = await client.health_check()
+        return {"status": "connected", "health": health}
+    except (RunPodError, Exception) as e:
+        return {"status": "error", "error": str(e)[:200]}
+
+
+@router.get("/processing-log")
+async def get_processing_log_endpoint():
+    """Return recent processing history showing which backend was used."""
+    from needicons.core.pipeline.runner import get_processing_log
+    return {"entries": get_processing_log()}
+
+
+@router.delete("/processing-log")
+async def clear_processing_log_endpoint():
+    """Clear the processing history."""
+    from needicons.core.pipeline.runner import clear_processing_log
+    clear_processing_log()
+    return {"status": "cleared"}
