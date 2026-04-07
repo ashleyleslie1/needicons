@@ -179,6 +179,8 @@ class GenerationRecord(BaseModel):
     model: str = ""
     variations: list[GenerationVariation] = Field(default_factory=list)
     original_count: int = 0  # number of raw API response images saved for debug
+    bg_removal_applied: bool = False
+    bg_removal_aggressiveness: int = 50
     created_at: str = Field(default_factory=lambda: datetime.datetime.utcnow().isoformat())
 
 
