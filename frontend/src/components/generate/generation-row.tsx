@@ -39,7 +39,7 @@ function useLazyVisible() {
 }
 
 const cacheBust = (r: GenerationRecord) =>
-  `${r.bg_removal_level}-${r.denoise_strength}-${r.color_brightness}-${r.edge_feather}-${r.upscale_factor}`;
+  `${r.bg_removal_level}-${r.denoise_strength}-${r.color_brightness}-${r.edge_feather}-${r.upscale_factor}-${r.lasso_masks.length}`;
 
 export const GenerationRow = memo(function GenerationRow({ record, layout, onRegenerate: _onRegenerate }: GenerationRowProps) {
   const pickVariation = usePickVariation();
