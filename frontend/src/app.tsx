@@ -4,8 +4,7 @@ import { ThemeProvider } from "@/hooks/ui/use-theme";
 import { SidebarProvider } from "@/hooks/ui/use-sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppShell } from "@/components/layout/app-shell";
-import { GeneratePage } from "@/pages/generate";
-import { ProjectPage } from "@/pages/project";
+import { HomePage } from "@/pages/home";
 import { SettingsPage } from "@/pages/settings";
 
 const queryClient = new QueryClient({
@@ -23,9 +22,9 @@ export function App() {
             <BrowserRouter>
               <Routes>
                 <Route element={<AppShell />}>
-                  <Route path="/" element={<Navigate to="/generate" replace />} />
-                  <Route path="/generate" element={<GeneratePage />} />
-                  <Route path="/project" element={<ProjectPage />} />
+                  <Route path="/" element={<HomePage />} />
+                  <Route path="/generate" element={<Navigate to="/" replace />} />
+                  <Route path="/project" element={<Navigate to="/" replace />} />
                   <Route path="/settings" element={<SettingsPage />} />
                   <Route path="/settings/:tab" element={<SettingsPage />} />
                 </Route>
