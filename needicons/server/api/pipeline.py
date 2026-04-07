@@ -40,6 +40,45 @@ def _project_settings_to_profile(project) -> ProcessingProfile:
     )
 
 
+@router.get("/api/projects/{project_id}/icons/{icon_id}/preview")
+async def preview_icon(project_id: str, icon_id: str, request: Request):
+    """Return a 256x256 preview of an icon with the project's post-processing applied."""
+    state = request.app.state.app_state
+    project = state.projects.get(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    icon = next((i for i in project.icons if i.id == icon_id), None)
+    if not icon:
+        raise HTTPException(status_code=404, detail="Icon not found")
+
+    source_file = state.data_dir / icon.source_path
+    if not source_file.exists():
+        raise HTTPException(status_code=404, detail="Source image not found")
+
+    profile = _project_settings_to_profile(project)
+    profile.output.sizes = [256]
+    profile.output.formats = ["png"]
+
+    pipeline = build_default_pipeline()
+    configs = _profile_to_configs(profile)
+
+    img = Image.open(source_file).convert("RGBA")
+    result = pipeline.run(img, configs)
+
+    # result is {256: Image} from ResizeStep
+    if isinstance(result, dict):
+        img_out = result.get(256, img)
+    else:
+        img_out = result
+
+    buf = io.BytesIO()
+    img_out.save(buf, format="PNG")
+    buf.seek(0)
+
+    return Response(content=buf.getvalue(), media_type="image/png")
+
+
 @router.post("/api/projects/{project_id}/export")
 async def export_project(project_id: str, request: Request):
     state = request.app.state.app_state

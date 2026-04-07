@@ -13,6 +13,7 @@ export function ProjectPage() {
   const updateProject = useUpdateProject();
   const removeIcon = useRemoveIcon();
   const [showExport, setShowExport] = useState(false);
+  const [previewVersion, setPreviewVersion] = useState(0);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
@@ -21,7 +22,10 @@ export function ProjectPage() {
       if (!activeProjectId) return;
       clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => {
-        updateProject.mutate({ id: activeProjectId, post_processing: settings });
+        updateProject.mutate(
+          { id: activeProjectId, post_processing: settings },
+          { onSuccess: () => setPreviewVersion((v) => v + 1) },
+        );
       }, 300);
     },
     [activeProjectId, updateProject],
@@ -50,7 +54,12 @@ export function ProjectPage() {
       />
       <ScrollArea className="flex-1">
         <div className="p-8">
-          <ProjectIconGrid icons={project.icons} onRemoveIcon={handleRemoveIcon} />
+          <ProjectIconGrid
+            icons={project.icons}
+            projectId={project.id}
+            previewVersion={previewVersion}
+            onRemoveIcon={handleRemoveIcon}
+          />
         </div>
       </ScrollArea>
       {showExport && (

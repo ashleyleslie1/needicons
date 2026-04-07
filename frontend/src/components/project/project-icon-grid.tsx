@@ -3,10 +3,12 @@ import { ProjectIconTile } from "./project-icon-tile";
 
 interface ProjectIconGridProps {
   icons: SavedIcon[];
+  projectId: string;
+  previewVersion: number;
   onRemoveIcon: (iconId: string) => void;
 }
 
-export function ProjectIconGrid({ icons, onRemoveIcon }: ProjectIconGridProps) {
+export function ProjectIconGrid({ icons, projectId, previewVersion, onRemoveIcon }: ProjectIconGridProps) {
   if (icons.length === 0) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center py-20 text-center">
@@ -26,6 +28,8 @@ export function ProjectIconGrid({ icons, onRemoveIcon }: ProjectIconGridProps) {
         <ProjectIconTile
           key={icon.id}
           icon={icon}
+          projectId={projectId}
+          previewVersion={previewVersion}
           onRemove={() => onRemoveIcon(icon.id)}
         />
       ))}
