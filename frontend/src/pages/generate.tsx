@@ -97,7 +97,7 @@ export function GeneratePage() {
             disabled={gen.isPending}
             placeholder="What icon would you like to generate?"
             rows={4}
-            className="w-full resize-none rounded-lg border border-border bg-[#12121c] px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30 transition-colors"
+            className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30 transition-colors"
           />
           <p className="mt-1.5 text-[10px] text-muted-foreground leading-relaxed">
             Use <kbd className="rounded bg-muted px-1 py-0.5 font-mono">;</kbd> to separate multiple icons

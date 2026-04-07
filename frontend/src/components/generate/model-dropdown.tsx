@@ -23,7 +23,7 @@ export function ModelDropdown({ value, onChange }: ModelDropdownProps) {
           value={currentModel}
           onChange={(e) => onChange(e.target.value)}
           className={cn(
-            "w-full appearance-none rounded-lg border border-border bg-[#12121c] text-foreground",
+            "w-full appearance-none rounded-lg border border-border bg-background text-foreground",
             "px-3 pr-8 py-2 text-sm",
             "cursor-pointer transition-colors",
             "hover:border-accent/40 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30",
