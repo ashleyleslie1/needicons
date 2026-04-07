@@ -107,6 +107,9 @@ export function AiProviderSettings() {
             ))}
           </div>
         )}
+        <p className="mt-3 text-xs text-muted-foreground">
+          HQ mode uses 4x more resources than Normal mode.
+        </p>
       </div>
     </div>
   );

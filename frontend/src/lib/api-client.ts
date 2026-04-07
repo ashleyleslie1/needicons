@@ -1,12 +1,5 @@
 import type {
-  Pack,
-  Candidate,
-  Requirement,
   ProcessingProfile,
-  Job,
-  CreatePackRequest,
-  GenerationMode,
-  ExportRequest,
   SettingsResponse,
   GpuResponse,
   Project,
@@ -57,77 +50,6 @@ async function request<T>(
 }
 
 export const api = {
-  // Packs
-  listPacks(): Promise<Pack[]> {
-    return request<Pack[]>("/packs");
-  },
-
-  getPack(id: string): Promise<Pack> {
-    return request<Pack>(`/packs/${id}`);
-  },
-
-  createPack(data: CreatePackRequest): Promise<Pack> {
-    return request<Pack>("/packs", {
-      method: "POST",
-      body: JSON.stringify(data),
-    });
-  },
-
-  updatePack(id: string, data: Partial<CreatePackRequest>): Promise<Pack> {
-    return request<Pack>(`/packs/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(data),
-    });
-  },
-
-  deletePack(id: string): Promise<{ status: string }> {
-    return request<{ status: string }>(`/packs/${id}`, {
-      method: "DELETE",
-    });
-  },
-
-  // Requirements
-  addRequirements(
-    packId: string,
-    requirements: Array<{ name: string; description?: string }>,
-  ): Promise<Requirement[]> {
-    return request<Requirement[]>(`/packs/${packId}/requirements`, {
-      method: "POST",
-      body: JSON.stringify(requirements),
-    });
-  },
-
-  deleteRequirement(id: string): Promise<{ status: string }> {
-    return request<{ status: string }>(`/requirements/${id}`, {
-      method: "DELETE",
-    });
-  },
-
-  // Generation
-  generate(requirementId: string, mode: GenerationMode): Promise<Job> {
-    return request<Job>(`/requirements/${requirementId}/generate`, {
-      method: "POST",
-      body: JSON.stringify({ mode }),
-    });
-  },
-
-  // Candidates
-  listCandidates(requirementId: string): Promise<Candidate[]> {
-    return request<Candidate[]>(`/requirements/${requirementId}/candidates`);
-  },
-
-  pickCandidate(id: string): Promise<Candidate> {
-    return request<Candidate>(`/candidates/${id}/pick`, {
-      method: "POST",
-    });
-  },
-
-  deleteCandidate(id: string): Promise<{ status: string }> {
-    return request<{ status: string }>(`/candidates/${id}`, {
-      method: "DELETE",
-    });
-  },
-
   // Profiles
   listProfiles(): Promise<ProcessingProfile[]> {
     return request<ProcessingProfile[]>("/profiles");
@@ -166,14 +88,6 @@ export const api = {
 
   getGpuStatus(): Promise<GpuResponse> {
     return request<GpuResponse>("/settings/gpu");
-  },
-
-  // Export
-  exportPack(packId: string, data: ExportRequest): Promise<Job> {
-    return request<Job>(`/packs/${packId}/export`, {
-      method: "POST",
-      body: JSON.stringify(data),
-    });
   },
 
   // Projects

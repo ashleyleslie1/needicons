@@ -1,6 +1,4 @@
 // Enums
-export type RequirementStatus = "pending" | "generated" | "accepted";
-export type GenerationMode = "precision" | "economy";
 export type JobStatus = "pending" | "running" | "completed" | "failed";
 export type MaskShape = "none" | "circle" | "rounded_rect" | "squircle" | "square";
 export type StrokePosition = "inner" | "outer" | "center";
@@ -90,32 +88,6 @@ export interface ProcessingProfile {
   output: OutputConfig;
 }
 
-export interface Candidate {
-  id: string;
-  requirement_id: string;
-  source_path: string;
-  preview_path: string;
-  origin: string;
-  selected: boolean;
-}
-
-export interface Requirement {
-  id: string;
-  name: string;
-  description: string | null;
-  status: RequirementStatus;
-  candidates: Candidate[];
-}
-
-export interface Pack {
-  id: string;
-  name: string;
-  description: string;
-  style_prompt: string;
-  profile_id: string | null;
-  requirements: Requirement[];
-}
-
 export interface Job {
   id: string;
   type: string;
@@ -126,22 +98,6 @@ export interface Job {
 }
 
 // API Request/Response types
-export interface CreatePackRequest {
-  name: string;
-  description?: string;
-  style_prompt?: string;
-}
-
-export interface GenerateRequest {
-  mode: GenerationMode;
-}
-
-export interface ExportRequest {
-  profile_id: string;
-  sizes?: number[];
-  formats?: string[];
-}
-
 export interface SettingsResponse {
   provider: {
     api_key: string;

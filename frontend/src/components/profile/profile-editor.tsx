@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useSidebar } from "@/hooks/ui/use-sidebar";
 import { useProfiles, useCreateProfile, useUpdateProfile } from "@/hooks/api/use-profiles";
 import type { ProcessingProfile, MaskShape } from "@/lib/types";
 import { StepControl, SliderField } from "./step-control";
@@ -10,6 +9,7 @@ interface ProfileEditorProps {
   profileId: string | null;
   packName: string;
   onProfileChange: (id: string | null) => void;
+  onClose?: () => void;
 }
 
 function defaultProfile(): Partial<ProcessingProfile> {
@@ -27,8 +27,7 @@ function defaultProfile(): Partial<ProcessingProfile> {
   };
 }
 
-export function ProfileEditor({ profileId, packName, onProfileChange }: ProfileEditorProps) {
-  const { setRightPanel } = useSidebar();
+export function ProfileEditor({ profileId, packName, onProfileChange, onClose }: ProfileEditorProps) {
   const { data: profiles } = useProfiles();
   const createProfile = useCreateProfile();
   const updateProfile = useUpdateProfile();
@@ -86,7 +85,7 @@ export function ProfileEditor({ profileId, packName, onProfileChange }: ProfileE
         <span className="font-semibold text-base">Profile</span>
         <button
           type="button"
-          onClick={() => setRightPanel(null)}
+          onClick={() => onClose?.()}
           className="text-muted-foreground hover:text-foreground transition-colors text-base leading-none"
           aria-label="Close panel"
         >
