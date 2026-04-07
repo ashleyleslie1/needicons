@@ -81,6 +81,7 @@ async def get_settings(request: Request):
     from needicons.core.pipeline.runner import select_backend
     backend = select_backend(state.config)
     return {
+        "edition": state.edition,
         "provider": {
             "api_key": (api_key[:8] + "..." if len(api_key) > 8 else "***") if api_key else "",
             "api_key_set": bool(api_key),

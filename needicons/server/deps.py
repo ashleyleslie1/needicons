@@ -80,7 +80,7 @@ class AppState:
         if self._config_path.exists():
             with open(self._config_path) as f:
                 return yaml.safe_load(f) or {}
-        return {"provider": {"api_key": "", "default_model": "dall-e-3"}}
+        return {"provider": {"api_key": "", "default_model": "dall-e-3"}, "edition": "oss"}
 
     def save_config(self) -> None:
         self._config_path.parent.mkdir(parents=True, exist_ok=True)
@@ -94,3 +94,15 @@ class AppState:
     def update_config(self, section: str, values: dict) -> None:
         self._config.setdefault(section, {}).update(values)
         self.save_config()
+
+    @property
+    def edition(self) -> str:
+        """Get the current edition: 'oss' (default) or 'commercial'.
+
+        Precedence: NEEDICONS_EDITION env var > config.yaml edition field > 'oss'
+        """
+        import os
+        env_edition = os.environ.get("NEEDICONS_EDITION", "").lower()
+        if env_edition in ("oss", "commercial"):
+            return env_edition
+        return self._config.get("edition", "oss")
