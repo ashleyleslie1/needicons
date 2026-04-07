@@ -6,6 +6,19 @@ import numpy as np
 from PIL import Image
 
 
+def _split_quadrants(image: Image.Image, padding: int = 5) -> list[Image.Image]:
+    """Split image into 4 equal quadrants (2x2 grid)."""
+    w, h = image.size
+    mid_x, mid_y = w // 2, h // 2
+    quadrants = [
+        image.crop((padding, padding, mid_x - padding, mid_y - padding)),          # top-left
+        image.crop((mid_x + padding, padding, w - padding, mid_y - padding)),       # top-right
+        image.crop((padding, mid_y + padding, mid_x - padding, h - padding)),       # bottom-left
+        image.crop((mid_x + padding, mid_y + padding, w - padding, h - padding)),   # bottom-right
+    ]
+    return quadrants
+
+
 def detect_icons(
     image: Image.Image,
     min_area_ratio: float = 0.01,
@@ -15,7 +28,7 @@ def detect_icons(
 
     Works on both white-background and transparent-background images.
     Returns a list of cropped RGBA images, one per detected icon.
-    Falls back to returning the full image if detection fails.
+    Falls back to quadrant splitting if contour detection finds fewer than 2 icons.
     """
     if image.mode != "RGBA":
         image = image.convert("RGBA")
@@ -44,8 +57,9 @@ def detect_icons(
 
     valid_contours = [c for c in contours if cv2.contourArea(c) >= min_area]
 
-    if not valid_contours:
-        return [image]
+    # If contour detection finds fewer than 2 icons, fall back to quadrant split
+    if len(valid_contours) < 2:
+        return _split_quadrants(image)
 
     boxes = [cv2.boundingRect(c) for c in valid_contours]
     boxes.sort(key=lambda b: (b[1] // (image.height // 3), b[0]))
@@ -59,4 +73,4 @@ def detect_icons(
         cropped = image.crop((x1, y1, x2, y2))
         icons.append(cropped)
 
-    return icons if icons else [image]
+    return icons if icons else _split_quadrants(image)
