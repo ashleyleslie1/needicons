@@ -17,10 +17,19 @@ def _profile_to_configs(profile, gpu_provider: str = "auto") -> dict[str, dict]:
     """Convert a ProcessingProfile to pipeline runner configs dict."""
     bg_config = profile.background_removal.model_dump()
     bg_config["gpu_provider"] = gpu_provider
+
+    wn_config = profile.weight_normalization.model_dump()
+    # Pass the active shape so weight normalization can auto-shrink
+    # content to fit inside non-rectangular masks.
+    shape = profile.mask.shape
+    if shape != "none":
+        wn_config["enabled"] = True
+        wn_config["shape"] = shape
+
     return {
         "background_removal": bg_config,
         "edge_cleanup": profile.edge_cleanup.model_dump(),
-        "weight_normalization": profile.weight_normalization.model_dump(),
+        "weight_normalization": wn_config,
         "centering": {},
         "color": profile.color.model_dump(),
         "stroke": profile.stroke.model_dump(),
