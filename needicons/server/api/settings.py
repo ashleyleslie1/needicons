@@ -38,14 +38,13 @@ async def get_settings(request: Request):
 
 
 def _get_plaintext_key(stored: str) -> str:
-    """Decrypt an API key from config. Handles both encrypted and legacy plaintext keys."""
+    """Decrypt an API key from config. Returns empty string if decryption fails."""
     if not stored:
         return ""
     try:
         return decrypt_value(stored)
     except Exception:
-        # Legacy plaintext key — return as-is
-        return stored
+        return ""
 
 
 def get_api_key(state) -> str:
