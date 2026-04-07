@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { Project } from "@/lib/types";
 import { api } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 
 const SIZES = [512, 256, 128, 64, 32, 16];
 const FORMATS = [
@@ -25,7 +26,11 @@ interface ExportDialogProps {
 export function ExportDialog({ project, onClose }: ExportDialogProps) {
   const [selectedSizes, setSelectedSizes] = useState<number[]>([512, 256, 128]);
   const [format, setFormat] = useState("png");
-  const [downloading, setDownloading] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [progress, setProgress] = useState<{ completed: number; total: number; current_icon: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval>>();
 
   function toggleSize(size: number) {
     setSelectedSizes((prev) =>
@@ -33,24 +38,57 @@ export function ExportDialog({ project, onClose }: ExportDialogProps) {
     );
   }
 
-  async function handleDownload() {
-    setDownloading(true);
+  useEffect(() => {
+    if (!jobId) return;
+
+    pollRef.current = setInterval(async () => {
+      try {
+        const status = await api.getExportStatus(project.id, jobId);
+        setProgress({ completed: status.completed, total: status.total, current_icon: status.current_icon });
+
+        if (status.status === "completed") {
+          clearInterval(pollRef.current);
+          const blob = await api.downloadExport(project.id, jobId);
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `needicons-${project.name}.zip`;
+          a.click();
+          URL.revokeObjectURL(url);
+          setExporting(false);
+          setJobId(null);
+          setProgress(null);
+          onClose();
+        } else if (status.status === "failed") {
+          clearInterval(pollRef.current);
+          setError(status.error ?? "Export failed");
+          setExporting(false);
+          setJobId(null);
+        }
+      } catch {
+        clearInterval(pollRef.current);
+        setError("Lost connection to server");
+        setExporting(false);
+        setJobId(null);
+      }
+    }, 500);
+
+    return () => clearInterval(pollRef.current);
+  }, [jobId, project.id, project.name, onClose]);
+
+  async function handleExport() {
+    setExporting(true);
+    setError(null);
     try {
-      const blob = await api.exportProject(project.id, {
+      const result = await api.startExport(project.id, {
         sizes: selectedSizes.sort((a, b) => b - a),
         formats: [format],
       });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `needicons-${project.name}.zip`;
-      a.click();
-      URL.revokeObjectURL(url);
-      onClose();
+      setJobId(result.job_id);
+      setProgress({ completed: 0, total: result.total, current_icon: "" });
     } catch {
-      // handled by ApiError
-    } finally {
-      setDownloading(false);
+      setError("Failed to start export");
+      setExporting(false);
     }
   }
 
@@ -65,7 +103,7 @@ export function ExportDialog({ project, onClose }: ExportDialogProps) {
   const ppSummary = ppParts.length > 0 ? ppParts.join(" + ") : "None";
 
   return (
-    <Dialog open onOpenChange={() => onClose()}>
+    <Dialog open onOpenChange={() => !exporting && onClose()}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Export {project.name}</DialogTitle>
@@ -81,11 +119,13 @@ export function ExportDialog({ project, onClose }: ExportDialogProps) {
               <button
                 key={size}
                 onClick={() => toggleSize(size)}
+                disabled={exporting}
                 className={cn(
                   "rounded-lg border px-4 py-2 text-sm font-medium transition-colors",
                   selectedSizes.includes(size)
                     ? "border-accent bg-accent/10 text-accent"
                     : "border-border bg-muted text-muted-foreground hover:text-foreground",
+                  exporting && "opacity-50 cursor-not-allowed",
                 )}
               >
                 {size}
@@ -101,10 +141,10 @@ export function ExportDialog({ project, onClose }: ExportDialogProps) {
               <button
                 key={f.value}
                 onClick={() => !f.disabled && setFormat(f.value)}
-                disabled={f.disabled}
+                disabled={f.disabled || exporting}
                 className={cn(
                   "rounded-lg border px-5 py-2 text-sm font-medium transition-colors",
-                  f.disabled && "cursor-not-allowed opacity-40",
+                  (f.disabled || exporting) && "cursor-not-allowed opacity-40",
                   format === f.value && !f.disabled
                     ? "border-accent bg-accent/10 text-accent"
                     : "border-border bg-muted text-muted-foreground hover:text-foreground",
@@ -137,12 +177,28 @@ export function ExportDialog({ project, onClose }: ExportDialogProps) {
           </div>
         </div>
 
+        {exporting && progress && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>Processing{progress.current_icon ? `: ${progress.current_icon}` : "..."}</span>
+              <span>{progress.completed}/{progress.total}</span>
+            </div>
+            <Progress value={(progress.completed / progress.total) * 100} />
+          </div>
+        )}
+
+        {error && (
+          <div className="rounded-lg border border-red-500/20 bg-red-500/5 p-3 text-xs text-red-500">
+            {error}
+          </div>
+        )}
+
         <Button
-          onClick={handleDownload}
-          disabled={downloading || selectedSizes.length === 0 || project.icons.length === 0}
+          onClick={handleExport}
+          disabled={exporting || selectedSizes.length === 0 || project.icons.length === 0}
           className="w-full"
         >
-          {downloading ? "Preparing..." : "Download ZIP"}
+          {exporting ? "Exporting..." : "Download ZIP"}
         </Button>
       </DialogContent>
     </Dialog>

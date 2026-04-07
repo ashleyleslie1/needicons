@@ -187,6 +187,14 @@ export interface ExportProjectRequest {
   formats: string[];
 }
 
+export interface ExportJobStatus {
+  status: "running" | "completed" | "failed";
+  completed: number;
+  total: number;
+  current_icon: string;
+  error: string | null;
+}
+
 export interface ModelCapabilities {
   label: string;
   description: string;

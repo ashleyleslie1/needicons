@@ -6,6 +6,7 @@ import type {
   GenerateIconsRequest,
   GenerationRecord,
   ExportProjectRequest,
+  ExportJobStatus,
   ModelCapabilities,
 } from "./types";
 
@@ -212,15 +213,32 @@ export const api = {
     });
   },
 
-  // Project Export (returns blob, not JSON)
-  async exportProject(projectId: string, data: ExportProjectRequest): Promise<Blob> {
-    const url = `/api/projects/${projectId}/export`;
-    const res = await fetch(url, {
+  // Project Export (async job-based)
+  async startExport(projectId: string, data: ExportProjectRequest): Promise<{ job_id: string; total: number }> {
+    return request<{ job_id: string; total: number }>(`/projects/${projectId}/export`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     });
-    if (!res.ok) throw new ApiError(res.status, "Export failed");
+  },
+
+  getExportStatus(projectId: string, jobId: string): Promise<ExportJobStatus> {
+    return request<ExportJobStatus>(`/projects/${projectId}/export/${jobId}/status`);
+  },
+
+  async downloadExport(projectId: string, jobId: string): Promise<Blob> {
+    const url = `/api/projects/${projectId}/export/${jobId}/download`;
+    const res = await fetch(url);
+    if (!res.ok) throw new ApiError(res.status, "Download failed");
     return res.blob();
+  },
+
+  refreshPreviews(projectId: string): Promise<{ status: string; job_id: string; total: number }> {
+    return request<{ status: string; job_id: string; total: number }>(`/projects/${projectId}/refresh-previews`, {
+      method: "POST",
+    });
+  },
+
+  getRefreshStatus(projectId: string, jobId: string): Promise<{ status: string; completed: number; total: number }> {
+    return request<{ status: string; completed: number; total: number }>(`/projects/${projectId}/refresh-previews/${jobId}`);
   },
 };

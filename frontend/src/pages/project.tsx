@@ -6,6 +6,7 @@ import { ProjectIconGrid } from "@/components/project/project-icon-grid";
 import { ExportDialog } from "@/components/project/export-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { PostProcessingSettings } from "@/lib/types";
+import { api } from "@/lib/api-client";
 
 export function ProjectPage() {
   const { activeProjectId } = useSidebar();
@@ -24,7 +25,11 @@ export function ProjectPage() {
       debounceRef.current = setTimeout(() => {
         updateProject.mutate(
           { id: activeProjectId, post_processing: settings },
-          { onSuccess: () => setPreviewVersion((v) => v + 1) },
+          { onSuccess: () => {
+            setPreviewVersion((v) => v + 1);
+            // Trigger background refresh of all icon previews
+            api.refreshPreviews(activeProjectId).catch(() => {});
+          } },
         );
       }, 300);
     },
