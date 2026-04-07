@@ -124,3 +124,8 @@ def test_generation_record_migrates_disabled():
             "bg_removal_applied": False, "bg_removal_aggressiveness": 50}
     record = GenerationRecord(**data)
     assert record.bg_removal_level == 0
+
+
+def test_generation_record_mood_default():
+    record = GenerationRecord(project_id="p1", name="tent", prompt="tent")
+    assert record.mood == ""

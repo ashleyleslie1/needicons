@@ -12,6 +12,7 @@ class GenerationConfig(BaseModel):
     description: str = ""
     mode: GenerationMode = GenerationMode.PRECISION
     style: IconStyle = IconStyle.SOLID
+    mood: str = ""
     model: str = ""
     size: str = "1024x1024"
     api_quality: str = ""

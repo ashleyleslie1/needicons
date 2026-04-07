@@ -24,12 +24,25 @@ _STYLE_PROMPTS = {
     "sticker": "Sticker-style icon with slight 3D effect. Soft shadow, rounded feel, playful.",
 }
 
+_MOOD_PROMPTS = {
+    "none": "",
+    "cinematic": "Dramatic lighting, film-like depth and atmosphere.",
+    "vibrant": "Saturated, energetic, eye-catching colors.",
+    "dynamic": "Motion, energy, action-oriented composition.",
+    "fashion": "Elegant, stylish, editorial look.",
+    "portrait": "Close-up, character-focused detail.",
+    "stock_photo": "Clean, professional, commercial-ready.",
+}
+
 
 def _build_single_prompt(config: GenerationConfig) -> str:
     """Prompt for a single icon (used by PRECISION mode and gpt-image ECONOMY)."""
     parts = [_SYSTEM_PREFIX]
     style_desc = _STYLE_PROMPTS.get(config.style.value, _STYLE_PROMPTS["solid"])
     parts.append(f"Style: {style_desc}")
+    mood_desc = _MOOD_PROMPTS.get(config.mood, "")
+    if mood_desc:
+        parts.append(f"Mood: {mood_desc}")
     if config.style_prompt:
         parts.append(f"Additional style guide: {config.style_prompt}")
     subject = config.subject
@@ -48,6 +61,9 @@ def _build_grid_prompt(config: GenerationConfig) -> str:
     parts = [_SYSTEM_PREFIX]
     style_desc = _STYLE_PROMPTS.get(config.style.value, _STYLE_PROMPTS["solid"])
     parts.append(f"Style: {style_desc}")
+    mood_desc = _MOOD_PROMPTS.get(config.mood, "")
+    if mood_desc:
+        parts.append(f"Mood: {mood_desc}")
     if config.style_prompt:
         parts.append(f"Additional style guide: {config.style_prompt}")
     subject = config.subject
