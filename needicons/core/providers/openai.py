@@ -47,7 +47,7 @@ def _build_prompt(config: GenerationConfig) -> str:
 
 
 class OpenAIProvider(ImageProvider):
-    def __init__(self, api_key: str, default_model: str = "gpt-4o"):
+    def __init__(self, api_key: str, default_model: str = "dall-e-3"):
         self._client = AsyncOpenAI(api_key=api_key)
         self._default_model = default_model
 
@@ -55,18 +55,28 @@ class OpenAIProvider(ImageProvider):
         prompt = _build_prompt(config)
         model = config.model or self._default_model
 
-        response = await self._client.images.generate(
-            model=model,
-            prompt=prompt,
-            n=1,
-            size=config.size,
-            response_format="b64_json",
-        )
+        # dall-e-3 supports response_format=b64_json; newer models (gpt-image-1) use URL
+        kwargs: dict = {
+            "model": model,
+            "prompt": prompt,
+            "n": 1,
+            "size": config.size,
+        }
+        if model.startswith("dall-e"):
+            kwargs["response_format"] = "b64_json"
+
+        response = await self._client.images.generate(**kwargs)
 
         images = []
         for item in response.data:
-            data = base64.b64decode(item.b64_json)
-            img = Image.open(io.BytesIO(data)).convert("RGBA")
+            if item.b64_json:
+                data = base64.b64decode(item.b64_json)
+                img = Image.open(io.BytesIO(data)).convert("RGBA")
+            else:
+                # URL-based response — download the image
+                import httpx
+                resp = httpx.get(item.url)
+                img = Image.open(io.BytesIO(resp.content)).convert("RGBA")
             images.append(img)
 
         return images

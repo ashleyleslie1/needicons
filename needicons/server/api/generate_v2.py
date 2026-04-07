@@ -83,7 +83,8 @@ async def generate_icons(request: Request):
     if not api_key:
         raise HTTPException(status_code=400, detail="No API key configured")
 
-    provider = OpenAIProvider(api_key=api_key)
+    default_model = provider_config.get("default_model", "dall-e-3")
+    provider = OpenAIProvider(api_key=api_key, default_model=default_model)
     style_prompt = ""
 
     if project_id:

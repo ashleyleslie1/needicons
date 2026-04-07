@@ -12,7 +12,7 @@ class GenerationConfig(BaseModel):
     description: str = ""
     mode: GenerationMode = GenerationMode.PRECISION
     style: IconStyle = IconStyle.SOLID
-    model: str = "gpt-4o"
+    model: str = ""
     size: str = "1024x1024"
 
 
