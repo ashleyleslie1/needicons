@@ -19,6 +19,7 @@ from needicons.core.pipeline.denoise import DenoiseStep
 from needicons.core.pipeline.color import ColorProcessingStep
 from needicons.core.pipeline.edges import EdgeCleanupStep
 from needicons.core.pipeline.upscale import UpscaleStep
+from needicons.core.pipeline.lasso import apply_lasso_masks, get_available_strategies, refine_mask
 from needicons.server.api.settings import get_api_key
 from needicons.core.prompt_enhance import enhance_prompt
 
@@ -216,6 +217,19 @@ def _reprocess_variation(original: Image.Image, record, gpu_provider: str = "aut
     # 1. BG Removal
     if record.bg_removal_level > 0:
         img = remove_background(img, record.bg_removal_level, gpu_provider)
+
+    # 1.5 Lasso Masks
+    if record.lasso_masks:
+        w, h = img.size
+        masks_data = []
+        for lm in record.lasso_masks:
+            pixel_polygon = [(int(x * w), int(y * h)) for x, y in lm.polygon]
+            masks_data.append({
+                "polygon": pixel_polygon,
+                "mode": lm.mode,
+                "strategy": lm.strategy,
+            })
+        img = apply_lasso_masks(img, masks_data)
 
     # 2. Denoise
     if record.denoise_strength > 0:
