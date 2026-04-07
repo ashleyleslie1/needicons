@@ -37,6 +37,12 @@ jobs:
         with:
           node-version: "20"
 
+      - name: Set version from tag
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          sed -i "s/^version = .*/version = \"${VERSION}\"/" pyproject.toml
+          echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
+
       - name: Build frontend
         working-directory: frontend
         run: npm ci && npm run build
