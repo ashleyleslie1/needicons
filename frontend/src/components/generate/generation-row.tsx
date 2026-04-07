@@ -194,7 +194,7 @@ export const GenerationRow = memo(function GenerationRow({ record, layout, onReg
               <img
                 src={`/api/images/${variation.preview_path}?t=${cacheBust(record)}`}
                 alt={`${record.name} v${variation.index + 1}`}
-                className="h-full w-full object-contain bg-[#1a1a28] p-1.5 scale-110"
+                className="h-full w-full object-contain p-1.5 scale-110 transition-colors group-hover:bg-muted/30"
                 loading="lazy"
                 decoding="async"
               />
