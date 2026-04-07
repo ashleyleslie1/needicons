@@ -92,3 +92,16 @@ class BackgroundRemovalStep(PipelineStep):
 
         result = remove(image, session=session, **kwargs)
         return result.convert("RGBA")
+
+
+def cleanup_background_residue(image: Image.Image) -> Image.Image:
+    """Remove near-white pixels with partial transparency left by rembg."""
+    arr = np.array(image, dtype=np.float32)
+    rgb = arr[:, :, :3]
+    alpha = arr[:, :, 3]
+    brightness = rgb.mean(axis=2)
+    bright_mask = brightness > 230
+    fade = np.clip((brightness - 230) / 25, 0, 1)
+    alpha[bright_mask] *= (1 - fade[bright_mask] * 0.8)
+    arr[:, :, 3] = alpha
+    return Image.fromarray(arr.astype(np.uint8))

@@ -14,7 +14,7 @@ from needicons.core.providers.base import GenerationConfig
 from needicons.core.providers.openai import OpenAIProvider
 from needicons.core.pipeline.detection import detect_icons
 from needicons.core.pipeline.normalize import CenteringStep, WeightNormalizationStep
-from needicons.core.pipeline.background import BackgroundRemovalStep
+from needicons.core.pipeline.background import BackgroundRemovalStep, cleanup_background_residue
 from needicons.server.api.settings import get_api_key
 
 router = APIRouter(tags=["generate_v2"])
@@ -39,30 +39,13 @@ def _make_preview(image: Image.Image, gpu_provider: str = "auto") -> Image.Image
             "gpu_provider": gpu_provider,
         })
         # Clean up near-white residual pixels that rembg sometimes leaves
-        image = _cleanup_background(image)
+        image = cleanup_background_residue(image)
     # Normalize size so all icons fill ~80% of the preview canvas uniformly
     wn = WeightNormalizationStep()
     image = wn.process(image, {"enabled": True, "target_fill": 0.80})
     centering = CenteringStep()
     image = centering.process(image, {})
     return image.resize((256, 256), Image.LANCZOS)
-
-
-def _cleanup_background(image: Image.Image) -> Image.Image:
-    """Remove near-white pixels with partial transparency left by rembg."""
-    import numpy as np
-    arr = np.array(image, dtype=np.float32)
-    # Pixels that are bright (near-white) and semi-transparent are likely
-    # background remnants — fade them out proportionally.
-    rgb = arr[:, :, :3]
-    alpha = arr[:, :, 3]
-    brightness = rgb.mean(axis=2)
-    # For bright pixels (>230), reduce alpha based on how close to white they are
-    bright_mask = brightness > 230
-    fade = np.clip((brightness - 230) / 25, 0, 1)  # 0 at 230, 1 at 255
-    alpha[bright_mask] *= (1 - fade[bright_mask] * 0.8)
-    arr[:, :, 3] = alpha
-    return Image.fromarray(arr.astype(np.uint8))
 
 
 async def _generate_hq(provider, name, prompt, style, style_prompt):
