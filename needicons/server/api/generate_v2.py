@@ -351,19 +351,23 @@ async def delete_generation(gen_id: str, request: Request):
 
 @router.post("/api/generations/{gen_id}/remove-bg")
 async def remove_generation_bg(gen_id: str, request: Request):
-    """Apply or remove background removal on all variations of a generation."""
+    """Apply or remove background removal. level 0=restore, 1-10=process. request_id for staleness."""
     state = request.app.state.app_state
     record = state.generation_records.get(gen_id)
     if not record:
         raise HTTPException(status_code=404, detail="Generation record not found")
 
     body = await request.json()
-    enabled = body.get("enabled", True)
-    aggressiveness = max(0, min(100, body.get("aggressiveness", 50)))
+    level = max(0, min(10, body.get("level", 5)))
+    request_id = body.get("request_id", "")
     gpu_provider = state.config.get("gpu", {}).get("provider", "auto")
 
-    if not enabled:
-        # Restore originals back to raw/ paths
+    # Store request_id so we can detect stale requests
+    if request_id:
+        record.bg_removal_request_id = request_id
+        state.save_data()
+
+    if level == 0:
         for variation in record.variations:
             original_path = f"images/{record.id}/original/r{variation.index}.png"
             full_original = state.data_dir / original_path
@@ -372,35 +376,35 @@ async def remove_generation_bg(gen_id: str, request: Request):
                 _save_image(state, raw_img, variation.source_path)
                 preview = _make_preview(raw_img, gpu_provider)
                 _save_image(state, preview, variation.preview_path)
-
-        record.bg_removal_applied = False
-        record.bg_removal_aggressiveness = aggressiveness
+        record.bg_removal_level = 0
         state.save_data()
         return record.model_dump()
 
-    # Apply BG removal to each variation
     loop = asyncio.get_event_loop()
     for variation in record.variations:
+        if request_id and record.bg_removal_request_id != request_id:
+            return record.model_dump()
+
         raw_path = state.data_dir / variation.source_path
         if not raw_path.exists():
             continue
 
-        raw_img = Image.open(raw_path).convert("RGBA")
-
-        # If already applied, reload from original to avoid double-processing
-        if record.bg_removal_applied:
-            original_path = f"images/{record.id}/original/r{variation.index}.png"
-            full_original = state.data_dir / original_path
-            if full_original.exists():
-                raw_img = Image.open(full_original).convert("RGBA")
+        original_path = f"images/{record.id}/original/r{variation.index}.png"
+        full_original = state.data_dir / original_path
+        if full_original.exists():
+            raw_img = Image.open(full_original).convert("RGBA")
+        else:
+            raw_img = Image.open(raw_path).convert("RGBA")
 
         processed = await loop.run_in_executor(
-            None, remove_background, raw_img, aggressiveness, gpu_provider
+            None, remove_background, raw_img, level, gpu_provider
         )
+
+        if request_id and record.bg_removal_request_id != request_id:
+            return record.model_dump()
 
         _save_image(state, processed, variation.source_path)
 
-        # Regenerate preview
         from needicons.core.pipeline.normalize import CenteringStep, WeightNormalizationStep
         wn = WeightNormalizationStep()
         processed = wn.process(processed, {"enabled": True, "target_fill": 0.80})
@@ -409,7 +413,6 @@ async def remove_generation_bg(gen_id: str, request: Request):
         preview = preview.resize((256, 256), Image.LANCZOS)
         _save_image(state, preview, variation.preview_path)
 
-    record.bg_removal_applied = True
-    record.bg_removal_aggressiveness = aggressiveness
+    record.bg_removal_level = level
     state.save_data()
     return record.model_dump()
