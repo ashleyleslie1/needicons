@@ -47,9 +47,18 @@ def test_generation_mode_enum():
 def test_icon_style_enum():
     assert IconStyle.SOLID == "solid"
     assert IconStyle.OUTLINE == "outline"
-    assert IconStyle.COLOR == "color"
+    assert IconStyle.COLORFUL == "colorful"
     assert IconStyle.FLAT == "flat"
     assert IconStyle.STICKER == "sticker"
+
+
+def test_icon_style_colorful():
+    assert IconStyle.COLORFUL == "colorful"
+    assert IconStyle.COLORFUL.value == "colorful"
+
+
+def test_icon_style_color_backward_compat():
+    assert IconStyle("color") == IconStyle.COLORFUL
 
 
 def test_quality_mode_enum():

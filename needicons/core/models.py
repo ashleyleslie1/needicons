@@ -134,9 +134,15 @@ class Job(BaseModel):
 class IconStyle(str, Enum):
     SOLID = "solid"
     OUTLINE = "outline"
-    COLOR = "color"
+    COLORFUL = "colorful"
     FLAT = "flat"
     STICKER = "sticker"
+
+    @classmethod
+    def _missing_(cls, value: object) -> "IconStyle | None":
+        if value == "color":
+            return cls.COLORFUL
+        return None
 
 
 class QualityMode(str, Enum):

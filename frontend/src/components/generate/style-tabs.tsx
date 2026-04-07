@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 const STYLES: { value: IconStyle; label: string }[] = [
   { value: "solid", label: "Solid" },
   { value: "outline", label: "Outline" },
-  { value: "color", label: "Color" },
+  { value: "colorful", label: "Colorful" },
   { value: "flat", label: "Flat" },
   { value: "sticker", label: "Sticker" },
 ];

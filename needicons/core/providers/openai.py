@@ -19,7 +19,7 @@ _SYSTEM_PREFIX = (
 _STYLE_PROMPTS = {
     "solid": "Filled, single-color icon. Bold silhouette style, flat fill, no gradients.",
     "outline": "Line-drawn, stroke-only icon. Clean outlines, no fill, uniform stroke weight.",
-    "color": "Full-color, detailed icon. Rich colors, subtle shading, polished look.",
+    "colorful": "Full-color, detailed icon. Rich colors, subtle shading, polished look.",
     "flat": "Minimal flat-design icon. Simple shapes, limited color palette, no shadows or gradients.",
     "sticker": "Sticker-style icon with slight 3D effect. Soft shadow, rounded feel, playful.",
 }

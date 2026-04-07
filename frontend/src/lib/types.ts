@@ -148,7 +148,7 @@ export interface ProcessingLogEntry {
 
 // --- New UX Redesign Types ---
 
-export type IconStyle = "solid" | "outline" | "color" | "flat" | "sticker";
+export type IconStyle = "solid" | "outline" | "colorful" | "color" | "flat" | "sticker";
 export type QualityMode = "hq" | "normal";
 
 export interface PostProcessingSettings {
