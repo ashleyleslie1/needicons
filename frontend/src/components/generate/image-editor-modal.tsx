@@ -195,8 +195,8 @@ export function ImageEditorModal({ record, variationIndex, open, onOpenChange }:
                   className={cn(
                     "w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors",
                     activeTool === tool.id
-                      ? "bg-accent/10 border border-accent/30 shadow-sm"
-                      : "bg-muted/30 border border-border hover:bg-muted/60 hover:border-border",
+                      ? "bg-accent/10 border border-accent/30"
+                      : "bg-muted/30 border border-transparent hover:bg-muted/60 hover:border-border",
                   )}
                 >
                   <div className={cn("shrink-0", activeTool === tool.id ? "text-accent" : "text-muted-foreground")}>
