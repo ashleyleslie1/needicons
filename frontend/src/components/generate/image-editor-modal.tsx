@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import type { GenerationRecord } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { usePickVariation, useUnpickVariation, useRemoveBackground, useColorAdjust, useEdgeCleanup, useUpscale, useDenoise, useAddLassoMask, useDeleteLassoMask, useLassoStrategies } from "@/hooks/api/use-generate-v2";
@@ -52,6 +52,10 @@ export function ImageEditorModal({ record, variationIndex, open, onOpenChange }:
   const [feather, setFeather] = useState(record.edge_feather);
   const [denoiseStr, setDenoiseStr] = useState(record.denoise_strength);
   const [zoom, setZoom] = useState(1);
+  const [panX, setPanX] = useState(0);
+  const [panY, setPanY] = useState(0);
+  const [isPanning, setIsPanning] = useState(false);
+  const panStart = useRef({ x: 0, y: 0, panX: 0, panY: 0 });
   const [lassoMode, setLassoMode] = useState<"remove" | "protect">("remove");
   const [lassoStrategy, setLassoStrategy] = useState("grabcut");
 
@@ -117,18 +121,39 @@ export function ImageEditorModal({ record, variationIndex, open, onOpenChange }:
                 `,
                 backgroundSize: "16px 16px",
                 backgroundPosition: "0 0, 0 8px, 8px -8px, -8px 0",
+                cursor: isPanning ? "grabbing" : zoom > 1 ? "grab" : "default",
               }}
               onWheel={(e) => {
                 e.preventDefault();
-                setZoom((z) => Math.min(3, Math.max(0.5, z + (e.deltaY > 0 ? -0.1 : 0.1))));
+                setZoom((z) => {
+                  const next = Math.min(3, Math.max(0.5, z + (e.deltaY > 0 ? -0.1 : 0.1)));
+                  if (next <= 1) { setPanX(0); setPanY(0); }
+                  return next;
+                });
               }}
+              onMouseDown={(e) => {
+                if (zoom <= 1 || activeTool === "lasso") return;
+                e.preventDefault();
+                setIsPanning(true);
+                panStart.current = { x: e.clientX, y: e.clientY, panX, panY };
+              }}
+              onMouseMove={(e) => {
+                if (!isPanning) return;
+                const maxPan = 50;
+                const dx = e.clientX - panStart.current.x;
+                const dy = e.clientY - panStart.current.y;
+                setPanX(Math.max(-maxPan, Math.min(maxPan, panStart.current.panX + dx * 0.5)));
+                setPanY(Math.max(-maxPan, Math.min(maxPan, panStart.current.panY + dy * 0.5)));
+              }}
+              onMouseUp={() => setIsPanning(false)}
+              onMouseLeave={() => setIsPanning(false)}
             >
               <img
                 src={`/api/images/${variation.preview_path}?t=${cacheBust(record)}`}
                 alt={`${record.name} v${variationIndex + 1}`}
                 draggable={false}
                 className="max-h-[420px] max-w-full object-contain drop-shadow-lg transition-transform duration-100 select-none"
-                style={{ transform: `scale(${zoom})` }}
+                style={{ transform: `scale(${zoom}) translate(${panX}px, ${panY}px)` }}
               />
               {activeTool === "lasso" && (
                 <LassoCanvas
@@ -152,7 +177,7 @@ export function ImageEditorModal({ record, variationIndex, open, onOpenChange }:
             {zoom !== 1 && (
               <div className="absolute top-3 left-3 flex items-center gap-1.5 rounded-md bg-card/80 backdrop-blur-sm border border-border px-2 py-1 shadow-sm">
                 <span className="text-[10px] font-semibold text-foreground tabular-nums">{Math.round(zoom * 100)}%</span>
-                <button onClick={() => setZoom(1)} className="text-[10px] text-muted-foreground hover:text-foreground transition-colors">Reset</button>
+                <button onClick={() => { setZoom(1); setPanX(0); setPanY(0); }} className="text-[10px] text-muted-foreground hover:text-foreground transition-colors">Reset</button>
               </div>
             )}
 
