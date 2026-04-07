@@ -297,3 +297,49 @@ export function useDenoise() {
   useEffect(() => () => { abortRef.current?.abort(); if (debounceRef.current) clearTimeout(debounceRef.current); }, []);
   return { mutate: debouncedMutate, isPending: mutation.isPending };
 }
+
+export function useLassoStrategies() {
+  return useQuery({
+    queryKey: ["lasso-strategies"],
+    queryFn: () => api.getLassoStrategies(),
+    staleTime: 60_000,
+  });
+}
+
+export function useAddLassoMask() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (p: {
+      generationId: string;
+      polygon: [number, number][];
+      mode: "remove" | "protect";
+      strategy: string;
+      signal?: AbortSignal;
+    }) =>
+      api.addLassoMask(p.generationId, p.polygon, p.mode, p.strategy, p.signal),
+    onSuccess: (data) => {
+      qc.setQueriesData<GenerationRecord[]>(
+        { queryKey: ["generation-history"] },
+        (old) =>
+          old?.map((r) => (r.id === data.record.id ? data.record : r)),
+      );
+      qc.invalidateQueries({ queryKey: ["projects"] });
+    },
+  });
+}
+
+export function useDeleteLassoMask() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (p: { generationId: string; maskId: string }) =>
+      api.deleteLassoMask(p.generationId, p.maskId),
+    onSuccess: (updatedRecord) => {
+      qc.setQueriesData<GenerationRecord[]>(
+        { queryKey: ["generation-history"] },
+        (old) =>
+          old?.map((r) => (r.id === updatedRecord.id ? updatedRecord : r)),
+      );
+      qc.invalidateQueries({ queryKey: ["projects"] });
+    },
+  });
+}
