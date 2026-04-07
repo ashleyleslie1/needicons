@@ -30,7 +30,7 @@ export function SettingsPage() {
   const navigate = useNavigate();
 
   return (
-    <>
+    <div className="flex flex-1 overflow-hidden">
       <Panel>
         <h2 className="text-base font-semibold text-foreground mb-4">Settings</h2>
         <nav className="flex flex-col gap-1">
@@ -54,6 +54,6 @@ export function SettingsPage() {
       <Canvas>
         <SettingsContent tab={tab} />
       </Canvas>
-    </>
+    </div>
   );
 }
