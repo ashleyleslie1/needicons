@@ -649,3 +649,101 @@ async def denoise_generation(gen_id: str, request: Request):
 
     state.save_data()
     return record.model_dump()
+
+
+@router.get("/api/generation-tools/strategies")
+async def get_lasso_strategies():
+    """Return list of installed segmentation strategies for lasso tool."""
+    return {"strategies": get_available_strategies()}
+
+
+@router.post("/api/generations/{gen_id}/lasso-mask")
+async def add_lasso_mask(gen_id: str, request: Request):
+    """Add a lasso mask selection to a generation record."""
+    state = request.app.state.app_state
+    record = state.generation_records.get(gen_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Generation record not found")
+
+    body = await request.json()
+    polygon = body.get("polygon", [])
+    mode = body.get("mode", "remove")
+    strategy = body.get("strategy", "grabcut")
+
+    if mode not in ("remove", "protect"):
+        raise HTTPException(status_code=400, detail="Mode must be 'remove' or 'protect'")
+
+    available = get_available_strategies()
+    if strategy not in available:
+        raise HTTPException(status_code=400, detail=f"Strategy '{strategy}' not installed. Available: {available}")
+
+    if len(polygon) < 3:
+        raise HTTPException(status_code=400, detail="Polygon must have at least 3 points")
+
+    from needicons.core.models import LassoMask
+    mask_id = _new_id()
+    lasso_mask = LassoMask(
+        id=mask_id,
+        polygon=[(float(p[0]), float(p[1])) for p in polygon],
+        mode=mode,
+        strategy=strategy,
+    )
+    record.lasso_masks.append(lasso_mask)
+
+    gpu_provider = state.config.get("gpu", {}).get("provider", "auto")
+    _ensure_originals_saved(state, record)
+
+    loop = asyncio.get_event_loop()
+    for variation in record.variations:
+        original_path = f"images/{record.id}/original/r{variation.index}.png"
+        full_original = state.data_dir / original_path
+        if not full_original.exists():
+            continue
+        original = Image.open(full_original).convert("RGBA")
+        processed = await loop.run_in_executor(None, _reprocess_variation, original, record, gpu_provider)
+        _save_image(state, processed, variation.source_path)
+        wn = WeightNormalizationStep()
+        preview = wn.process(processed, {"enabled": True, "target_fill": 0.80})
+        centering = CenteringStep()
+        preview = centering.process(preview, {})
+        preview = preview.resize((256, 256), Image.LANCZOS)
+        _save_image(state, preview, variation.preview_path)
+
+    state.save_data()
+    return {"mask_id": mask_id, "record": record.model_dump()}
+
+
+@router.delete("/api/generations/{gen_id}/lasso-mask/{mask_id}")
+async def delete_lasso_mask(gen_id: str, mask_id: str, request: Request):
+    """Remove a lasso mask from a generation record and reprocess."""
+    state = request.app.state.app_state
+    record = state.generation_records.get(gen_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Generation record not found")
+
+    original_len = len(record.lasso_masks)
+    record.lasso_masks = [m for m in record.lasso_masks if m.id != mask_id]
+    if len(record.lasso_masks) == original_len:
+        raise HTTPException(status_code=404, detail="Mask not found")
+
+    gpu_provider = state.config.get("gpu", {}).get("provider", "auto")
+    _ensure_originals_saved(state, record)
+
+    loop = asyncio.get_event_loop()
+    for variation in record.variations:
+        original_path = f"images/{record.id}/original/r{variation.index}.png"
+        full_original = state.data_dir / original_path
+        if not full_original.exists():
+            continue
+        original = Image.open(full_original).convert("RGBA")
+        processed = await loop.run_in_executor(None, _reprocess_variation, original, record, gpu_provider)
+        _save_image(state, processed, variation.source_path)
+        wn = WeightNormalizationStep()
+        preview = wn.process(processed, {"enabled": True, "target_fill": 0.80})
+        centering = CenteringStep()
+        preview = centering.process(preview, {})
+        preview = preview.resize((256, 256), Image.LANCZOS)
+        _save_image(state, preview, variation.preview_path)
+
+    state.save_data()
+    return record.model_dump()
