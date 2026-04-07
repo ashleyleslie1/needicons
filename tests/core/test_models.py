@@ -85,3 +85,33 @@ def test_generation_variation():
     v = GenerationVariation(index=0, source_path="raw/v0.png", preview_path="preview/v0.png")
     assert v.picked is False
     assert v.index == 0
+
+
+def test_generation_record_has_level_field():
+    from needicons.core.models import GenerationRecord
+    record = GenerationRecord(project_id="p1", name="Test", prompt="test")
+    assert record.bg_removal_level == 0
+    assert "bg_removal_applied" not in GenerationRecord.model_fields
+    assert "bg_removal_aggressiveness" not in GenerationRecord.model_fields
+
+
+def test_generation_record_request_id_field():
+    from needicons.core.models import GenerationRecord
+    record = GenerationRecord(project_id="p1", name="Test", prompt="test")
+    assert record.bg_removal_request_id == ""
+
+
+def test_generation_record_migrates_old_fields():
+    from needicons.core.models import GenerationRecord
+    data = {"project_id": "p1", "name": "OldIcon", "prompt": "old",
+            "bg_removal_applied": True, "bg_removal_aggressiveness": 65}
+    record = GenerationRecord(**data)
+    assert 4 <= record.bg_removal_level <= 7
+
+
+def test_generation_record_migrates_disabled():
+    from needicons.core.models import GenerationRecord
+    data = {"project_id": "p1", "name": "OldIcon", "prompt": "old",
+            "bg_removal_applied": False, "bg_removal_aggressiveness": 50}
+    record = GenerationRecord(**data)
+    assert record.bg_removal_level == 0

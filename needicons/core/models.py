@@ -6,7 +6,7 @@ import uuid
 from enum import Enum
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 def _new_id() -> str:
@@ -180,9 +180,31 @@ class GenerationRecord(BaseModel):
     api_quality: str = ""
     variations: list[GenerationVariation] = Field(default_factory=list)
     original_count: int = 0  # number of raw API response images saved for debug
-    bg_removal_applied: bool = False
-    bg_removal_aggressiveness: int = 50
+    bg_removal_level: int = 0  # 0=off, 1-10=active
+    bg_removal_request_id: str = ""  # tracks cancel-and-restart
     created_at: str = Field(default_factory=lambda: datetime.datetime.utcnow().isoformat())
+
+    @model_validator(mode="before")
+    @classmethod
+    def migrate_v2_fields(cls, data: dict) -> dict:
+        if isinstance(data, dict):
+            if "bg_removal_aggressiveness" in data and "bg_removal_level" not in data:
+                agg = data.pop("bg_removal_aggressiveness", 50)
+                applied = data.pop("bg_removal_applied", False)
+                if not applied:
+                    data["bg_removal_level"] = 0
+                elif agg <= 30:
+                    data["bg_removal_level"] = max(1, round(agg / 10))
+                elif agg <= 70:
+                    data["bg_removal_level"] = 4 + round((agg - 31) / 13)
+                else:
+                    data["bg_removal_level"] = 8 + round((agg - 71) / 15)
+                data["bg_removal_level"] = max(0, min(10, data["bg_removal_level"]))
+            elif "bg_removal_applied" in data:
+                data.pop("bg_removal_applied", None)
+            if "bg_removal_aggressiveness" in data:
+                data.pop("bg_removal_aggressiveness", None)
+        return data
 
 
 class Project(BaseModel):
