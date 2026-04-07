@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, memo } from "react";
 import type { GenerationRecord } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { usePickVariation, useUnpickVariation, useDeleteGeneration, useRemoveBackground } from "@/hooks/api/use-generate-v2";
+import { usePickVariation, useUnpickVariation, useDeleteGeneration, useRemoveBackground, useColorAdjust, useEdgeCleanup, useUpscale, useDenoise } from "@/hooks/api/use-generate-v2";
+import { ToolPanel } from "@/components/generate/tool-panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -52,6 +53,12 @@ export const GenerationRow = memo(function GenerationRow({ record, layout, onReg
   const unpickVariation = useUnpickVariation();
   const deleteGeneration = useDeleteGeneration();
   const removeBackground = useRemoveBackground();
+  const colorAdjust = useColorAdjust();
+  const edgeCleanup = useEdgeCleanup();
+  const upscale = useUpscale();
+  const denoise = useDenoise();
+
+  const toolProcessing = colorAdjust.isPending || edgeCleanup.isPending || upscale.isPending || denoise.isPending;
 
   // BG removal local state — initialized from the record
   const [bgLevel, setBgLevel] = useState(record.bg_removal_level);
@@ -172,6 +179,17 @@ export const GenerationRow = memo(function GenerationRow({ record, layout, onReg
           )}
         </div>
 
+        <div className={cn(isGrid ? "mb-2" : "mb-3")}>
+          <ToolPanel
+            record={record}
+            onColorAdjust={(b, c, s) => colorAdjust.mutate(record.id, b, c, s)}
+            onEdgeCleanup={(f) => edgeCleanup.mutate(record.id, f)}
+            onUpscale={(f) => upscale.mutate({ generationId: record.id, factor: f })}
+            onDenoise={(s) => denoise.mutate(record.id, s)}
+            isProcessing={toolProcessing}
+          />
+        </div>
+
         <div className={cn(
           "gap-2",
           isGrid ? "grid grid-cols-2" : "flex gap-3",
@@ -190,7 +208,7 @@ export const GenerationRow = memo(function GenerationRow({ record, layout, onReg
               )}
             >
               <img
-                src={`/api/images/${variation.preview_path}?bg=${record.bg_removal_level}`}
+                src={`/api/images/${variation.preview_path}?t=${record.bg_removal_level}-${record.denoise_strength}-${record.color_brightness}-${record.edge_feather}-${record.upscale_factor}`}
                 alt={`${record.name} v${variation.index + 1}`}
                 className="h-full w-full object-contain bg-muted/30"
                 loading="lazy"
@@ -287,7 +305,7 @@ export const GenerationRow = memo(function GenerationRow({ record, layout, onReg
               {record.variations.map((variation) => (
                 <div key={variation.index} className="relative">
                   <img
-                    src={`/api/images/${variation.preview_path}?bg=${record.bg_removal_level}`}
+                    src={`/api/images/${variation.preview_path}?t=${record.bg_removal_level}-${record.denoise_strength}-${record.color_brightness}-${record.edge_feather}-${record.upscale_factor}`}
                     alt={`v${variation.index + 1}`}
                     className={cn(
                       "h-32 w-32 rounded-lg border-2 object-contain bg-muted/30",

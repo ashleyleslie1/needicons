@@ -192,6 +192,12 @@ export interface GenerationRecord {
   bg_removal_level: number;
   bg_removal_request_id: string;
   created_at: string;
+  color_brightness: number;
+  color_contrast: number;
+  color_saturation: number;
+  edge_feather: number;
+  upscale_factor: number;
+  denoise_strength: number;
 }
 
 export interface Project {

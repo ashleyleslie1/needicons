@@ -197,3 +197,103 @@ export function useRemoveBackground() {
     isPending: mutation.isPending,
   };
 }
+
+export function useColorAdjust() {
+  const qc = useQueryClient();
+  const abortRef = useRef<AbortController | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const mutation = useMutation({
+    mutationFn: (p: { generationId: string; brightness: number; contrast: number; saturation: number; signal?: AbortSignal }) =>
+      api.colorAdjust(p.generationId, p.brightness, p.contrast, p.saturation, String(Date.now()), p.signal),
+    onSuccess: (rec) => {
+      qc.setQueriesData<GenerationRecord[]>({ queryKey: ["generation-history"] }, (old) =>
+        old?.map((r) => (r.id === rec.id ? rec : r)));
+    },
+  });
+
+  const debouncedMutate = useCallback(
+    (generationId: string, brightness: number, contrast: number, saturation: number) => {
+      abortRef.current?.abort();
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => {
+        const c = new AbortController();
+        abortRef.current = c;
+        mutation.mutate({ generationId, brightness, contrast, saturation, signal: c.signal });
+      }, 300);
+    }, [mutation]);
+
+  useEffect(() => () => { abortRef.current?.abort(); if (debounceRef.current) clearTimeout(debounceRef.current); }, []);
+  return { mutate: debouncedMutate, isPending: mutation.isPending };
+}
+
+export function useEdgeCleanup() {
+  const qc = useQueryClient();
+  const abortRef = useRef<AbortController | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const mutation = useMutation({
+    mutationFn: (p: { generationId: string; feather: number; signal?: AbortSignal }) =>
+      api.edgeCleanup(p.generationId, p.feather, String(Date.now()), p.signal),
+    onSuccess: (rec) => {
+      qc.setQueriesData<GenerationRecord[]>({ queryKey: ["generation-history"] }, (old) =>
+        old?.map((r) => (r.id === rec.id ? rec : r)));
+    },
+  });
+
+  const debouncedMutate = useCallback(
+    (generationId: string, feather: number) => {
+      abortRef.current?.abort();
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => {
+        const c = new AbortController();
+        abortRef.current = c;
+        mutation.mutate({ generationId, feather, signal: c.signal });
+      }, 300);
+    }, [mutation]);
+
+  useEffect(() => () => { abortRef.current?.abort(); if (debounceRef.current) clearTimeout(debounceRef.current); }, []);
+  return { mutate: debouncedMutate, isPending: mutation.isPending };
+}
+
+export function useUpscale() {
+  const qc = useQueryClient();
+  const mutation = useMutation({
+    mutationFn: (p: { generationId: string; factor: number }) =>
+      api.upscaleGeneration(p.generationId, p.factor, String(Date.now())),
+    onSuccess: (rec) => {
+      qc.setQueriesData<GenerationRecord[]>({ queryKey: ["generation-history"] }, (old) =>
+        old?.map((r) => (r.id === rec.id ? rec : r)));
+    },
+  });
+  return mutation;
+}
+
+export function useDenoise() {
+  const qc = useQueryClient();
+  const abortRef = useRef<AbortController | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const mutation = useMutation({
+    mutationFn: (p: { generationId: string; strength: number; signal?: AbortSignal }) =>
+      api.denoiseGeneration(p.generationId, p.strength, String(Date.now()), p.signal),
+    onSuccess: (rec) => {
+      qc.setQueriesData<GenerationRecord[]>({ queryKey: ["generation-history"] }, (old) =>
+        old?.map((r) => (r.id === rec.id ? rec : r)));
+    },
+  });
+
+  const debouncedMutate = useCallback(
+    (generationId: string, strength: number) => {
+      abortRef.current?.abort();
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => {
+        const c = new AbortController();
+        abortRef.current = c;
+        mutation.mutate({ generationId, strength, signal: c.signal });
+      }, 300);
+    }, [mutation]);
+
+  useEffect(() => () => { abortRef.current?.abort(); if (debounceRef.current) clearTimeout(debounceRef.current); }, []);
+  return { mutate: debouncedMutate, isPending: mutation.isPending };
+}

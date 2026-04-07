@@ -245,6 +245,60 @@ export const api = {
     });
   },
 
+  colorAdjust(
+    generationId: string,
+    brightness: number,
+    contrast: number,
+    saturation: number,
+    requestId: string,
+    signal?: AbortSignal,
+  ): Promise<GenerationRecord> {
+    return request<GenerationRecord>(`/generations/${generationId}/color-adjust`, {
+      method: "POST",
+      body: JSON.stringify({ brightness, contrast, saturation, request_id: requestId }),
+      signal,
+    });
+  },
+
+  edgeCleanup(
+    generationId: string,
+    feather: number,
+    requestId: string,
+    signal?: AbortSignal,
+  ): Promise<GenerationRecord> {
+    return request<GenerationRecord>(`/generations/${generationId}/edge-cleanup`, {
+      method: "POST",
+      body: JSON.stringify({ feather, request_id: requestId }),
+      signal,
+    });
+  },
+
+  upscaleGeneration(
+    generationId: string,
+    factor: number,
+    requestId: string,
+    signal?: AbortSignal,
+  ): Promise<GenerationRecord> {
+    return request<GenerationRecord>(`/generations/${generationId}/upscale`, {
+      method: "POST",
+      body: JSON.stringify({ factor, request_id: requestId }),
+      signal,
+    });
+  },
+
+  denoiseGeneration(
+    generationId: string,
+    strength: number,
+    requestId: string,
+    signal?: AbortSignal,
+  ): Promise<GenerationRecord> {
+    return request<GenerationRecord>(`/generations/${generationId}/denoise`, {
+      method: "POST",
+      body: JSON.stringify({ strength, request_id: requestId }),
+      signal,
+    });
+  },
+
   // Project Export (async job-based)
   async startExport(projectId: string, data: ExportProjectRequest): Promise<{ job_id: string; total: number }> {
     return request<{ job_id: string; total: number }>(`/projects/${projectId}/export`, {
