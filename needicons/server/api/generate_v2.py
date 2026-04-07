@@ -15,6 +15,10 @@ from needicons.core.providers.openai import OpenAIProvider
 from needicons.core.pipeline.detection import detect_icons
 from needicons.core.pipeline.normalize import CenteringStep, WeightNormalizationStep
 from needicons.core.pipeline.background import BackgroundRemovalStep, cleanup_background_residue, remove_background
+from needicons.core.pipeline.denoise import DenoiseStep
+from needicons.core.pipeline.color import ColorProcessingStep
+from needicons.core.pipeline.edges import EdgeCleanupStep
+from needicons.core.pipeline.upscale import UpscaleStep
 from needicons.server.api.settings import get_api_key
 from needicons.core.prompt_enhance import enhance_prompt
 
@@ -203,6 +207,54 @@ def resume_jobs(state):
         if job.get("status") == "resumable":
             job["status"] = "running"
             asyncio.create_task(_run_generation(state, job))
+
+
+def _reprocess_variation(original: Image.Image, record, gpu_provider: str = "auto") -> Image.Image:
+    """Chain all active tools in fixed order from the original image."""
+    img = original.copy()
+
+    # 1. BG Removal
+    if record.bg_removal_level > 0:
+        img = remove_background(img, record.bg_removal_level, gpu_provider)
+
+    # 2. Denoise
+    if record.denoise_strength > 0:
+        step = DenoiseStep()
+        img = step.process(img, {"strength": record.denoise_strength})
+
+    # 3. Color Adjust
+    if record.color_brightness != 0 or record.color_contrast != 0 or record.color_saturation != 0:
+        step = ColorProcessingStep()
+        img = step.process(img, {
+            "brightness": record.color_brightness,
+            "contrast": record.color_contrast,
+            "saturation": record.color_saturation,
+        })
+
+    # 4. Edge Cleanup
+    if record.edge_feather > 0:
+        step = EdgeCleanupStep()
+        img = step.process(img, {"enabled": True, "feather_radius": record.edge_feather, "defringe": True})
+
+    # 5. Upscale
+    if record.upscale_factor > 1:
+        step = UpscaleStep()
+        img = step.process(img, {"factor": record.upscale_factor})
+
+    return img
+
+
+def _ensure_originals_saved(state, record):
+    """Save originals if not already saved."""
+    for variation in record.variations:
+        original_path = f"images/{record.id}/original/r{variation.index}.png"
+        full_original = state.data_dir / original_path
+        if not full_original.exists():
+            raw_path = state.data_dir / variation.source_path
+            if raw_path.exists():
+                full_original.parent.mkdir(parents=True, exist_ok=True)
+                import shutil
+                shutil.copy2(raw_path, full_original)
 
 
 @router.post("/api/generate")
@@ -443,5 +495,143 @@ async def remove_generation_bg(gen_id: str, request: Request):
         _save_image(state, preview, variation.preview_path)
 
     record.bg_removal_level = level
+    state.save_data()
+    return record.model_dump()
+
+
+@router.post("/api/generations/{gen_id}/color-adjust")
+async def color_adjust_generation(gen_id: str, request: Request):
+    state = request.app.state.app_state
+    record = state.generation_records.get(gen_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Generation record not found")
+
+    body = await request.json()
+    request_id = body.get("request_id", "")
+    record.color_brightness = max(-100, min(100, body.get("brightness", 0)))
+    record.color_contrast = max(-100, min(100, body.get("contrast", 0)))
+    record.color_saturation = max(-100, min(100, body.get("saturation", 0)))
+
+    gpu_provider = state.config.get("gpu", {}).get("provider", "auto")
+    _ensure_originals_saved(state, record)
+
+    loop = asyncio.get_event_loop()
+    for variation in record.variations:
+        original_path = f"images/{record.id}/original/r{variation.index}.png"
+        full_original = state.data_dir / original_path
+        if not full_original.exists():
+            continue
+        original = Image.open(full_original).convert("RGBA")
+        processed = await loop.run_in_executor(None, _reprocess_variation, original, record, gpu_provider)
+        _save_image(state, processed, variation.source_path)
+        wn = WeightNormalizationStep()
+        preview = wn.process(processed, {"enabled": True, "target_fill": 0.80})
+        centering = CenteringStep()
+        preview = centering.process(preview, {})
+        preview = preview.resize((256, 256), Image.LANCZOS)
+        _save_image(state, preview, variation.preview_path)
+
+    state.save_data()
+    return record.model_dump()
+
+
+@router.post("/api/generations/{gen_id}/edge-cleanup")
+async def edge_cleanup_generation(gen_id: str, request: Request):
+    state = request.app.state.app_state
+    record = state.generation_records.get(gen_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Generation record not found")
+
+    body = await request.json()
+    record.edge_feather = max(0, min(10, body.get("feather", 0)))
+
+    gpu_provider = state.config.get("gpu", {}).get("provider", "auto")
+    _ensure_originals_saved(state, record)
+
+    loop = asyncio.get_event_loop()
+    for variation in record.variations:
+        original_path = f"images/{record.id}/original/r{variation.index}.png"
+        full_original = state.data_dir / original_path
+        if not full_original.exists():
+            continue
+        original = Image.open(full_original).convert("RGBA")
+        processed = await loop.run_in_executor(None, _reprocess_variation, original, record, gpu_provider)
+        _save_image(state, processed, variation.source_path)
+        wn = WeightNormalizationStep()
+        preview = wn.process(processed, {"enabled": True, "target_fill": 0.80})
+        centering = CenteringStep()
+        preview = centering.process(preview, {})
+        preview = preview.resize((256, 256), Image.LANCZOS)
+        _save_image(state, preview, variation.preview_path)
+
+    state.save_data()
+    return record.model_dump()
+
+
+@router.post("/api/generations/{gen_id}/upscale")
+async def upscale_generation(gen_id: str, request: Request):
+    state = request.app.state.app_state
+    record = state.generation_records.get(gen_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Generation record not found")
+
+    body = await request.json()
+    factor = body.get("factor", 2)
+    if factor not in (2, 4):
+        factor = 2
+    record.upscale_factor = factor
+
+    gpu_provider = state.config.get("gpu", {}).get("provider", "auto")
+    _ensure_originals_saved(state, record)
+
+    loop = asyncio.get_event_loop()
+    for variation in record.variations:
+        original_path = f"images/{record.id}/original/r{variation.index}.png"
+        full_original = state.data_dir / original_path
+        if not full_original.exists():
+            continue
+        original = Image.open(full_original).convert("RGBA")
+        processed = await loop.run_in_executor(None, _reprocess_variation, original, record, gpu_provider)
+        _save_image(state, processed, variation.source_path)
+        wn = WeightNormalizationStep()
+        preview = wn.process(processed, {"enabled": True, "target_fill": 0.80})
+        centering = CenteringStep()
+        preview = centering.process(preview, {})
+        preview = preview.resize((256, 256), Image.LANCZOS)
+        _save_image(state, preview, variation.preview_path)
+
+    state.save_data()
+    return record.model_dump()
+
+
+@router.post("/api/generations/{gen_id}/denoise")
+async def denoise_generation(gen_id: str, request: Request):
+    state = request.app.state.app_state
+    record = state.generation_records.get(gen_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Generation record not found")
+
+    body = await request.json()
+    record.denoise_strength = max(0, min(10, body.get("strength", 0)))
+
+    gpu_provider = state.config.get("gpu", {}).get("provider", "auto")
+    _ensure_originals_saved(state, record)
+
+    loop = asyncio.get_event_loop()
+    for variation in record.variations:
+        original_path = f"images/{record.id}/original/r{variation.index}.png"
+        full_original = state.data_dir / original_path
+        if not full_original.exists():
+            continue
+        original = Image.open(full_original).convert("RGBA")
+        processed = await loop.run_in_executor(None, _reprocess_variation, original, record, gpu_provider)
+        _save_image(state, processed, variation.source_path)
+        wn = WeightNormalizationStep()
+        preview = wn.process(processed, {"enabled": True, "target_fill": 0.80})
+        centering = CenteringStep()
+        preview = centering.process(preview, {})
+        preview = preview.resize((256, 256), Image.LANCZOS)
+        _save_image(state, preview, variation.preview_path)
+
     state.save_data()
     return record.model_dump()

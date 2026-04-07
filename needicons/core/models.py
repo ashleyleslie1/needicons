@@ -190,6 +190,13 @@ class GenerationRecord(BaseModel):
     original_count: int = 0  # number of raw API response images saved for debug
     bg_removal_level: int = 0  # 0=off, 1-10=active
     bg_removal_request_id: str = ""  # tracks cancel-and-restart
+    # Tool state (applied to all variations in this generation)
+    color_brightness: int = 0
+    color_contrast: int = 0
+    color_saturation: int = 0
+    edge_feather: int = 0
+    upscale_factor: int = 1  # 1=none, 2, 4
+    denoise_strength: int = 0
     created_at: str = Field(default_factory=lambda: datetime.datetime.utcnow().isoformat())
 
     @model_validator(mode="before")
