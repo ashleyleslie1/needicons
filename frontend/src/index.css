@@ -4,42 +4,51 @@
 
 @layer base {
   :root {
-    --background: #ffffff;
-    --foreground: #0a0a0a;
-    --accent: #7c3aed;
+    --background: #fafafa;
+    --foreground: #1a1a1a;
+    --accent: #7c6ef0;
     --accent-foreground: #ffffff;
+    --accent-hover: #6a5dd6;
     --card: #ffffff;
-    --card-foreground: #0a0a0a;
+    --card-foreground: #1a1a1a;
     --border: #e5e5e5;
-    --muted: #f5f5f5;
-    --muted-foreground: #888888;
+    --muted: #f3f3f3;
+    --muted-foreground: #737373;
     --destructive: #ef4444;
     --destructive-foreground: #ffffff;
     --success: #22c55e;
+    --surface: #f5f5f5;
     --radius-lg: 12px;
     --radius-md: 8px;
     --radius-sm: 6px;
-    --sidebar-width: 48px;
-    --panel-width: 180px;
+    --sidebar-width: 64px;
+    --panel-width: 260px;
   }
 
   .dark {
-    --background: #0a0a0a;
-    --foreground: #f0f0f0;
-    --accent: #7c3aed;
+    --background: #262626;
+    --foreground: #b8b8b8;
+    --accent: #7c6ef0;
     --accent-foreground: #ffffff;
-    --card: #111111;
-    --card-foreground: #f0f0f0;
-    --border: #1e1e1e;
-    --muted: #1a1a1a;
-    --muted-foreground: #666666;
+    --accent-hover: #9589f5;
+    --card: #2d2d2d;
+    --card-foreground: #b8b8b8;
+    --border: #363636;
+    --muted: #303030;
+    --muted-foreground: #808080;
     --destructive: #ef4444;
     --destructive-foreground: #ffffff;
     --success: #22c55e;
+    --surface: #2a2a2a;
   }
+
 
   body {
     @apply bg-background text-foreground;
     font-family: system-ui, -apple-system, sans-serif;
+  }
+
+  * {
+    @apply border-border;
   }
 }

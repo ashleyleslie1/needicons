@@ -42,12 +42,9 @@ export function AddRequirement({ packId }: AddRequirementProps) {
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <button
-          className="aspect-square rounded-lg border border-dashed border-border/60 bg-muted/20 flex items-center justify-center hover:bg-muted/40 hover:border-accent/50 transition-colors cursor-pointer"
-          aria-label="Add requirement"
-        >
-          <span className="text-2xl text-muted-foreground/60 leading-none">+</span>
-        </button>
+        <Button variant="outline" size="sm">
+          + Add Icons
+        </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>

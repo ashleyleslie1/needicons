@@ -20,22 +20,22 @@ export function IconTile({ requirement, selected, onSelect, onClick }: IconTileP
   return (
     <div
       className={cn(
-        "relative aspect-square rounded-lg cursor-pointer overflow-hidden flex flex-col items-center justify-center bg-muted/30",
+        "relative aspect-square rounded-lg cursor-pointer overflow-hidden flex flex-col items-center justify-center bg-card transition-all",
         selected
           ? "border-2 border-accent ring-2 ring-accent/30"
           : hasCandidate
-          ? "border border-border"
-          : "border border-dashed border-border/60",
+          ? "border border-border hover:border-accent/40"
+          : "border border-dashed border-border/60 hover:border-muted-foreground/40",
       )}
       onClick={() => onClick(requirement.id)}
     >
       {/* Checkbox button top-left */}
       <button
         className={cn(
-          "absolute top-1 left-1 z-10 w-5 h-5 rounded flex items-center justify-center transition-colors",
+          "absolute top-2 left-2 z-10 w-6 h-6 rounded flex items-center justify-center transition-colors",
           selected
             ? "bg-accent text-accent-foreground"
-            : "bg-background/70 hover:bg-muted border border-border"
+            : "bg-background/80 hover:bg-muted border border-border"
         )}
         onClick={(e) => {
           e.stopPropagation();
@@ -52,7 +52,7 @@ export function IconTile({ requirement, selected, onSelect, onClick }: IconTileP
 
       {/* Accepted badge top-right */}
       {isAccepted && (
-        <div className="absolute top-1 right-1 z-10 w-5 h-5 rounded-full bg-green-500 text-white flex items-center justify-center text-[10px] font-bold">
+        <div className="absolute top-2 right-2 z-10 w-6 h-6 rounded-full bg-success text-white flex items-center justify-center text-xs font-bold">
           ✓
         </div>
       )}
@@ -69,16 +69,16 @@ export function IconTile({ requirement, selected, onSelect, onClick }: IconTileP
       </div>
 
       {/* Bottom name label */}
-      <div className="absolute bottom-0 left-0 right-0 px-1 pb-0.5 text-center">
-        <span className="text-[10px] text-muted-foreground truncate block leading-tight">
+      <div className="absolute bottom-0 left-0 right-0 px-2 pb-1.5 text-center bg-gradient-to-t from-background/60 to-transparent pt-4">
+        <span className="text-xs text-muted-foreground truncate block font-medium">
           {requirement.name}
         </span>
       </div>
 
       {/* "Pick one" badge for generated but not accepted */}
       {needsPick && (
-        <div className="absolute bottom-4 left-0 right-0 flex justify-center pointer-events-none">
-          <span className="text-[9px] font-semibold bg-amber-500/90 text-white px-1 py-0.5 rounded">
+        <div className="absolute bottom-7 left-0 right-0 flex justify-center pointer-events-none">
+          <span className="text-[10px] font-semibold bg-amber-500/90 text-white px-2 py-0.5 rounded-md">
             pick one
           </span>
         </div>

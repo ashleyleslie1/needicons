@@ -40,7 +40,7 @@ export function SettingsPage() {
   return (
     <>
       <Panel>
-        <h2 className="text-sm font-semibold text-foreground mb-2">Settings</h2>
+        <h2 className="text-base font-semibold text-foreground mb-4">Settings</h2>
         <nav className="flex flex-col gap-1">
           {SETTINGS_TABS.map((t) => (
             <button
@@ -48,10 +48,10 @@ export function SettingsPage() {
               type="button"
               onClick={() => navigate(`/settings/${t.id}`)}
               className={cn(
-                "text-xs text-left px-1 py-0.5 rounded transition-colors",
+                "text-sm text-left px-3 py-2 rounded-lg transition-colors",
                 t.id === tab
-                  ? "font-medium text-foreground"
-                  : "text-muted-foreground hover:text-foreground"
+                  ? "font-medium text-foreground bg-card"
+                  : "text-muted-foreground hover:text-foreground hover:bg-card/60"
               )}
             >
               {t.label}

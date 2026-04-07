@@ -1,5 +1,4 @@
 import { IconTile } from "./icon-tile";
-import { AddRequirement } from "./add-requirement";
 import type { Pack } from "@/lib/types";
 
 interface IconGridProps {
@@ -16,7 +15,7 @@ export function IconGrid({
   onSelectionChange,
 }: IconGridProps) {
   return (
-    <div className="grid grid-cols-[repeat(auto-fill,minmax(100px,1fr))] gap-2.5 p-4">
+    <div className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-5">
       {pack.requirements.map((req) => (
         <IconTile
           key={req.id}
@@ -26,7 +25,6 @@ export function IconGrid({
           onClick={onRequirementClick}
         />
       ))}
-      <AddRequirement packId={pack.id} />
     </div>
   );
 }

@@ -11,6 +11,7 @@ const config: Config = {
         accent: {
           DEFAULT: "var(--accent)",
           foreground: "var(--accent-foreground)",
+          hover: "var(--accent-hover)",
         },
         card: {
           DEFAULT: "var(--card)",
@@ -26,6 +27,7 @@ const config: Config = {
           foreground: "var(--destructive-foreground)",
         },
         success: "var(--success)",
+        surface: "var(--surface)",
       },
       borderRadius: {
         lg: "var(--radius-lg)",

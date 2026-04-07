@@ -12,13 +12,13 @@ export function PacksPage() {
   return (
     <>
       <Panel>
-        <h2 className="text-sm font-semibold text-foreground mb-2">Packs</h2>
-        <div className="flex flex-col">
+        <h2 className="text-base font-semibold text-foreground mb-4">Packs</h2>
+        <div className="flex flex-col gap-2">
           {packs.map((pack) => (
             <PackCard key={pack.id} pack={pack} />
           ))}
         </div>
-        <div className="mt-3">
+        <div className="mt-4">
           <CreatePackDialog />
         </div>
       </Panel>
@@ -28,10 +28,16 @@ export function PacksPage() {
         ) : packs.length > 0 ? (
           <Navigate to={`/packs/${packs[0].id}`} replace />
         ) : (
-          <div className="flex flex-col items-center justify-center h-full gap-4 text-center">
-            <p className="text-muted-foreground text-sm">
-              Create your first icon pack to get started.
-            </p>
+          <div className="flex flex-col items-center justify-center h-full gap-6 text-center">
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center text-3xl">
+                📦
+              </div>
+              <h2 className="text-xl font-semibold">Create your first pack</h2>
+              <p className="text-muted-foreground max-w-sm">
+                An icon pack is a collection of icons that share a style. Create one and start adding icons.
+              </p>
+            </div>
             <CreatePackDialog />
           </div>
         )}

@@ -18,17 +18,17 @@ export function PackCard({ pack }: PackCardProps) {
     <Link
       to={`/packs/${pack.id}`}
       className={cn(
-        "block rounded-md px-2 py-2 mb-1 transition-colors",
+        "block rounded-lg px-3 py-3 transition-colors",
         isActive
-          ? "bg-muted border border-accent/20"
-          : "hover:bg-muted/50 border border-transparent"
+          ? "bg-card border border-accent/30"
+          : "hover:bg-card/60 border border-transparent"
       )}
     >
       <p className="font-semibold text-sm truncate">{pack.name}</p>
-      <p className="text-xs text-muted-foreground mt-0.5">
+      <p className="text-xs text-muted-foreground mt-1">
         {accepted}/{total} accepted
       </p>
-      <div className="mt-1.5 h-1 bg-border rounded-full overflow-hidden">
+      <div className="mt-2 h-1.5 bg-border rounded-full overflow-hidden">
         <div
           className="h-full bg-accent rounded-full transition-all"
           style={{ width: `${fillPercent}%` }}

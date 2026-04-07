@@ -11,7 +11,7 @@ export function Canvas({ children, className }: CanvasProps) {
   return (
     <main className={cn("flex flex-1 flex-col overflow-hidden", className)}>
       <ScrollArea className="h-screen flex-1">
-        <div className="p-6">{children}</div>
+        <div className="p-8">{children}</div>
       </ScrollArea>
     </main>
   );

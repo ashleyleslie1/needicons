@@ -47,10 +47,10 @@ export function GenerationConfig({
   }
 
   return (
-    <div className="w-[220px] border-l bg-card/50 flex flex-col h-full">
+    <div className="w-[300px] border-l border-border bg-surface flex flex-col h-full shrink-0">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b">
-        <span className="font-semibold text-sm">Generate</span>
+      <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+        <span className="font-semibold text-base">Generate</span>
         <button
           onClick={() => setRightPanel(null)}
           className="text-muted-foreground hover:text-foreground transition-colors text-base leading-none"
@@ -61,7 +61,7 @@ export function GenerationConfig({
       </div>
 
       <ScrollArea className="flex-1">
-        <div className="px-4 py-4 space-y-5">
+        <div className="px-5 py-5 space-y-6">
           {/* Quality */}
           <div className="space-y-2">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
@@ -129,7 +129,7 @@ export function GenerationConfig({
       </ScrollArea>
 
       {/* Generate button */}
-      <div className="px-4 py-3 border-t">
+      <div className="px-5 py-4 border-t border-border">
         <Button
           size="lg"
           className="w-full"

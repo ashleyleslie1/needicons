@@ -81,9 +81,9 @@ export function ProfileEditor({ profileId, packName, onProfileChange }: ProfileE
   const SHAPES: MaskShape[] = ["none", "circle", "rounded_rect", "squircle", "square"];
 
   return (
-    <div className="w-[220px] border-l bg-card/50 flex flex-col h-full">
-      <div className="flex items-center justify-between px-4 py-3 border-b">
-        <span className="font-semibold text-sm">Profile</span>
+    <div className="w-[300px] border-l border-border bg-surface flex flex-col h-full shrink-0">
+      <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+        <span className="font-semibold text-base">Profile</span>
         <button
           type="button"
           onClick={() => setRightPanel(null)}
@@ -95,7 +95,7 @@ export function ProfileEditor({ profileId, packName, onProfileChange }: ProfileE
       </div>
 
       <ScrollArea className="flex-1">
-        <div className="px-4 py-4 space-y-4">
+        <div className="px-5 py-5 space-y-5">
 
           {/* Background Removal */}
           <StepControl
@@ -242,9 +242,8 @@ export function ProfileEditor({ profileId, packName, onProfileChange }: ProfileE
         </div>
       </ScrollArea>
 
-      <div className="px-4 py-3 border-t">
+      <div className="px-5 py-4 border-t border-border">
         <Button
-          size="sm"
           className="w-full"
           onClick={handleSave}
           disabled={createProfile.isPending || updateProfile.isPending}

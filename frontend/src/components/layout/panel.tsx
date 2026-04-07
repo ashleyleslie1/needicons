@@ -14,13 +14,13 @@ export function Panel({ children, className }: PanelProps) {
   return (
     <div
       className={cn(
-        "h-screen border-r border-border bg-background transition-all duration-200 shrink-0",
-        panelCollapsed ? "w-0 overflow-hidden" : "w-44",
+        "h-screen border-r border-border bg-surface transition-all duration-200 shrink-0",
+        panelCollapsed ? "w-0 overflow-hidden" : "w-64",
         className
       )}
     >
       <ScrollArea className="h-full">
-        <div className="p-3">{children}</div>
+        <div className="p-4">{children}</div>
       </ScrollArea>
     </div>
   );

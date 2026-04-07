@@ -21,11 +21,11 @@ export function PackHeader({
   const acceptedCount = pack.requirements.filter((r) => r.status === "accepted").length;
 
   return (
-    <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
+    <div className="flex items-center justify-between shrink-0">
       {/* Left: pack name + subtitle */}
-      <div className="flex flex-col gap-0.5 min-w-0">
-        <h2 className="text-xl font-bold truncate">{pack.name}</h2>
-        <p className="text-xs text-muted-foreground">
+      <div className="flex flex-col gap-1 min-w-0">
+        <h2 className="text-2xl font-bold truncate">{pack.name}</h2>
+        <p className="text-sm text-muted-foreground">
           {totalIcons} icon{totalIcons !== 1 ? "s" : ""} &middot;{" "}
           {acceptedCount} accepted
           {selectedCount > 0 && (
