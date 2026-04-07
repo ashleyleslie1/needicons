@@ -242,4 +242,5 @@ export interface ModelCapabilities {
   qualities: string[];
   economy_mode: string;
   precision_mode: string;
+  legacy: boolean;
 }

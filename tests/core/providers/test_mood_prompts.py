@@ -11,9 +11,8 @@ def test_mood_prompts_dict_exists():
     assert "cinematic" in _MOOD_PROMPTS
     assert "vibrant" in _MOOD_PROMPTS
     assert "dynamic" in _MOOD_PROMPTS
-    assert "fashion" in _MOOD_PROMPTS
-    assert "portrait" in _MOOD_PROMPTS
-    assert "stock_photo" in _MOOD_PROMPTS
+    assert "elegant" in _MOOD_PROMPTS
+    assert "minimal" in _MOOD_PROMPTS
 
 
 def test_mood_none_is_empty():

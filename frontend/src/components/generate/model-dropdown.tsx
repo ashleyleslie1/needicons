@@ -10,7 +10,7 @@ export function ModelDropdown({ value, onChange }: ModelDropdownProps) {
   const { data: settings } = useSettings();
   const { data: capabilities } = useModelCapabilities();
 
-  const currentModel = value || settings?.provider?.default_model || "gpt-image-1";
+  const currentModel = value || settings?.provider?.default_model || "gpt-image-1.5";
   const availableModels = capabilities ? Object.keys(capabilities) : [currentModel];
 
   return (
@@ -29,11 +29,16 @@ export function ModelDropdown({ value, onChange }: ModelDropdownProps) {
             "hover:border-accent/40 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30",
           )}
         >
-          {availableModels.map((modelId) => (
-            <option key={modelId} value={modelId}>
-              {capabilities?.[modelId]?.label ?? modelId}
-            </option>
-          ))}
+          {availableModels.map((modelId) => {
+            const caps = capabilities?.[modelId];
+            const label = caps?.label ?? modelId;
+            const isLegacy = caps?.legacy ?? false;
+            return (
+              <option key={modelId} value={modelId}>
+                {label}{isLegacy ? " (Legacy)" : ""}
+              </option>
+            );
+          })}
         </select>
         <svg
           className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-muted-foreground"

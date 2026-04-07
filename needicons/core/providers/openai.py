@@ -29,9 +29,8 @@ _MOOD_PROMPTS = {
     "cinematic": "Dramatic lighting, film-like depth and atmosphere.",
     "vibrant": "Saturated, energetic, eye-catching colors.",
     "dynamic": "Motion, energy, action-oriented composition.",
-    "fashion": "Elegant, stylish, editorial look.",
-    "portrait": "Close-up, character-focused detail.",
-    "stock_photo": "Clean, professional, commercial-ready.",
+    "elegant": "Refined, polished, sophisticated aesthetic.",
+    "minimal": "Clean lines, reduced detail, stripped back to essentials.",
 }
 
 

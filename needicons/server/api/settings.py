@@ -127,20 +127,10 @@ _MODEL_CAPABILITIES = {
         "qualities": ["low", "medium", "high", "auto"],
         "economy_mode": "n=4 (single call, 4 separate images)",
         "precision_mode": "n=1 (4 calls, 1 image each)",
-    },
-    "gpt-image-1": {
-        "label": "GPT Image 1",
-        "description": "High quality, transparent backgrounds",
-        "supports_n": True,
-        "max_n": 10,
-        "supports_transparent_bg": True,
-        "sizes": ["1024x1024"],
-        "qualities": ["low", "medium", "high", "auto"],
-        "economy_mode": "n=4 (single call, 4 separate images)",
-        "precision_mode": "n=1 (4 calls, 1 image each)",
+        "legacy": False,
     },
     "gpt-image-1-mini": {
-        "label": "GPT Image Mini",
+        "label": "GPT Image 1 Mini",
         "description": "Fast & cheap, transparent backgrounds",
         "supports_n": True,
         "max_n": 10,
@@ -149,10 +139,11 @@ _MODEL_CAPABILITIES = {
         "qualities": ["low", "medium", "high", "auto"],
         "economy_mode": "n=4 (single call, 4 separate images)",
         "precision_mode": "n=1 (4 calls, 1 image each)",
+        "legacy": False,
     },
     "dall-e-3": {
         "label": "DALL-E 3",
-        "description": "Classic, no transparent bg support",
+        "description": "Legacy — no transparent bg, limited control",
         "supports_n": False,
         "max_n": 1,
         "supports_transparent_bg": False,
@@ -160,6 +151,7 @@ _MODEL_CAPABILITIES = {
         "qualities": ["standard", "hd"],
         "economy_mode": "2x2 grid in single image (needs splitting)",
         "precision_mode": "1 image per call (4 calls)",
+        "legacy": True,
     },
 }
 

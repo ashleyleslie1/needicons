@@ -5,9 +5,8 @@ const MOODS = [
   { value: "cinematic", label: "Cinematic" },
   { value: "vibrant", label: "Vibrant" },
   { value: "dynamic", label: "Dynamic" },
-  { value: "fashion", label: "Fashion" },
-  { value: "portrait", label: "Portrait" },
-  { value: "stock_photo", label: "Stock Photo" },
+  { value: "elegant", label: "Elegant" },
+  { value: "minimal", label: "Minimal" },
 ] as const;
 
 interface MoodDropdownProps {

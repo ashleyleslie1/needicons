@@ -51,7 +51,7 @@ export function GeneratePage() {
   const parsedPrompts = parsePrompts(promptText);
   const iconCount = parsedPrompts.length;
 
-  const effectiveModel = model || settings?.provider?.default_model || "gpt-image-1";
+  const effectiveModel = model || settings?.provider?.default_model || "gpt-image-1.5";
 
   function handleGenerate() {
     if (!activeProjectId || parsedPrompts.length === 0) return;
