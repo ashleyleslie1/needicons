@@ -92,7 +92,7 @@ export function ImageEditorModal({ record, variationIndex, open, onOpenChange }:
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl p-0 gap-0 overflow-hidden border-border bg-background">
-        <div className="flex" style={{ minHeight: "540px" }}>
+        <div className="flex" style={{ height: "540px" }}>
           {/* Left: Image preview with checkerboard */}
           <div className="flex-1 flex flex-col relative">
             {/* Processing overlay */}
@@ -186,7 +186,8 @@ export function ImageEditorModal({ record, variationIndex, open, onOpenChange }:
               <p className="text-[10px] text-muted-foreground mt-0.5">{record.style} / {record.model || "default"}</p>
             </div>
 
-            {/* Tool buttons */}
+            {/* Tool buttons + controls — scrollable */}
+            <div className="flex-1 overflow-y-auto min-h-0">
             <div className="p-2 space-y-1">
               {tools.map((tool) => (
                 <button
@@ -217,7 +218,7 @@ export function ImageEditorModal({ record, variationIndex, open, onOpenChange }:
             </div>
 
             {/* Active tool controls */}
-            <div className="px-3 pb-3 flex-1">
+            <div className="px-3 pb-3">
               {activeTool === "bg" && (
                 <div className="rounded-lg bg-muted/30 border border-border p-3 space-y-3">
                   <div className="flex items-center justify-between">
@@ -393,8 +394,10 @@ export function ImageEditorModal({ record, variationIndex, open, onOpenChange }:
               )}
             </div>
 
+            </div>{/* end scrollable wrapper */}
+
             {/* Info footer */}
-            <div className="mt-auto border-t border-border px-4 py-3 space-y-1.5">
+            <div className="shrink-0 border-t border-border px-4 py-3 space-y-1.5">
               {[
                 ["Prompt", record.prompt],
                 ["Style", record.style],
