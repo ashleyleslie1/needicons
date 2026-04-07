@@ -7,8 +7,6 @@ import { Slider } from "@/components/ui/slider";
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog";
 
 interface ImageEditorModalProps {
@@ -65,77 +63,117 @@ export function ImageEditorModal({ record, variationIndex, open, onOpenChange }:
     return "Heavy";
   }
 
-  const tools: { id: ToolId; label: string; active: boolean }[] = [
-    { id: "bg", label: "BG Remove", active: record.bg_removal_level > 0 },
-    { id: "denoise", label: "Denoise", active: record.denoise_strength > 0 },
-    { id: "color", label: "Color", active: record.color_brightness !== 0 || record.color_contrast !== 0 || record.color_saturation !== 0 },
-    { id: "edge", label: "Edges", active: record.edge_feather > 0 },
-    { id: "upscale", label: "Upscale", active: record.upscale_factor > 1 },
+  const tools: { id: Exclude<ToolId, null>; label: string; desc: string; active: boolean }[] = [
+    { id: "bg", label: "BG Remove", desc: "Remove background", active: record.bg_removal_level > 0 },
+    { id: "denoise", label: "Denoise", desc: "Reduce noise", active: record.denoise_strength > 0 },
+    { id: "color", label: "Color", desc: "Adjust colors", active: record.color_brightness !== 0 || record.color_contrast !== 0 || record.color_saturation !== 0 },
+    { id: "edge", label: "Edges", desc: "Clean edges", active: record.edge_feather > 0 },
+    { id: "upscale", label: "Upscale", desc: "Increase resolution", active: record.upscale_factor > 1 },
   ];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl p-0 gap-0 overflow-hidden">
-        <div className="flex min-h-[480px]">
-          {/* Left: Image preview */}
-          <div className="flex-1 flex flex-col items-center justify-center bg-muted/20 p-6 relative">
+      <DialogContent className="max-w-4xl p-0 gap-0 overflow-hidden border-border">
+        <div className="flex" style={{ minHeight: "540px" }}>
+          {/* Left: Image preview with checkerboard */}
+          <div className="flex-1 flex flex-col relative">
+            {/* Processing overlay */}
             {anyProcessing && (
               <div className="absolute inset-0 flex items-center justify-center bg-background/50 backdrop-blur-sm z-10">
-                <Spinner className="h-6 w-6 text-accent" />
+                <div className="flex items-center gap-2 rounded-lg bg-card px-4 py-2 shadow-lg border border-border">
+                  <Spinner className="h-4 w-4 text-accent" />
+                  <span className="text-sm text-foreground">Processing...</span>
+                </div>
               </div>
             )}
-            <img
-              src={`/api/images/${variation.preview_path}?t=${cacheBust(record)}`}
-              alt={`${record.name} v${variationIndex + 1}`}
-              className="max-h-[380px] max-w-full object-contain rounded-lg"
-            />
-            <div className="mt-3 flex items-center gap-2">
+
+            {/* Checkerboard + image */}
+            <div className="flex-1 flex items-center justify-center p-8"
+              style={{
+                backgroundImage: `
+                  linear-gradient(45deg, var(--muted) 25%, transparent 25%),
+                  linear-gradient(-45deg, var(--muted) 25%, transparent 25%),
+                  linear-gradient(45deg, transparent 75%, var(--muted) 75%),
+                  linear-gradient(-45deg, transparent 75%, var(--muted) 75%)
+                `,
+                backgroundSize: "16px 16px",
+                backgroundPosition: "0 0, 0 8px, 8px -8px, -8px 0",
+              }}
+            >
+              <img
+                src={`/api/images/${variation.preview_path}?t=${cacheBust(record)}`}
+                alt={`${record.name} v${variationIndex + 1}`}
+                className="max-h-[420px] max-w-full object-contain drop-shadow-lg"
+                style={{ imageRendering: "auto" }}
+              />
+            </div>
+
+            {/* Bottom bar */}
+            <div className="flex items-center gap-3 border-t border-border px-4 py-3 bg-card/50">
               <Button
                 variant={variation.picked ? "default" : "outline"}
                 size="sm"
                 onClick={handlePick}
                 disabled={pickVariation.isPending || unpickVariation.isPending}
+                className="gap-1.5"
               >
-                {variation.picked ? "Picked" : "Pick for Project"}
+                {variation.picked ? (
+                  <><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M2 6l3 3 5-5"/></svg> Picked</>
+                ) : (
+                  <><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M6 2v8M2 6h8"/></svg> Pick for Project</>
+                )}
               </Button>
-              <span className="text-xs text-muted-foreground">
-                {record.name} — Variation {variationIndex + 1}
-              </span>
+              <div className="flex items-center gap-2 ml-auto text-[11px] text-muted-foreground">
+                <span>{record.name}</span>
+                <span>Variation {variationIndex + 1} of {record.variations.length}</span>
+              </div>
             </div>
           </div>
 
           {/* Right: Tools sidebar */}
-          <div className="w-[220px] shrink-0 border-l border-border flex flex-col bg-card/60">
-            <DialogHeader className="p-4 pb-3">
-              <DialogTitle className="text-sm">Edit Image</DialogTitle>
-            </DialogHeader>
+          <div className="w-[240px] shrink-0 border-l border-border flex flex-col bg-card/80">
+            {/* Header */}
+            <div className="px-4 py-3 border-b border-border">
+              <h3 className="text-sm font-semibold text-foreground">Edit</h3>
+              <p className="text-[10px] text-muted-foreground mt-0.5">{record.style} / {record.model || "default"}</p>
+            </div>
 
             {/* Tool buttons */}
-            <div className="px-3 space-y-1">
+            <div className="p-2 space-y-1">
               {tools.map((tool) => (
                 <button
                   key={tool.id}
                   onClick={() => setActiveTool(activeTool === tool.id ? null : tool.id)}
                   className={cn(
-                    "w-full flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition-colors text-left",
+                    "w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors",
                     activeTool === tool.id
-                      ? "bg-accent/15 text-accent"
-                      : "text-foreground/70 hover:bg-muted/50 hover:text-foreground",
+                      ? "bg-accent/10 border border-accent/20"
+                      : "hover:bg-muted/50 border border-transparent",
                   )}
                 >
-                  {tool.label}
-                  {tool.active && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-accent" />}
+                  <div className="flex-1 min-w-0">
+                    <div className={cn(
+                      "text-xs font-medium",
+                      activeTool === tool.id ? "text-accent" : "text-foreground",
+                    )}>
+                      {tool.label}
+                    </div>
+                    <div className="text-[10px] text-muted-foreground">{tool.desc}</div>
+                  </div>
+                  {tool.active && <span className="w-2 h-2 rounded-full bg-accent shrink-0" />}
                 </button>
               ))}
             </div>
 
             {/* Active tool controls */}
-            <div className="flex-1 px-3 pt-3">
+            <div className="px-3 pb-3 flex-1">
               {activeTool === "bg" && (
-                <div className="space-y-3">
+                <div className="rounded-lg bg-muted/30 border border-border p-3 space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-[11px] text-muted-foreground">Level</span>
-                    <span className="text-[11px] font-semibold text-foreground">{bgLevel === 0 ? "Off" : `${bgLevel} — ${getLevelLabel(bgLevel)}`}</span>
+                    <span className={cn("text-[11px] font-semibold", bgLevel === 0 ? "text-muted-foreground" : "text-foreground")}>
+                      {bgLevel === 0 ? "Off" : `${bgLevel} — ${getLevelLabel(bgLevel)}`}
+                    </span>
                   </div>
                   <Slider
                     value={[bgLevel]}
@@ -146,7 +184,7 @@ export function ImageEditorModal({ record, variationIndex, open, onOpenChange }:
               )}
 
               {activeTool === "denoise" && (
-                <div className="space-y-3">
+                <div className="rounded-lg bg-muted/30 border border-border p-3 space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-[11px] text-muted-foreground">Strength</span>
                     <span className="text-[11px] font-semibold text-foreground">{denoiseStr === 0 ? "Off" : denoiseStr}</span>
@@ -160,14 +198,14 @@ export function ImageEditorModal({ record, variationIndex, open, onOpenChange }:
               )}
 
               {activeTool === "color" && (
-                <div className="space-y-3">
+                <div className="rounded-lg bg-muted/30 border border-border p-3 space-y-3">
                   {([
                     ["Brightness", brightness, (v: number) => { setBrightness(v); colorAdjust.mutate(record.id, v, contrast, saturation); }],
                     ["Contrast", contrast, (v: number) => { setContrast(v); colorAdjust.mutate(record.id, brightness, v, saturation); }],
                     ["Saturation", saturation, (v: number) => { setSaturation(v); colorAdjust.mutate(record.id, brightness, contrast, v); }],
                   ] as const).map(([label, value, onChange]) => (
                     <div key={label}>
-                      <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center justify-between mb-1.5">
                         <span className="text-[11px] text-muted-foreground">{label}</span>
                         <span className="text-[11px] font-semibold text-foreground">{value}</span>
                       </div>
@@ -178,7 +216,7 @@ export function ImageEditorModal({ record, variationIndex, open, onOpenChange }:
               )}
 
               {activeTool === "edge" && (
-                <div className="space-y-3">
+                <div className="rounded-lg bg-muted/30 border border-border p-3 space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-[11px] text-muted-foreground">Feather</span>
                     <span className="text-[11px] font-semibold text-foreground">{feather === 0 ? "Off" : feather}</span>
@@ -192,15 +230,15 @@ export function ImageEditorModal({ record, variationIndex, open, onOpenChange }:
               )}
 
               {activeTool === "upscale" && (
-                <div className="space-y-2">
-                  <p className="text-[11px] text-muted-foreground">Scale factor</p>
+                <div className="rounded-lg bg-muted/30 border border-border p-3 space-y-2">
+                  <p className="text-[11px] text-muted-foreground mb-1">Scale factor</p>
                   <div className="flex gap-2">
                     {[2, 4].map((f) => (
                       <Button
                         key={f}
                         variant={record.upscale_factor === f ? "default" : "outline"}
                         size="sm"
-                        className="flex-1"
+                        className="flex-1 h-8"
                         onClick={() => upscaleHook.mutate({ generationId: record.id, factor: f })}
                         disabled={anyProcessing}
                       >
@@ -209,40 +247,27 @@ export function ImageEditorModal({ record, variationIndex, open, onOpenChange }:
                     ))}
                   </div>
                   {record.upscale_factor > 1 && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="w-full text-xs"
-                      onClick={() => upscaleHook.mutate({ generationId: record.id, factor: 1 })}
-                      disabled={anyProcessing}
-                    >
-                      Reset
+                    <Button variant="ghost" size="sm" className="w-full h-7 text-xs text-muted-foreground" onClick={() => upscaleHook.mutate({ generationId: record.id, factor: 1 })} disabled={anyProcessing}>
+                      Reset to original
                     </Button>
                   )}
                 </div>
               )}
-
-              {activeTool === null && (
-                <p className="text-[11px] text-muted-foreground leading-relaxed">
-                  Select a tool to edit this image. Changes apply in real-time.
-                </p>
-              )}
             </div>
 
-            {/* Info section at bottom */}
-            <div className="mt-auto border-t border-border p-3 space-y-1">
-              <div className="flex justify-between text-[10px]">
-                <span className="text-muted-foreground">Style</span>
-                <span className="text-foreground">{record.style}</span>
-              </div>
-              <div className="flex justify-between text-[10px]">
-                <span className="text-muted-foreground">Model</span>
-                <span className="text-foreground">{record.model || "default"}</span>
-              </div>
-              <div className="flex justify-between text-[10px]">
-                <span className="text-muted-foreground">Prompt</span>
-                <span className="text-foreground truncate ml-4">{record.prompt}</span>
-              </div>
+            {/* Info footer */}
+            <div className="mt-auto border-t border-border px-4 py-3 space-y-1.5">
+              {[
+                ["Prompt", record.prompt],
+                ["Style", record.style],
+                ["Model", record.model || "default"],
+                ["Mood", record.mood && record.mood !== "none" ? record.mood : null],
+              ].filter(([, v]) => v).map(([label, value]) => (
+                <div key={label as string} className="flex justify-between gap-3 text-[10px]">
+                  <span className="text-muted-foreground shrink-0">{label}</span>
+                  <span className="text-foreground truncate text-right">{value}</span>
+                </div>
+              ))}
             </div>
           </div>
         </div>
