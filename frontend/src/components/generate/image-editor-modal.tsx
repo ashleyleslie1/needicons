@@ -1,13 +1,14 @@
 import { useState } from "react";
 import type { GenerationRecord } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { usePickVariation, useUnpickVariation, useRemoveBackground, useColorAdjust, useEdgeCleanup, useUpscale, useDenoise } from "@/hooks/api/use-generate-v2";
+import { usePickVariation, useUnpickVariation, useRemoveBackground, useColorAdjust, useEdgeCleanup, useUpscale, useDenoise, useAddLassoMask, useDeleteLassoMask, useLassoStrategies } from "@/hooks/api/use-generate-v2";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import {
   Dialog,
   DialogContent,
 } from "@/components/ui/dialog";
+import { LassoCanvas } from "@/components/generate/lasso-canvas";
 
 interface ImageEditorModalProps {
   record: GenerationRecord;
@@ -25,9 +26,9 @@ function Spinner({ className }: { className?: string }) {
 }
 
 const cacheBust = (r: GenerationRecord) =>
-  `${r.bg_removal_level}-${r.denoise_strength}-${r.color_brightness}-${r.edge_feather}-${r.upscale_factor}`;
+  `${r.bg_removal_level}-${r.denoise_strength}-${r.color_brightness}-${r.edge_feather}-${r.upscale_factor}-${r.lasso_masks.length}`;
 
-type ToolId = "bg" | "color" | "edge" | "upscale" | "denoise" | null;
+type ToolId = "bg" | "color" | "edge" | "upscale" | "denoise" | "lasso" | null;
 
 export function ImageEditorModal({ record, variationIndex, open, onOpenChange }: ImageEditorModalProps) {
   const variation = record.variations.find((v) => v.index === variationIndex);
@@ -38,6 +39,10 @@ export function ImageEditorModal({ record, variationIndex, open, onOpenChange }:
   const edgeCleanup = useEdgeCleanup();
   const upscaleHook = useUpscale();
   const denoiseHook = useDenoise();
+  const addLassoMask = useAddLassoMask();
+  const deleteLassoMask = useDeleteLassoMask();
+  const { data: strategiesData } = useLassoStrategies();
+  const availableStrategies = strategiesData?.strategies ?? ["grabcut"];
 
   const [activeTool, setActiveTool] = useState<ToolId>(null);
   const [bgLevel, setBgLevel] = useState(record.bg_removal_level);
@@ -47,8 +52,10 @@ export function ImageEditorModal({ record, variationIndex, open, onOpenChange }:
   const [feather, setFeather] = useState(record.edge_feather);
   const [denoiseStr, setDenoiseStr] = useState(record.denoise_strength);
   const [zoom, setZoom] = useState(1);
+  const [lassoMode, setLassoMode] = useState<"remove" | "protect">("remove");
+  const [lassoStrategy, setLassoStrategy] = useState("grabcut");
 
-  const anyProcessing = removeBackground.isPending || colorAdjust.isPending || edgeCleanup.isPending || upscaleHook.isPending || denoiseHook.isPending;
+  const anyProcessing = removeBackground.isPending || colorAdjust.isPending || edgeCleanup.isPending || upscaleHook.isPending || denoiseHook.isPending || addLassoMask.isPending || deleteLassoMask.isPending;
 
   if (!variation) return null;
 
@@ -70,6 +77,7 @@ export function ImageEditorModal({ record, variationIndex, open, onOpenChange }:
     { id: "color", label: "Color", desc: "Adjust colors", active: record.color_brightness !== 0 || record.color_contrast !== 0 || record.color_saturation !== 0 },
     { id: "edge", label: "Edges", desc: "Clean edges", active: record.edge_feather > 0 },
     { id: "upscale", label: "Upscale", desc: "Increase resolution", active: record.upscale_factor > 1 },
+    { id: "lasso", label: "Lasso", desc: "Manual selection", active: record.lasso_masks.length > 0 },
   ];
 
   return (
@@ -112,6 +120,22 @@ export function ImageEditorModal({ record, variationIndex, open, onOpenChange }:
                 className="max-h-[420px] max-w-full object-contain drop-shadow-lg transition-transform duration-100"
                 style={{ transform: `scale(${zoom})` }}
               />
+              {activeTool === "lasso" && (
+                <LassoCanvas
+                  imageSrc={`/api/images/${variation.preview_path}?t=${cacheBust(record)}`}
+                  mode={lassoMode}
+                  zoom={zoom}
+                  disabled={anyProcessing}
+                  onComplete={(polygon) => {
+                    addLassoMask.mutate({
+                      generationId: record.id,
+                      polygon,
+                      mode: lassoMode,
+                      strategy: lassoStrategy,
+                    });
+                  }}
+                />
+              )}
             </div>
 
             {/* Zoom indicator */}
@@ -264,6 +288,93 @@ export function ImageEditorModal({ record, variationIndex, open, onOpenChange }:
                     <Button variant="ghost" size="sm" className="w-full h-7 text-xs text-muted-foreground" onClick={() => upscaleHook.mutate({ generationId: record.id, factor: 1 })} disabled={anyProcessing}>
                       Reset to original
                     </Button>
+                  )}
+                </div>
+              )}
+
+              {activeTool === "lasso" && (
+                <div className="rounded-lg bg-muted/30 border border-border p-3 space-y-3">
+                  {/* Mode toggle */}
+                  <div>
+                    <span className="text-[11px] text-muted-foreground mb-1.5 block">Mode</span>
+                    <div className="flex gap-1.5">
+                      <Button
+                        variant={lassoMode === "remove" ? "default" : "outline"}
+                        size="sm"
+                        className="flex-1 h-7 text-xs"
+                        onClick={() => setLassoMode("remove")}
+                      >
+                        Remove
+                      </Button>
+                      <Button
+                        variant={lassoMode === "protect" ? "default" : "outline"}
+                        size="sm"
+                        className="flex-1 h-7 text-xs"
+                        onClick={() => setLassoMode("protect")}
+                      >
+                        Protect
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Strategy picker */}
+                  <div>
+                    <span className="text-[11px] text-muted-foreground mb-1.5 block">Strategy</span>
+                    <select
+                      value={lassoStrategy}
+                      onChange={(e) => setLassoStrategy(e.target.value)}
+                      className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-xs text-foreground"
+                    >
+                      {["grabcut", "sam", "cascadepsp"].map((s) => (
+                        <option key={s} value={s} disabled={!availableStrategies.includes(s)}>
+                          {s === "grabcut" ? "GrabCut" : s === "sam" ? "SAM" : "CascadePSP"}
+                          {!availableStrategies.includes(s) ? " (not installed)" : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Mask list */}
+                  {record.lasso_masks.length > 0 && (
+                    <div>
+                      <span className="text-[11px] text-muted-foreground mb-1.5 block">
+                        Masks ({record.lasso_masks.length})
+                      </span>
+                      <div className="space-y-1">
+                        {record.lasso_masks.map((mask) => (
+                          <div
+                            key={mask.id}
+                            className="flex items-center justify-between rounded-md bg-muted/40 px-2 py-1"
+                          >
+                            <span className={`text-[10px] font-medium ${mask.mode === "remove" ? "text-red-400" : "text-blue-400"}`}>
+                              {mask.mode === "remove" ? "Remove" : "Protect"} ({mask.strategy})
+                            </span>
+                            <button
+                              onClick={() => deleteLassoMask.mutate({ generationId: record.id, maskId: mask.id })}
+                              disabled={anyProcessing}
+                              className="text-muted-foreground hover:text-destructive transition-colors"
+                            >
+                              <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                                <path d="M1 1l8 8M9 1l-8 8" />
+                              </svg>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full h-7 text-xs text-muted-foreground mt-1.5"
+                        disabled={anyProcessing}
+                        onClick={() => {
+                          for (const mask of record.lasso_masks) {
+                            deleteLassoMask.mutate({ generationId: record.id, maskId: mask.id });
+                          }
+                        }}
+                      >
+                        Clear all
+                      </Button>
+                    </div>
                   )}
                 </div>
               )}
