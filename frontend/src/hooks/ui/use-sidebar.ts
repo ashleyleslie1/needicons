@@ -1,27 +1,30 @@
-import { createContext, useContext, useState, createElement } from "react";
+import { createContext, useContext, useState, useEffect, createElement } from "react";
 import type { ReactNode } from "react";
 
-type RightPanel = "generation" | "profile" | null;
-
 interface SidebarContextValue {
-  panelCollapsed: boolean;
-  togglePanel: () => void;
-  rightPanel: RightPanel;
-  setRightPanel: (panel: RightPanel) => void;
+  activeProjectId: string | null;
+  setActiveProjectId: (id: string | null) => void;
 }
 
 const SidebarContext = createContext<SidebarContextValue | null>(null);
 
 export function SidebarProvider({ children }: { children: ReactNode }) {
-  const [panelCollapsed, setPanelCollapsed] = useState(false);
-  const [rightPanel, setRightPanel] = useState<RightPanel>(null);
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(() => {
+    return localStorage.getItem("needicons_active_project") || null;
+  });
 
-  const togglePanel = () => setPanelCollapsed((prev) => !prev);
+  useEffect(() => {
+    if (activeProjectId) {
+      localStorage.setItem("needicons_active_project", activeProjectId);
+    } else {
+      localStorage.removeItem("needicons_active_project");
+    }
+  }, [activeProjectId]);
 
   return createElement(
     SidebarContext.Provider,
-    { value: { panelCollapsed, togglePanel, rightPanel, setRightPanel } },
-    children
+    { value: { activeProjectId, setActiveProjectId } },
+    children,
   );
 }
 
