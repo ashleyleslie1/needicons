@@ -8,6 +8,8 @@ interface GenerationSettingsProps {
   onQualityChange: (quality: QualityMode) => void;
   apiQuality: string;
   onApiQualityChange: (apiQuality: string) => void;
+  aiEnhance: boolean;
+  onAiEnhanceChange: (value: boolean) => void;
 }
 
 export function GenerationSettings({
@@ -15,6 +17,8 @@ export function GenerationSettings({
   onQualityChange,
   apiQuality,
   onApiQualityChange,
+  aiEnhance,
+  onAiEnhanceChange,
 }: GenerationSettingsProps) {
   const { data: capabilities } = useModelCapabilities();
   const { data: settings } = useSettings();
@@ -66,6 +70,20 @@ export function GenerationSettings({
           ))}
         </select>
       )}
+
+      {/* AI Enhance toggle */}
+      <button
+        onClick={() => onAiEnhanceChange(!aiEnhance)}
+        className={cn(
+          "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors",
+          aiEnhance
+            ? "bg-accent text-accent-foreground"
+            : "bg-muted/40 text-muted-foreground hover:text-foreground"
+        )}
+      >
+        <span>✨</span>
+        <span>AI Enhance</span>
+      </button>
     </div>
   );
 }

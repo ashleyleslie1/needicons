@@ -4,7 +4,8 @@ import { useGenerateIcons } from "@/hooks/api/use-generate-v2";
 import { useGenerationHistory } from "@/hooks/api/use-generation-history";
 import { useProject } from "@/hooks/api/use-projects";
 import { PromptInput } from "@/components/generate/prompt-input";
-import { StyleTabs } from "@/components/generate/style-tabs";
+import { StyleDropdown } from "@/components/generate/style-dropdown";
+import { MoodDropdown } from "@/components/generate/mood-dropdown";
 import { GenerationSettings } from "@/components/generate/generation-settings";
 import { GenerateButton } from "@/components/generate/generate-button";
 import { ResultsHistory } from "@/components/generate/results-history";
@@ -40,6 +41,8 @@ export function GeneratePage() {
   const [style, setStyle] = useState<IconStyle>(project?.style_preference ?? "solid");
   const [quality, setQuality] = useState<QualityMode>(project?.quality_preference ?? "normal");
   const [apiQuality, setApiQuality] = useState("");
+  const [mood, setMood] = useState("none");
+  const [aiEnhance, setAiEnhance] = useState(false);
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
 
   const parsedPrompts = parsePrompts(promptText);
@@ -47,7 +50,7 @@ export function GeneratePage() {
 
   function handleGenerate() {
     if (!activeProjectId || parsedPrompts.length === 0) return;
-    gen.start({ prompts: parsedPrompts, style, quality, api_quality: apiQuality, mood: "", ai_enhance: false, project_id: activeProjectId });
+    gen.start({ prompts: parsedPrompts, style, quality, api_quality: apiQuality, mood, ai_enhance: aiEnhance, project_id: activeProjectId });
     setPromptText("");
   }
 
@@ -68,13 +71,16 @@ export function GeneratePage() {
           disabled={gen.isPending}
         />
         <div className="mt-4 flex items-center gap-4">
-          <StyleTabs value={style} onChange={setStyle} />
+          <StyleDropdown value={style} onChange={setStyle} />
+          <MoodDropdown value={mood} onChange={setMood} />
           <div className="ml-auto flex items-center gap-3">
             <GenerationSettings
               quality={quality}
               onQualityChange={setQuality}
               apiQuality={apiQuality}
               onApiQualityChange={setApiQuality}
+              aiEnhance={aiEnhance}
+              onAiEnhanceChange={setAiEnhance}
             />
             <GenerateButton
               iconCount={iconCount}
