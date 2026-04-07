@@ -19,7 +19,7 @@ from needicons.core.pipeline.denoise import DenoiseStep
 from needicons.core.pipeline.color import ColorProcessingStep
 from needicons.core.pipeline.edges import EdgeCleanupStep
 from needicons.core.pipeline.upscale import UpscaleStep
-from needicons.core.pipeline.lasso import apply_lasso_masks, get_available_strategies, refine_mask
+from needicons.core.pipeline.lasso import apply_lasso_masks, get_available_strategies, select_at_point
 from needicons.server.api.settings import get_api_key
 from needicons.core.prompt_enhance import enhance_prompt
 
@@ -218,16 +218,17 @@ def _reprocess_variation(original: Image.Image, record, gpu_provider: str = "aut
     if record.bg_removal_level > 0:
         img = remove_background(img, record.bg_removal_level, gpu_provider)
 
-    # 1.5 Lasso Masks
+    # 1.5 Smart Selection Masks (point-based)
     if record.lasso_masks:
         w, h = img.size
         masks_data = []
         for lm in record.lasso_masks:
-            pixel_polygon = [(int(x * w), int(y * h)) for x, y in lm.polygon]
+            pixel_point = (int(lm.point[0] * w), int(lm.point[1] * h))
             masks_data.append({
-                "polygon": pixel_polygon,
+                "point": pixel_point,
                 "mode": lm.mode,
                 "strategy": lm.strategy,
+                "tolerance": lm.tolerance,
             })
         img = apply_lasso_masks(img, masks_data)
 
@@ -666,9 +667,13 @@ async def add_lasso_mask(gen_id: str, request: Request):
         raise HTTPException(status_code=404, detail="Generation record not found")
 
     body = await request.json()
-    polygon = body.get("polygon", [])
+    point = body.get("point")
     mode = body.get("mode", "remove")
     strategy = body.get("strategy", "grabcut")
+    tolerance = max(1, min(255, body.get("tolerance", 32)))
+
+    if not point or len(point) != 2:
+        raise HTTPException(status_code=400, detail="Point must be [x, y] in normalized 0-1 coords")
 
     if mode not in ("remove", "protect"):
         raise HTTPException(status_code=400, detail="Mode must be 'remove' or 'protect'")
@@ -677,16 +682,14 @@ async def add_lasso_mask(gen_id: str, request: Request):
     if strategy not in available:
         raise HTTPException(status_code=400, detail=f"Strategy '{strategy}' not installed. Available: {available}")
 
-    if len(polygon) < 3:
-        raise HTTPException(status_code=400, detail="Polygon must have at least 3 points")
-
     from needicons.core.models import LassoMask
     mask_id = _new_id()
     lasso_mask = LassoMask(
         id=mask_id,
-        polygon=[(float(p[0]), float(p[1])) for p in polygon],
+        point=(float(point[0]), float(point[1])),
         mode=mode,
         strategy=strategy,
+        tolerance=tolerance,
     )
     record.lasso_masks.append(lasso_mask)
 

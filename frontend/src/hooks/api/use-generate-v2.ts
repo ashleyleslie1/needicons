@@ -311,12 +311,13 @@ export function useAddLassoMask() {
   return useMutation({
     mutationFn: (p: {
       generationId: string;
-      polygon: [number, number][];
+      point: [number, number];
       mode: "remove" | "protect";
       strategy: string;
+      tolerance: number;
       signal?: AbortSignal;
     }) =>
-      api.addLassoMask(p.generationId, p.polygon, p.mode, p.strategy, p.signal),
+      api.addLassoMask(p.generationId, p.point, p.mode, p.strategy, p.tolerance, p.signal),
     onSuccess: (data) => {
       qc.setQueriesData<GenerationRecord[]>(
         { queryKey: ["generation-history"] },

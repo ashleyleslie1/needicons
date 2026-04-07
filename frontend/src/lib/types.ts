@@ -178,9 +178,10 @@ export interface GenerationVariation {
 
 export interface LassoMask {
   id: string;
-  polygon: [number, number][];
+  point: [number, number];
   mode: "remove" | "protect";
   strategy: string;
+  tolerance: number;
 }
 
 export interface GenerationRecord {

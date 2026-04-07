@@ -177,9 +177,10 @@ class GenerationVariation(BaseModel):
 
 class LassoMask(BaseModel):
     id: str
-    polygon: list[tuple[float, float]]  # normalized 0-1 coords
+    point: tuple[float, float]  # normalized 0-1 click coords
     mode: Literal["remove", "protect"]
     strategy: str  # "grabcut" | "sam" | "cascadepsp"
+    tolerance: int = 32  # color distance for flood fill (0-255)
 
 
 class GenerationRecord(BaseModel):

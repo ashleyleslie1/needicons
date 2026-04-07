@@ -305,16 +305,17 @@ export const api = {
 
   addLassoMask(
     generationId: string,
-    polygon: [number, number][],
+    point: [number, number],
     mode: "remove" | "protect",
     strategy: string,
+    tolerance: number,
     signal?: AbortSignal,
   ): Promise<{ mask_id: string; record: GenerationRecord }> {
     return request<{ mask_id: string; record: GenerationRecord }>(
       `/generations/${generationId}/lasso-mask`,
       {
         method: "POST",
-        body: JSON.stringify({ polygon, mode, strategy }),
+        body: JSON.stringify({ point, mode, strategy, tolerance }),
         signal,
       },
     );

@@ -8,7 +8,6 @@ import {
   Dialog,
   DialogContent,
 } from "@/components/ui/dialog";
-import { LassoCanvas } from "@/components/generate/lasso-canvas";
 
 interface ImageEditorModalProps {
   record: GenerationRecord;
@@ -58,6 +57,7 @@ export function ImageEditorModal({ record, variationIndex, open, onOpenChange }:
   const panStart = useRef({ x: 0, y: 0, panX: 0, panY: 0 });
   const [lassoMode, setLassoMode] = useState<"remove" | "protect">("remove");
   const [lassoStrategy, setLassoStrategy] = useState("grabcut");
+  const [lassoTolerance, setLassoTolerance] = useState(32);
 
   const anyProcessing = removeBackground.isPending || colorAdjust.isPending || edgeCleanup.isPending || upscaleHook.isPending || denoiseHook.isPending || addLassoMask.isPending || deleteLassoMask.isPending;
 
@@ -152,25 +152,26 @@ export function ImageEditorModal({ record, variationIndex, open, onOpenChange }:
                 src={`/api/images/${variation.preview_path}?t=${cacheBust(record)}`}
                 alt={`${record.name} v${variationIndex + 1}`}
                 draggable={false}
-                className="max-h-[420px] max-w-full object-contain drop-shadow-lg transition-transform duration-100 select-none"
+                className={cn(
+                  "max-h-[420px] max-w-full object-contain drop-shadow-lg transition-transform duration-100 select-none",
+                  activeTool === "lasso" && "cursor-crosshair",
+                )}
                 style={{ transform: `scale(${zoom}) translate(${panX}px, ${panY}px)` }}
+                onClick={(e) => {
+                  if (activeTool !== "lasso" || anyProcessing) return;
+                  const img = e.currentTarget;
+                  const rect = img.getBoundingClientRect();
+                  const x = (e.clientX - rect.left) / rect.width;
+                  const y = (e.clientY - rect.top) / rect.height;
+                  addLassoMask.mutate({
+                    generationId: record.id,
+                    point: [x, y],
+                    mode: lassoMode,
+                    strategy: lassoStrategy,
+                    tolerance: lassoTolerance,
+                  });
+                }}
               />
-              {activeTool === "lasso" && (
-                <LassoCanvas
-                  imageSrc={`/api/images/${variation.preview_path}?t=${cacheBust(record)}`}
-                  mode={lassoMode}
-                  zoom={zoom}
-                  disabled={anyProcessing}
-                  onComplete={(polygon) => {
-                    addLassoMask.mutate({
-                      generationId: record.id,
-                      polygon,
-                      mode: lassoMode,
-                      strategy: lassoStrategy,
-                    });
-                  }}
-                />
-              )}
             </div>
 
             {/* Zoom indicator */}
@@ -323,6 +324,8 @@ export function ImageEditorModal({ record, variationIndex, open, onOpenChange }:
 
               {activeTool === "lasso" && (
                 <div className="rounded-lg bg-muted/30 border border-border p-3 space-y-3">
+                  <p className="text-[10px] text-muted-foreground">Click on the area you want to select. It auto-expands to find the region.</p>
+
                   {/* Mode toggle */}
                   <div>
                     <span className="text-[11px] text-muted-foreground mb-1.5 block">Mode</span>
@@ -346,6 +349,19 @@ export function ImageEditorModal({ record, variationIndex, open, onOpenChange }:
                     </div>
                   </div>
 
+                  {/* Tolerance slider */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-[11px] text-muted-foreground">Tolerance</span>
+                      <span className="text-[11px] font-semibold text-foreground">{lassoTolerance}</span>
+                    </div>
+                    <Slider
+                      value={[lassoTolerance]}
+                      onValueChange={([v]) => setLassoTolerance(v)}
+                      min={1} max={128} step={1}
+                    />
+                  </div>
+
                   {/* Strategy picker */}
                   <div>
                     <span className="text-[11px] text-muted-foreground mb-1.5 block">Strategy</span>
@@ -363,11 +379,11 @@ export function ImageEditorModal({ record, variationIndex, open, onOpenChange }:
                     </select>
                   </div>
 
-                  {/* Mask list */}
+                  {/* Selection list */}
                   {record.lasso_masks.length > 0 && (
                     <div>
                       <span className="text-[11px] text-muted-foreground mb-1.5 block">
-                        Masks ({record.lasso_masks.length})
+                        Selections ({record.lasso_masks.length})
                       </span>
                       <div className="space-y-1">
                         {record.lasso_masks.map((mask) => (
@@ -376,7 +392,7 @@ export function ImageEditorModal({ record, variationIndex, open, onOpenChange }:
                             className="flex items-center justify-between rounded-md bg-muted/40 px-2 py-1"
                           >
                             <span className={`text-[10px] font-medium ${mask.mode === "remove" ? "text-red-400" : "text-blue-400"}`}>
-                              {mask.mode === "remove" ? "Remove" : "Protect"} ({mask.strategy})
+                              {mask.mode === "remove" ? "Remove" : "Protect"}
                             </span>
                             <button
                               onClick={() => deleteLassoMask.mutate({ generationId: record.id, maskId: mask.id })}

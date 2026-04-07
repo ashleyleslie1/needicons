@@ -11,7 +11,7 @@ from needicons.core.pipeline.mask import ShapeMaskStep
 from needicons.core.pipeline.fill import BackgroundFillStep
 from needicons.core.pipeline.shadow import DropShadowStep
 from needicons.core.pipeline.resize import ResizeStep, resize_multi
-from needicons.core.pipeline.lasso import refine_mask, apply_lasso_masks, get_available_strategies
+from needicons.core.pipeline.lasso import select_at_point, apply_lasso_masks, get_available_strategies
 
 
 def build_default_pipeline() -> PipelineRunner:
@@ -46,7 +46,7 @@ __all__ = [
     "ResizeStep",
     "resize_multi",
     "build_default_pipeline",
-    "refine_mask",
+    "select_at_point",
     "apply_lasso_masks",
     "get_available_strategies",
 ]

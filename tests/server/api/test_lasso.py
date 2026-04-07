@@ -25,7 +25,7 @@ async def test_add_lasso_mask_not_found(app):
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.post("/api/generations/nonexistent/lasso-mask", json={
-            "polygon": [[0.1, 0.2], [0.3, 0.2], [0.3, 0.4]],
+            "point": [0.5, 0.5],
             "mode": "remove",
             "strategy": "grabcut",
         })
@@ -37,7 +37,7 @@ async def test_add_lasso_mask_invalid_strategy(app):
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.post("/api/generations/nonexistent/lasso-mask", json={
-            "polygon": [[0.1, 0.2], [0.3, 0.2], [0.3, 0.4]],
+            "point": [0.5, 0.5],
             "mode": "remove",
             "strategy": "nonexistent_strategy",
         })

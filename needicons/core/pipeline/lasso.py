@@ -1,8 +1,7 @@
-"""Lasso-assisted background removal — segmentation strategies.
+"""Smart selection tool — click a point, auto-expand to select the region.
 
-Provides GrabCut (always available via OpenCV), with optional SAM and CascadePSP
-for higher-quality refinement. All strategies take an RGBA image + pixel-coordinate
-polygon and return a grayscale mask (0=transparent, 255=keep).
+Click on background → flood-fill expands to find connected similar pixels →
+GrabCut refines the boundary. No manual polygon drawing needed.
 """
 from __future__ import annotations
 
@@ -27,19 +26,21 @@ def get_available_strategies() -> list[str]:
     return available
 
 
-def refine_mask(
+def select_at_point(
     image: Image.Image,
-    polygon: list[tuple[int, int]],
+    point: tuple[int, int],
     mode: str,
     strategy: str = "grabcut",
+    tolerance: int = 32,
 ) -> Image.Image:
-    """Compute a refined segmentation mask from image + polygon selection.
+    """Select a region starting from a click point.
 
     Args:
         image: RGBA PIL image.
-        polygon: List of (x, y) pixel coordinates defining the selection.
-        mode: "remove" (selected region becomes transparent) or "protect" (selected region stays opaque).
+        point: (x, y) pixel coordinates where user clicked.
+        mode: "remove" (region becomes transparent) or "protect" (region stays opaque).
         strategy: "grabcut", "sam", or "cascadepsp".
+        tolerance: color distance tolerance for initial flood fill (0-255).
 
     Returns:
         Grayscale PIL image (mode "L"): 0=transparent, 255=keep.
@@ -49,11 +50,11 @@ def refine_mask(
         raise ValueError(f"Strategy '{strategy}' not available. Installed: {available}")
 
     if strategy == "grabcut":
-        return _grabcut_refine(image, polygon, mode)
+        return _grabcut_select(image, point, mode, tolerance)
     elif strategy == "sam":
-        return _sam_refine(image, polygon, mode)
+        return _sam_select(image, point, mode)
     elif strategy == "cascadepsp":
-        return _cascadepsp_refine(image, polygon, mode)
+        return _cascadepsp_select(image, point, mode, tolerance)
     else:
         raise ValueError(f"Unknown strategy: {strategy}")
 
@@ -62,10 +63,9 @@ def apply_lasso_masks(
     image: Image.Image,
     masks_data: list[dict],
 ) -> Image.Image:
-    """Apply a list of lasso mask operations to an RGBA image.
+    """Apply a list of point-based mask operations to an RGBA image.
 
-    Each entry in masks_data is a dict with keys: polygon, mode, strategy.
-    Polygon coords are in pixel space (already scaled from normalized).
+    Each entry in masks_data is a dict with keys: point, mode, strategy, tolerance.
 
     Returns a new RGBA image with alpha modified by the masks.
     """
@@ -76,57 +76,83 @@ def apply_lasso_masks(
     alpha = np.array(result.split()[3], dtype=np.float32)
 
     for mask_entry in masks_data:
-        polygon = mask_entry["polygon"]
+        point = mask_entry["point"]
         mode = mask_entry["mode"]
         strategy = mask_entry["strategy"]
+        tolerance = mask_entry.get("tolerance", 32)
 
-        refined = refine_mask(result, polygon, mode, strategy)
+        refined = select_at_point(result, tuple(point), mode, strategy, tolerance)
         refined_arr = np.array(refined, dtype=np.float32)
 
         if mode == "remove":
-            # Where refined mask says 0 (background), force alpha to 0
             alpha = np.minimum(alpha, refined_arr)
         elif mode == "protect":
-            # Where refined mask says 255 (foreground), force alpha to 255
             alpha = np.maximum(alpha, refined_arr)
 
-    # Apply modified alpha
     result_arr = np.array(result)
     result_arr[:, :, 3] = alpha.clip(0, 255).astype(np.uint8)
     return Image.fromarray(result_arr)
 
 
-def _grabcut_refine(
+def _flood_fill_mask(image_rgb: np.ndarray, point: tuple[int, int], tolerance: int) -> np.ndarray:
+    """Flood fill from a point to find connected similar-color region.
+
+    Returns a binary mask: 255 where flood reached, 0 elsewhere.
+    """
+    h, w = image_rgb.shape[:2]
+    x, y = point
+    x = max(0, min(w - 1, x))
+    y = max(0, min(h - 1, y))
+
+    # OpenCV floodFill needs a mask 2px larger than image
+    ff_mask = np.zeros((h + 2, w + 2), dtype=np.uint8)
+    lo_diff = (tolerance, tolerance, tolerance)
+    hi_diff = (tolerance, tolerance, tolerance)
+
+    # Use positional args for OpenCV compatibility across versions
+    cv2.floodFill(
+        image_rgb.copy(), ff_mask, (x, y),
+        (255, 255, 255),  # newVal
+        lo_diff,  # loDiff
+        hi_diff,  # upDiff
+        cv2.FLOODFILL_MASK_ONLY | (255 << 8) | 4,  # flags
+    )
+
+    # Extract the inner mask (strip 1px border)
+    return ff_mask[1:-1, 1:-1]
+
+
+def _grabcut_select(
     image: Image.Image,
-    polygon: list[tuple[int, int]],
+    point: tuple[int, int],
     mode: str,
+    tolerance: int,
 ) -> Image.Image:
-    """GrabCut-based segmentation. Always available via OpenCV."""
+    """Click-to-select using flood fill + GrabCut refinement."""
     img_rgba = image.convert("RGBA")
     img_rgb = np.array(img_rgba.convert("RGB"))
     h, w = img_rgb.shape[:2]
 
-    # Create initial mask
-    gc_mask = np.full((h, w), cv2.GC_PR_BGD, dtype=np.uint8)
+    # Step 1: Flood fill from click point to find the seed region
+    flood = _flood_fill_mask(img_rgb, point, tolerance)
 
-    # Fill polygon region based on mode
-    pts = np.array(polygon, dtype=np.int32).reshape((-1, 1, 2))
+    # Step 2: Build GrabCut initial mask from flood fill
+    gc_mask = np.full((h, w), cv2.GC_PR_FGD, dtype=np.uint8)
 
     if mode == "remove":
-        # Polygon = definite background; outside = probable foreground
-        gc_mask[:] = cv2.GC_PR_FGD
-        cv2.fillPoly(gc_mask, [pts], cv2.GC_BGD)
+        # Flooded area = definite background, rest = probable foreground
+        gc_mask[flood > 0] = cv2.GC_BGD
     else:
-        # protect: polygon = definite foreground; outside = probable background
+        # Flooded area = definite foreground, rest = probable background
         gc_mask[:] = cv2.GC_PR_BGD
-        cv2.fillPoly(gc_mask, [pts], cv2.GC_FGD)
+        gc_mask[flood > 0] = cv2.GC_FGD
 
-    # Run GrabCut
+    # Step 3: Run GrabCut to refine boundaries
     bgd_model = np.zeros((1, 65), np.float64)
     fgd_model = np.zeros((1, 65), np.float64)
     cv2.grabCut(img_rgb, gc_mask, None, bgd_model, fgd_model, 5, cv2.GC_INIT_WITH_MASK)
 
-    # Convert GrabCut mask to binary: FGD + PR_FGD = 255 (keep), rest = 0
+    # FGD + PR_FGD = 255 (keep), rest = 0 (remove)
     output_mask = np.where(
         (gc_mask == cv2.GC_FGD) | (gc_mask == cv2.GC_PR_FGD), 255, 0
     ).astype(np.uint8)
@@ -134,19 +160,20 @@ def _grabcut_refine(
     return Image.fromarray(output_mask, mode="L")
 
 
-def _sam_refine(
+def _sam_select(
     image: Image.Image,
-    polygon: list[tuple[int, int]],
+    point: tuple[int, int],
     mode: str,
 ) -> Image.Image:
-    """SAM (Segment Anything) based segmentation. Requires segment-anything package."""
+    """SAM point-based selection. Requires segment-anything package."""
     raise ValueError("SAM strategy not yet implemented. Install: pip install segment-anything")
 
 
-def _cascadepsp_refine(
+def _cascadepsp_select(
     image: Image.Image,
-    polygon: list[tuple[int, int]],
+    point: tuple[int, int],
     mode: str,
+    tolerance: int,
 ) -> Image.Image:
-    """CascadePSP refinement. Runs GrabCut first, then refines edges with CascadePSP."""
+    """GrabCut + CascadePSP refinement."""
     raise ValueError("CascadePSP strategy not yet implemented. Install: pip install cascadepsp")
