@@ -176,6 +176,13 @@ export interface GenerationVariation {
   picked: boolean;
 }
 
+export interface LassoMask {
+  id: string;
+  polygon: [number, number][];
+  mode: "remove" | "protect";
+  strategy: string;
+}
+
 export interface GenerationRecord {
   id: string;
   project_id: string;
@@ -198,6 +205,7 @@ export interface GenerationRecord {
   edge_feather: number;
   upscale_factor: number;
   denoise_strength: number;
+  lasso_masks: LassoMask[];
 }
 
 export interface Project {

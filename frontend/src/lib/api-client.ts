@@ -299,6 +299,37 @@ export const api = {
     });
   },
 
+  getLassoStrategies(): Promise<{ strategies: string[] }> {
+    return request<{ strategies: string[] }>("/generation-tools/strategies");
+  },
+
+  addLassoMask(
+    generationId: string,
+    polygon: [number, number][],
+    mode: "remove" | "protect",
+    strategy: string,
+    signal?: AbortSignal,
+  ): Promise<{ mask_id: string; record: GenerationRecord }> {
+    return request<{ mask_id: string; record: GenerationRecord }>(
+      `/generations/${generationId}/lasso-mask`,
+      {
+        method: "POST",
+        body: JSON.stringify({ polygon, mode, strategy }),
+        signal,
+      },
+    );
+  },
+
+  deleteLassoMask(
+    generationId: string,
+    maskId: string,
+  ): Promise<GenerationRecord> {
+    return request<GenerationRecord>(
+      `/generations/${generationId}/lasso-mask/${maskId}`,
+      { method: "DELETE" },
+    );
+  },
+
   // Project Export (async job-based)
   async startExport(projectId: string, data: ExportProjectRequest): Promise<{ job_id: string; total: number }> {
     return request<{ job_id: string; total: number }>(`/projects/${projectId}/export`, {
