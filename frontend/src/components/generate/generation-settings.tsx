@@ -1,5 +1,6 @@
 import { useModelCapabilities, useSettings } from "@/hooks/api/use-settings";
 import { useEdition } from "@/hooks/use-edition";
+import { Button } from "@/components/ui/button";
 import type { QualityMode } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -22,68 +23,53 @@ export function GenerationSettings({
 }: GenerationSettingsProps) {
   const { data: capabilities } = useModelCapabilities();
   const { data: settings } = useSettings();
-
   const { showAllQualityOptions } = useEdition();
   const currentModel = settings?.provider?.default_model ?? "gpt-image-1.5";
   const modelCaps = capabilities?.[currentModel];
   const qualities = modelCaps?.qualities ?? [];
 
   return (
-    <div className="flex items-center gap-3">
-      {/* Mode toggle: Normal / HQ */}
-      <div className="flex rounded-lg bg-muted p-1">
-        <button
-          onClick={() => onQualityChange("normal")}
-          className={cn(
-            "rounded-md px-3 py-1 text-xs font-medium transition-colors",
-            quality === "normal"
-              ? "bg-card text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          Normal
-        </button>
-        <button
-          onClick={() => onQualityChange("hq")}
-          className={cn(
-            "rounded-md px-3 py-1 text-xs font-medium transition-colors",
-            quality === "hq"
-              ? "bg-card text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          HQ
-        </button>
+    <div className="flex items-center gap-2">
+      {/* Quality toggle */}
+      <div className="flex rounded-lg border border-border bg-muted/50 p-0.5">
+        {(["normal", "hq"] as const).map((q) => (
+          <button
+            key={q}
+            onClick={() => onQualityChange(q)}
+            className={cn(
+              "rounded-md px-3 py-1 text-xs font-medium transition-all",
+              quality === q
+                ? "bg-card text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {q === "hq" ? "HQ" : "Normal"}
+          </button>
+        ))}
       </div>
 
-      {/* API Quality dropdown (model-specific) */}
+      {/* API Quality */}
       {showAllQualityOptions && qualities.length > 0 && (
         <select
           value={apiQuality || qualities[qualities.length - 1]}
           onChange={(e) => onApiQualityChange(e.target.value)}
-          className="h-8 rounded-lg border border-border bg-muted px-2 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-accent"
+          className="h-7 rounded-lg border border-border bg-card/80 px-2 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-accent/30"
         >
           {qualities.map((q) => (
-            <option key={q} value={q}>
-              {q.charAt(0).toUpperCase() + q.slice(1)}
-            </option>
+            <option key={q} value={q}>{q.charAt(0).toUpperCase() + q.slice(1)}</option>
           ))}
         </select>
       )}
 
-      {/* AI Enhance toggle */}
-      <button
+      {/* AI Enhance */}
+      <Button
+        variant={aiEnhance ? "default" : "outline"}
+        size="sm"
+        className={cn("h-7 px-3 text-xs gap-1.5", !aiEnhance && "text-muted-foreground")}
         onClick={() => onAiEnhanceChange(!aiEnhance)}
-        className={cn(
-          "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors",
-          aiEnhance
-            ? "bg-accent text-accent-foreground"
-            : "bg-muted/40 text-muted-foreground hover:text-foreground"
-        )}
       >
-        <span>✨</span>
-        <span>AI Enhance</span>
-      </button>
+        AI Enhance
+      </Button>
     </div>
   );
 }

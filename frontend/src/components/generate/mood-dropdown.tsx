@@ -1,19 +1,14 @@
-type Mood = "" | "none" | "cinematic" | "vibrant" | "dynamic" | "fashion" | "portrait" | "stock_photo";
+import { cn } from "@/lib/utils";
 
-const MOODS: {
-  value: Mood;
-  label: string;
-  desc: string;
-  emoji: string;
-}[] = [
-  { value: "none", label: "None", desc: "No mood modifier", emoji: "—" },
-  { value: "cinematic", label: "Cinematic", desc: "Dramatic lighting, film-like", emoji: "🎬" },
-  { value: "vibrant", label: "Vibrant", desc: "Saturated, energetic", emoji: "✨" },
-  { value: "dynamic", label: "Dynamic", desc: "Motion, action-oriented", emoji: "⚡" },
-  { value: "fashion", label: "Fashion", desc: "Elegant, editorial", emoji: "👗" },
-  { value: "portrait", label: "Portrait", desc: "Close-up, detailed", emoji: "👤" },
-  { value: "stock_photo", label: "Stock Photo", desc: "Clean, professional", emoji: "📷" },
-];
+const MOODS = [
+  { value: "none", label: "None" },
+  { value: "cinematic", label: "Cinematic" },
+  { value: "vibrant", label: "Vibrant" },
+  { value: "dynamic", label: "Dynamic" },
+  { value: "fashion", label: "Fashion" },
+  { value: "portrait", label: "Portrait" },
+  { value: "stock_photo", label: "Stock Photo" },
+] as const;
 
 interface MoodDropdownProps {
   value: string;
@@ -23,20 +18,28 @@ interface MoodDropdownProps {
 export function MoodDropdown({ value, onChange }: MoodDropdownProps) {
   return (
     <div>
-      <label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1 block">
-        Mood <span className="normal-case text-muted-foreground/50">(optional)</span>
+      <label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1 block font-medium">
+        Mood
       </label>
-      <select
-        value={value || "none"}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full appearance-none bg-muted/40 border border-border rounded-md px-3 py-2 text-sm text-foreground cursor-pointer focus:outline-none focus:ring-1 focus:ring-accent"
-      >
-        {MOODS.map((m) => (
-          <option key={m.value} value={m.value}>
-            {m.emoji} {m.label} — {m.desc}
-          </option>
-        ))}
-      </select>
+      <div className="relative">
+        <select
+          value={value || "none"}
+          onChange={(e) => onChange(e.target.value)}
+          className={cn(
+            "w-full appearance-none rounded-lg border border-border bg-card/80 backdrop-blur-sm",
+            "px-3 pr-8 py-2 text-sm text-foreground",
+            "cursor-pointer transition-colors",
+            "hover:border-accent/40 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30",
+          )}
+        >
+          {MOODS.map((m) => (
+            <option key={m.value} value={m.value}>{m.label}</option>
+          ))}
+        </select>
+        <svg className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-muted-foreground" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <path d="M3 4.5l3 3 3-3" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </div>
     </div>
   );
 }
