@@ -38,5 +38,7 @@ async def test_gpu_info(app):
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.get("/api/settings/gpu")
         data = resp.json()
-        assert "backend" in data
-        assert "available" in data
+        assert "active_provider" in data
+        assert "available_providers" in data
+        assert "preference" in data
+        assert any(p["id"] == "cpu" for p in data["available_providers"])

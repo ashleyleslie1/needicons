@@ -26,3 +26,13 @@ export function useGpuStatus() {
     queryFn: () => api.getGpuStatus(),
   });
 }
+
+export function useUpdateGpuProvider() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (provider: string) => api.updateGpuProvider(provider),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["gpu"] });
+    },
+  });
+}

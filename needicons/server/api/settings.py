@@ -7,34 +7,48 @@ router = APIRouter(prefix="/api/settings", tags=["settings"])
 
 
 def _detect_gpu() -> dict:
-    result = {"backend": "cpu", "available": False, "detail": "CPU only"}
+    """Detect available GPU acceleration backends."""
+    result = {
+        "active_provider": "cpu",
+        "available_providers": [{"id": "cpu", "name": "CPU", "available": True}],
+        "detail": "CPU only",
+    }
     try:
         import onnxruntime as ort
-        providers = ort.get_available_providers()
-        if "DmlExecutionProvider" in providers:
-            result = {"backend": "directml", "available": True, "detail": "DirectML (DirectX 12 GPU)"}
-        elif "CUDAExecutionProvider" in providers:
-            result = {"backend": "cuda", "available": True, "detail": "CUDA (NVIDIA GPU)"}
-        else:
-            result = {"backend": "cpu", "available": True, "detail": "CPU (no GPU acceleration)"}
+        available = ort.get_available_providers()
+        providers = [{"id": "cpu", "name": "CPU", "available": True}]
+
+        if "DmlExecutionProvider" in available:
+            providers.append({
+                "id": "directml",
+                "name": "DirectML (DirectX 12 GPU)",
+                "available": True,
+            })
+            result["active_provider"] = "directml"
+            result["detail"] = "DirectML (DirectX 12 GPU)"
+
+        if "CUDAExecutionProvider" in available:
+            providers.append({
+                "id": "cuda",
+                "name": "CUDA (NVIDIA GPU)",
+                "available": True,
+            })
+            result["active_provider"] = "cuda"
+            result["detail"] = "CUDA (NVIDIA GPU)"
+
+        if "ROCMExecutionProvider" in available:
+            providers.append({
+                "id": "rocm",
+                "name": "ROCm (AMD GPU)",
+                "available": True,
+            })
+            result["active_provider"] = "rocm"
+            result["detail"] = "ROCm (AMD GPU)"
+
+        result["available_providers"] = providers
     except ImportError:
         pass
     return result
-
-
-@router.get("")
-async def get_settings(request: Request):
-    state = request.app.state.app_state
-    provider = state.config.get("provider", {})
-    raw_key = provider.get("api_key", "")
-    api_key = _get_plaintext_key(raw_key)
-    return {
-        "provider": {
-            "api_key": (api_key[:8] + "..." if len(api_key) > 8 else "***") if api_key else "",
-            "api_key_set": bool(api_key),
-            "default_model": provider.get("default_model", "dall-e-3"),
-        }
-    }
 
 
 def _get_plaintext_key(stored: str) -> str:
@@ -53,6 +67,21 @@ def get_api_key(state) -> str:
     return _get_plaintext_key(raw)
 
 
+@router.get("")
+async def get_settings(request: Request):
+    state = request.app.state.app_state
+    provider = state.config.get("provider", {})
+    raw_key = provider.get("api_key", "")
+    api_key = _get_plaintext_key(raw_key)
+    return {
+        "provider": {
+            "api_key": (api_key[:8] + "..." if len(api_key) > 8 else "***") if api_key else "",
+            "api_key_set": bool(api_key),
+            "default_model": provider.get("default_model", "dall-e-3"),
+        }
+    }
+
+
 @router.put("/provider")
 async def update_provider(request: Request):
     body = await request.json()
@@ -65,5 +94,23 @@ async def update_provider(request: Request):
 
 
 @router.get("/gpu")
-async def gpu_info():
-    return _detect_gpu()
+async def gpu_info(request: Request):
+    state = request.app.state.app_state
+    gpu = _detect_gpu()
+    # Override active_provider with user preference if set
+    gpu_config = state.config.get("gpu", {})
+    preference = gpu_config.get("provider", "auto")
+    gpu["preference"] = preference
+    return gpu
+
+
+@router.put("/gpu")
+async def update_gpu(request: Request):
+    body = await request.json()
+    state = request.app.state.app_state
+    preference = body.get("provider", "auto")
+    state.update_config("gpu", {"provider": preference})
+    # Clear cached sessions so new provider takes effect
+    from needicons.core.pipeline.background import clear_session_cache
+    clear_session_cache()
+    return {"status": "ok", "provider": preference}

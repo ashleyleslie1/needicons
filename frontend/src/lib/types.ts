@@ -106,10 +106,17 @@ export interface SettingsResponse {
   };
 }
 
-export interface GpuResponse {
-  backend: string;
+export interface GpuProvider {
+  id: string;
+  name: string;
   available: boolean;
+}
+
+export interface GpuResponse {
+  active_provider: string;
+  available_providers: GpuProvider[];
   detail: string;
+  preference: string;
 }
 
 // --- New UX Redesign Types ---

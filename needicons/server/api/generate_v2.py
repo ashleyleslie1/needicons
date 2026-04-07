@@ -28,10 +28,10 @@ def _save_image(image: Image.Image, path: str) -> None:
         f.write(buf.getvalue())
 
 
-def _make_preview(image: Image.Image) -> Image.Image:
+def _make_preview(image: Image.Image, gpu_provider: str = "auto") -> Image.Image:
     bg = BackgroundRemovalStep()
     if not bg.can_skip(image, {"enabled": True}):
-        image = bg.process(image, {"model": "u2net", "alpha_matting": False})
+        image = bg.process(image, {"model": "u2net", "alpha_matting": False, "gpu_provider": gpu_provider})
     centering = CenteringStep()
     image = centering.process(image, {})
     return image.resize((256, 256), Image.LANCZOS)
@@ -81,6 +81,7 @@ async def _run_generation(state, job: dict):
     default_model = params["model"]
     style_prompt = ""
     completed_idx = job.get("completed_idx", -1)
+    gpu_provider = state.config.get("gpu", {}).get("provider", "auto")
 
     api_key = get_api_key(state)
     if not api_key:
@@ -140,7 +141,7 @@ async def _run_generation(state, job: dict):
             source_path = f"images/{record.id}/raw/v{i}.png"
             preview_path = f"images/{record.id}/preview/v{i}.png"
             _save_image(img, source_path)
-            preview = _make_preview(img)
+            preview = _make_preview(img, gpu_provider)
             _save_image(preview, preview_path)
             record.variations.append(GenerationVariation(
                 index=i, source_path=source_path, preview_path=preview_path,

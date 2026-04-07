@@ -13,10 +13,12 @@ from needicons.core.models import ProcessingProfile
 router = APIRouter(tags=["pipeline"])
 
 
-def _profile_to_configs(profile) -> dict[str, dict]:
+def _profile_to_configs(profile, gpu_provider: str = "auto") -> dict[str, dict]:
     """Convert a ProcessingProfile to pipeline runner configs dict."""
+    bg_config = profile.background_removal.model_dump()
+    bg_config["gpu_provider"] = gpu_provider
     return {
-        "background_removal": profile.background_removal.model_dump(),
+        "background_removal": bg_config,
         "edge_cleanup": profile.edge_cleanup.model_dump(),
         "weight_normalization": profile.weight_normalization.model_dump(),
         "centering": {},
@@ -79,8 +81,9 @@ async def preview_icon(project_id: str, icon_id: str, request: Request):
     profile.output.sizes = [256]
     profile.output.formats = ["png"]
 
+    gpu_provider = state.config.get("gpu", {}).get("provider", "auto")
     pipeline = build_default_pipeline()
-    configs = _profile_to_configs(profile)
+    configs = _profile_to_configs(profile, gpu_provider)
 
     img = Image.open(source_file).convert("RGBA")
     if img.width > 512 or img.height > 512:
@@ -118,8 +121,9 @@ async def export_project(project_id: str, request: Request):
     profile.background_removal.enabled = False  # already done during generation
     profile.output.sizes = []  # skip resize step — build_zip handles multi-size
 
+    gpu_provider = state.config.get("gpu", {}).get("provider", "auto")
     pipeline = build_default_pipeline()
-    configs = _profile_to_configs(profile)
+    configs = _profile_to_configs(profile, gpu_provider)
 
     processed_icons = {}
     for icon in project.icons:

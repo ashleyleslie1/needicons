@@ -10,9 +10,10 @@ const mockSettings: SettingsResponse = {
 };
 
 const mockGpu: GpuResponse = {
-  backend: "cpu",
-  available: false,
-  detail: "No GPU detected",
+  active_provider: "cpu",
+  available_providers: [{ id: "cpu", name: "CPU", available: true }],
+  detail: "CPU only",
+  preference: "auto",
 };
 
 export const handlers = [

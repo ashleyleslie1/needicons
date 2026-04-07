@@ -90,6 +90,14 @@ export const api = {
     return request<GpuResponse>("/settings/gpu");
   },
 
+  updateGpuProvider(provider: string): Promise<{ status: string }> {
+    return request<{ status: string }>("/settings/gpu", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider }),
+    });
+  },
+
   // Projects
   listProjects(): Promise<Project[]> {
     return request<Project[]>("/projects");

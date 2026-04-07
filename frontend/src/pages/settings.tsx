@@ -2,12 +2,14 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Panel } from "@/components/layout/panel";
 import { Canvas } from "@/components/layout/canvas";
 import { AiProviderSettings } from "@/components/settings/ai-provider";
+import { GpuSettings } from "@/components/settings/gpu-settings";
 import { AppearanceSettings } from "@/components/settings/appearance";
 import { AboutSettings } from "@/components/settings/about";
 import { cn } from "@/lib/utils";
 
 const SETTINGS_TABS = [
   { id: "provider", label: "AI Provider" },
+  { id: "gpu", label: "GPU / Performance" },
   { id: "appearance", label: "Appearance" },
   { id: "about", label: "About" },
 ];
@@ -16,6 +18,8 @@ function SettingsContent({ tab }: { tab: string }) {
   switch (tab) {
     case "provider":
       return <AiProviderSettings />;
+    case "gpu":
+      return <GpuSettings />;
     case "appearance":
       return <AppearanceSettings />;
     case "about":
