@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import type { GenerateIconsRequest, GenerationRecord } from "@/lib/types";
@@ -13,10 +13,16 @@ interface GenerationProgress {
   mood?: string;
 }
 
+interface PartialImage {
+  variation: number;
+  image: string; // base64
+}
+
 interface UseGenerateResult {
   start: (data: GenerateIconsRequest) => void;
   isPending: boolean;
   progress: GenerationProgress | null;
+  partialImages: Record<number, string>; // variation index -> base64 data URL
   jobId: string | null;
 }
 
@@ -27,8 +33,9 @@ interface UseGenerateResult {
 export function useGenerateIcons(projectId: string | undefined): UseGenerateResult {
   const qc = useQueryClient();
   const unsubRef = useRef<(() => void) | null>(null);
-  const progressRef = useRef<GenerationProgress | null>(null);
   const jobIdRef = useRef<string | null>(null);
+  const [progress, setProgress] = useState<GenerationProgress | null>(null);
+  const [partialImages, setPartialImages] = useState<Record<number, string>>({});
 
   // Poll for active jobs so we reconnect after backend restart or page refresh
   const activeJobId = qc.getQueryData<string>(["active-generation-job"]) ?? null;
@@ -40,17 +47,21 @@ export function useGenerateIcons(projectId: string | undefined): UseGenerateResu
 
   const handleEvent = useCallback((event: { type: string; data: unknown }) => {
     if (event.type === "progress") {
-      progressRef.current = event.data as GenerationProgress;
-      // Force re-render by updating query data
-      qc.setQueryData(["generation-progress", jobIdRef.current], event.data);
+      setProgress(event.data as GenerationProgress);
+    } else if (event.type === "partial_image") {
+      const pi = event.data as PartialImage;
+      setPartialImages((prev) => ({
+        ...prev,
+        [pi.variation]: `data:image/png;base64,${pi.image}`,
+      }));
     } else if (event.type === "record") {
-      // A new record arrived — refresh history
+      setPartialImages({});
       qc.invalidateQueries({ queryKey: ["generation-history"] });
       qc.invalidateQueries({ queryKey: ["projects"] });
     } else if (event.type === "done" || event.type === "error") {
-      progressRef.current = null;
+      setProgress(null);
+      setPartialImages({});
       jobIdRef.current = null;
-      qc.setQueryData(["generation-progress", jobIdRef.current], null);
       qc.setQueryData(["active-generation-job"], null);
       qc.invalidateQueries({ queryKey: ["generation-history"] });
       qc.invalidateQueries({ queryKey: ["projects"] });
@@ -89,15 +100,14 @@ export function useGenerateIcons(projectId: string | undefined): UseGenerateResu
     },
   });
 
-  const currentProgress = qc.getQueryData<GenerationProgress | null>(["generation-progress", activeJobId]);
-
   // Show as pending if we have an active job OR if polling found active jobs not yet subscribed
   const hasUnsubscribedJob = (activeJobs?.length ?? 0) > 0 && !activeJobId;
 
   return {
     start: (data: GenerateIconsRequest) => mutation.mutate(data),
     isPending: mutation.isPending || !!activeJobId || hasUnsubscribedJob,
-    progress: currentProgress ?? null,
+    progress,
+    partialImages,
     jobId: activeJobId,
   };
 }

@@ -81,6 +81,7 @@ export function GeneratePage() {
   }
 
   const progress = gen.progress;
+  const partials = gen.partialImages;
 
   return (
     <div className="flex flex-1 overflow-hidden min-w-0">
@@ -177,7 +178,11 @@ export function GeneratePage() {
                   <div className="flex gap-2">
                     {[0, 1, 2, 3].map((i) => (
                       <div key={i} className="relative aspect-square w-[100px] shrink-0 overflow-hidden rounded-lg bg-muted/20 ring-1 ring-border">
-                        <div className="absolute inset-0 animate-shimmer bg-gradient-to-r from-transparent via-foreground/10 to-transparent" />
+                        {partials[i] ? (
+                          <img src={partials[i]} alt={`Generating v${i + 1}`} className="h-full w-full object-contain p-1 animate-pulse" />
+                        ) : (
+                          <div className="absolute inset-0 animate-shimmer bg-gradient-to-r from-transparent via-foreground/10 to-transparent" />
+                        )}
                       </div>
                     ))}
                   </div>

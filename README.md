@@ -47,18 +47,11 @@ cd ..
 
 ### Running Locally
 
-Start both the backend API server and frontend dev server:
-
 ```bash
-# Terminal 1 — Backend (port 8420)
-python -m uvicorn needicons.server.app:create_app --factory --host 0.0.0.0 --port 8420
-
-# Terminal 2 — Frontend (port 5173)
-cd frontend
-npm run dev
+python -m needicons --dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173) in your browser.
+This starts both the backend API (port 8420) and the frontend dev server (port 5173) with hot reload. Open [http://localhost:5173](http://localhost:5173) in your browser.
 
 ### First-Time Setup
 
@@ -188,4 +181,4 @@ cd frontend && npm run dev
 
 ## License
 
-MIT
+AGPL-3.0 — see [LICENSE](LICENSE)

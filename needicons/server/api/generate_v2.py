@@ -103,9 +103,21 @@ def _emit(job: dict, event_type: str, data: dict):
 _BATCH_SIZE = 10  # Max concurrent API calls per generation job
 
 
+async def _generate_one_streaming(provider, config):
+    """Generate one icon via streaming, collecting partials. Returns (partials_list, final_image)."""
+    partials = []
+    final = None
+    async for partial_b64, final_img in provider.generate_stream(config):
+        if partial_b64 is not None:
+            partials.append(partial_b64)
+        if final_img is not None:
+            final = final_img
+    return partials, final
+
+
 async def _generate_one(state, job, provider, item, idx, total, style, quality, style_prompt,
                          project_id, default_model, api_quality, mood, ai_enhance, gpu_provider):
-    """Generate a single icon (one prompt). Returns (idx, record) or (idx, None) on failure."""
+    """Generate a single icon (one prompt) with partial image streaming. Returns (idx, record) or (idx, None) on failure."""
     name = item["name"]
     prompt = item.get("prompt", name)
 
@@ -142,14 +154,40 @@ async def _generate_one(state, job, provider, item, idx, total, style, quality, 
     )
 
     try:
-        if quality == QualityMode.HQ:
-            images, raw_images = await _generate_hq(provider, name, prompt, style, style_prompt, api_quality=api_quality, mood=mood)
-        else:
-            images, raw_images = await _generate_normal(provider, name, prompt, style, style_prompt, api_quality=api_quality, mood=mood)
+        # Generate 4 variations in parallel, each streaming partial images
+        n_variations = 4 if quality == QualityMode.NORMAL else 1
+        variation_results: list[Image.Image | None] = [None] * n_variations
+
+        async def _stream_variation(vi: int):
+            config = GenerationConfig(
+                style_prompt=style_prompt, subject=name,
+                description=prompt if prompt != name else "",
+                mode=GenerationMode.PRECISION, style=style,
+                api_quality=api_quality, mood=mood,
+            )
+            try:
+                async for partial_b64, final_img in provider.generate_stream(config):
+                    if partial_b64 is not None:
+                        _emit(job, "partial_image", {
+                            "index": idx, "variation": vi,
+                            "image": partial_b64,
+                        })
+                    if final_img is not None:
+                        variation_results[vi] = final_img
+            except Exception:
+                # Fall back to non-streaming
+                result = await provider.generate(config)
+                if result:
+                    variation_results[vi] = result[0]
+
+        await asyncio.gather(*[_stream_variation(vi) for vi in range(n_variations)])
+
+        images = [img for img in variation_results if img is not None]
+        raw_images = list(images)
     except Exception as e:
         msg = str(e)
         if "401" in msg or "auth" in msg.lower() or "api key" in msg.lower():
-            raise  # Re-raise auth errors to stop the whole job
+            raise
         _emit(job, "error", {"message": f"Generation failed: {msg[:200]}", "name": name})
         return (idx, None)
 
@@ -161,7 +199,7 @@ async def _generate_one(state, job, provider, item, idx, total, style, quality, 
         _save_image(state, raw_img, raw_path)
     record.original_count = len(raw_images)
 
-    for i, img in enumerate(images):
+    for i, img in enumerate(images[:4]):
         source_path = f"images/{record.id}/raw/v{i}.png"
         preview_path = f"images/{record.id}/preview/v{i}.png"
         _save_image(state, img, source_path)
@@ -238,7 +276,7 @@ async def _run_generation(state, job: dict):
 
             job["completed_idx"] = idx
 
-        state.save_data()
+        asyncio.create_task(asyncio.to_thread(state.save_data))
         state.save_jobs()
 
     _emit(job, "done", {"total": total})
@@ -447,8 +485,10 @@ async def pick_variation(gen_id: str, variation_index: int, request: Request):
             )
             project.icons.append(icon)
 
-    state.save_data()
-    return record.model_dump()
+    # Respond immediately, save to disk in background
+    result = record.model_dump()
+    asyncio.create_task(asyncio.to_thread(state.save_data))
+    return result
 
 
 @router.post("/api/generations/{gen_id}/unpick")
@@ -466,8 +506,9 @@ async def unpick_variation(gen_id: str, request: Request):
         if project:
             project.icons = [i for i in project.icons if not i.source_path.startswith(f"images/{record.id}/")]
 
-    state.save_data()
-    return record.model_dump()
+    result = record.model_dump()
+    asyncio.create_task(asyncio.to_thread(state.save_data))
+    return result
 
 
 @router.delete("/api/generations/{gen_id}")
@@ -483,7 +524,7 @@ async def delete_generation(gen_id: str, request: Request):
             project.icons = [i for i in project.icons if not i.source_path.startswith(f"images/{record.id}/")]
 
     del state.generation_records[gen_id]
-    state.save_data()
+    asyncio.create_task(asyncio.to_thread(state.save_data))
     return {"status": "deleted"}
 
 
@@ -503,7 +544,7 @@ async def remove_generation_bg(gen_id: str, request: Request):
     # Store request_id so we can detect stale requests
     if request_id:
         record.bg_removal_request_id = request_id
-        state.save_data()
+        asyncio.create_task(asyncio.to_thread(state.save_data))
 
     if level == 0:
         from needicons.core.pipeline.normalize import CenteringStep, WeightNormalizationStep
@@ -520,7 +561,7 @@ async def remove_generation_bg(gen_id: str, request: Request):
                 preview = preview.resize((256, 256), Image.LANCZOS)
                 _save_image(state, preview, variation.preview_path)
         record.bg_removal_level = 0
-        state.save_data()
+        asyncio.create_task(asyncio.to_thread(state.save_data))
         return record.model_dump()
 
     loop = asyncio.get_event_loop()
@@ -557,7 +598,7 @@ async def remove_generation_bg(gen_id: str, request: Request):
         _save_image(state, preview, variation.preview_path)
 
     record.bg_removal_level = level
-    state.save_data()
+    asyncio.create_task(asyncio.to_thread(state.save_data))
     return record.model_dump()
 
 
@@ -593,7 +634,7 @@ async def color_adjust_generation(gen_id: str, request: Request):
         preview = preview.resize((256, 256), Image.LANCZOS)
         _save_image(state, preview, variation.preview_path)
 
-    state.save_data()
+    asyncio.create_task(asyncio.to_thread(state.save_data))
     return record.model_dump()
 
 
@@ -626,7 +667,7 @@ async def edge_cleanup_generation(gen_id: str, request: Request):
         preview = preview.resize((256, 256), Image.LANCZOS)
         _save_image(state, preview, variation.preview_path)
 
-    state.save_data()
+    asyncio.create_task(asyncio.to_thread(state.save_data))
     return record.model_dump()
 
 
@@ -662,7 +703,7 @@ async def upscale_generation(gen_id: str, request: Request):
         preview = preview.resize((256, 256), Image.LANCZOS)
         _save_image(state, preview, variation.preview_path)
 
-    state.save_data()
+    asyncio.create_task(asyncio.to_thread(state.save_data))
     return record.model_dump()
 
 
@@ -695,7 +736,7 @@ async def denoise_generation(gen_id: str, request: Request):
         preview = preview.resize((256, 256), Image.LANCZOS)
         _save_image(state, preview, variation.preview_path)
 
-    state.save_data()
+    asyncio.create_task(asyncio.to_thread(state.save_data))
     return record.model_dump()
 
 
@@ -759,7 +800,7 @@ async def add_lasso_mask(gen_id: str, request: Request):
         preview = preview.resize((256, 256), Image.LANCZOS)
         _save_image(state, preview, variation.preview_path)
 
-    state.save_data()
+    asyncio.create_task(asyncio.to_thread(state.save_data))
     return {"mask_id": mask_id, "record": record.model_dump()}
 
 
@@ -795,7 +836,7 @@ async def delete_lasso_mask(gen_id: str, mask_id: str, request: Request):
         preview = preview.resize((256, 256), Image.LANCZOS)
         _save_image(state, preview, variation.preview_path)
 
-    state.save_data()
+    asyncio.create_task(asyncio.to_thread(state.save_data))
     return record.model_dump()
 
 
@@ -847,7 +888,7 @@ async def refine_variation(gen_id: str, request: Request):
                     preview = centering.process(preview, {})
                     preview = preview.resize((256, 256), Image.LANCZOS)
                     _save_image(state, preview, variation.preview_path)
-                    state.save_data()
+                    asyncio.create_task(asyncio.to_thread(state.save_data))
                     yield f"event: done\ndata: {json.dumps({'record': record.model_dump()})}\n\n"
         except Exception as e:
             yield f"event: error\ndata: {json.dumps({'detail': str(e)})}\n\n"

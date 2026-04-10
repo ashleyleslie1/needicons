@@ -196,6 +196,7 @@ export const api = {
       } catch { /* ignore */ }
     };
     es.addEventListener("progress", handler);
+    es.addEventListener("partial_image", handler);
     es.addEventListener("record", handler);
     es.addEventListener("error", handler);
     es.addEventListener("done", (e) => {

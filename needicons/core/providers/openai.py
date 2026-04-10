@@ -143,6 +143,55 @@ class OpenAIProvider(ImageProvider):
                 images.append(Image.open(io.BytesIO(resp.content)).convert("RGBA"))
         return images
 
+    async def generate_stream(self, config: GenerationConfig):
+        """Generate a single icon with streaming partial images.
+
+        Yields (partial_b64, final_image) tuples like edit_stream.
+        Uses Responses API with image_generation tool for partial_images support.
+        """
+        model = config.model or self._default_model
+        prompt = _build_single_prompt(config)
+
+        kwargs = {
+            "background": "transparent",
+            "size": "1024x1024",
+            "partial_images": 3,
+        }
+        if config.api_quality:
+            kwargs["quality"] = config.api_quality
+
+        # For GPT Image models, use Responses API with image_generation tool
+        stream = await self._client.responses.create(
+            model="gpt-4.1-mini",
+            stream=True,
+            input=[{
+                "role": "user",
+                "content": [
+                    {"type": "input_text", "text": prompt},
+                ],
+            }],
+            tools=[{
+                "type": "image_generation",
+                **kwargs,
+            }],
+        )
+
+        final_b64 = None
+        async for event in stream:
+            if event.type == "response.image_generation_call.partial_image":
+                yield (event.partial_image_b64, None)
+            elif event.type == "response.completed":
+                for item in event.response.output:
+                    if getattr(item, "type", None) == "image_generation_call":
+                        final_b64 = item.result
+                        break
+
+        if final_b64:
+            data = base64.b64decode(final_b64)
+            yield (None, Image.open(io.BytesIO(data)).convert("RGBA"))
+        else:
+            raise ValueError("No image generated in response")
+
     def _prepare_edit_input(self, image: Image.Image) -> str:
         """Encode image as base64 data URL for Responses API."""
         buf = io.BytesIO()
