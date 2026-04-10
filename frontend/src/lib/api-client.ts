@@ -331,6 +331,58 @@ export const api = {
     );
   },
 
+  refineVariation(
+    generationId: string,
+    variationIndex: number,
+    prompt: string,
+    onPartial?: (imageB64: string) => void,
+  ): Promise<{ record: GenerationRecord }> {
+    return new Promise((resolve, reject) => {
+      fetch(`/api/generations/${generationId}/refine`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ variation_index: variationIndex, prompt }),
+      }).then((res) => {
+        if (!res.ok) {
+          res.json().then((b) => reject(new ApiError(res.status, b.detail || "Refine failed")))
+            .catch(() => reject(new ApiError(res.status, "Refine failed")));
+          return;
+        }
+        const reader = res.body?.getReader();
+        if (!reader) { reject(new Error("No stream")); return; }
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        function pump(): void {
+          reader!.read().then(({ done, value }) => {
+            if (done) { reject(new Error("Stream ended without done event")); return; }
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() || "";
+            let eventType = "";
+            for (const line of lines) {
+              if (line.startsWith("event: ")) eventType = line.slice(7);
+              else if (line.startsWith("data: ")) {
+                const data = JSON.parse(line.slice(6));
+                if (eventType === "partial" && onPartial) {
+                  onPartial(data.image);
+                } else if (eventType === "done") {
+                  resolve({ record: data.record });
+                  return;
+                } else if (eventType === "error") {
+                  reject(new ApiError(500, data.detail));
+                  return;
+                }
+              }
+            }
+            pump();
+          });
+        }
+        pump();
+      }).catch(reject);
+    });
+  },
+
   // Project Export (async job-based)
   async startExport(projectId: string, data: ExportProjectRequest): Promise<{ job_id: string; total: number }> {
     return request<{ job_id: string; total: number }>(`/projects/${projectId}/export`, {

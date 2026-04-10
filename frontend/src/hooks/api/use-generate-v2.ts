@@ -7,7 +7,10 @@ interface GenerationProgress {
   index: number;
   total: number;
   name: string;
-  status: "generating" | "processing";
+  status: "enhancing" | "generating" | "processing";
+  style?: string;
+  model?: string;
+  mood?: string;
 }
 
 interface UseGenerateResult {
@@ -88,9 +91,12 @@ export function useGenerateIcons(projectId: string | undefined): UseGenerateResu
 
   const currentProgress = qc.getQueryData<GenerationProgress | null>(["generation-progress", activeJobId]);
 
+  // Show as pending if we have an active job OR if polling found active jobs not yet subscribed
+  const hasUnsubscribedJob = (activeJobs?.length ?? 0) > 0 && !activeJobId;
+
   return {
     start: (data: GenerateIconsRequest) => mutation.mutate(data),
-    isPending: mutation.isPending || !!activeJobId,
+    isPending: mutation.isPending || !!activeJobId || hasUnsubscribedJob,
     progress: currentProgress ?? null,
     jobId: activeJobId,
   };
@@ -340,6 +346,23 @@ export function useDeleteLassoMask() {
         (old) =>
           old?.map((r) => (r.id === updatedRecord.id ? updatedRecord : r)),
       );
+      qc.invalidateQueries({ queryKey: ["projects"] });
+    },
+  });
+}
+
+export function useRefineVariation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (p: { generationId: string; variationIndex: number; prompt: string; onPartial?: (b64: string) => void }) =>
+      api.refineVariation(p.generationId, p.variationIndex, p.prompt, p.onPartial),
+    onSuccess: (data) => {
+      qc.setQueriesData<GenerationRecord[]>(
+        { queryKey: ["generation-history"] },
+        (old) =>
+          old?.map((r) => (r.id === data.record.id ? data.record : r)),
+      );
+      qc.invalidateQueries({ queryKey: ["generation-history"] });
       qc.invalidateQueries({ queryKey: ["projects"] });
     },
   });

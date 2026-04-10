@@ -28,6 +28,7 @@ const config: Config = {
         },
         success: "var(--success)",
         surface: "var(--surface)",
+        input: "var(--input)",
       },
       borderRadius: {
         lg: "var(--radius-lg)",

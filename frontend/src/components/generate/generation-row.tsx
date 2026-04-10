@@ -13,7 +13,8 @@ interface GenerationRowProps {
 }
 
 function getTimeAgo(isoDate: string): string {
-  const diff = Date.now() - new Date(isoDate).getTime();
+  const dateStr = isoDate.endsWith("Z") ? isoDate : isoDate + "Z";
+  const diff = Date.now() - new Date(dateStr).getTime();
   const minutes = Math.floor(diff / 60000);
   if (minutes < 1) return "just now";
   if (minutes < 60) return `${minutes}m ago`;
@@ -39,7 +40,7 @@ function useLazyVisible() {
 }
 
 const cacheBust = (r: GenerationRecord) =>
-  `${r.bg_removal_level}-${r.denoise_strength}-${r.color_brightness}-${r.edge_feather}-${r.upscale_factor}-${r.lasso_masks.length}`;
+  `${r.bg_removal_level}-${r.denoise_strength}-${r.color_brightness}-${r.edge_feather}-${r.upscale_factor}-${r.lasso_masks.length}-${r.refine_version ?? 0}`;
 
 export const GenerationRow = memo(function GenerationRow({ record, layout, onRegenerate: _onRegenerate }: GenerationRowProps) {
   const pickVariation = usePickVariation();
@@ -59,18 +60,19 @@ export const GenerationRow = memo(function GenerationRow({ record, layout, onReg
   }
 
   if (!visible) {
-    return <div ref={ref} className={cn("rounded-xl border border-border bg-card", isGrid ? "aspect-square" : "h-[120px]")} />;
+    return <div ref={ref} className={cn("rounded-xl border border-border/50 bg-card/40", isGrid ? "aspect-square" : "h-[120px]")} />;
   }
 
   return (
     <>
-      <div ref={ref} className="rounded-xl border border-border bg-card/80 backdrop-blur-md p-3 space-y-2 shadow-lg shadow-black/20">
+      <div ref={ref} className="rounded-xl border border-border/50 bg-card/60 backdrop-blur-md p-3 space-y-2 min-w-0 overflow-hidden">
         {/* Header */}
         <div className="flex items-center gap-2">
           <span className="text-sm font-semibold text-foreground truncate">{record.name}</span>
           <Badge variant="outline" className="text-[10px] py-0 h-5">{record.style}</Badge>
           {record.model && <Badge variant="outline" className="text-[10px] py-0 h-5">{record.model}</Badge>}
-          <span className="ml-auto text-[11px] text-muted-foreground">{getTimeAgo(record.created_at)}</span>
+          {record.ai_enhance && <Badge variant="outline" className="text-[10px] py-0 h-5 text-accent border-accent/30">AI</Badge>}
+          <span className="ml-auto text-[11px] text-muted-foreground shrink-0">{getTimeAgo(record.created_at)}</span>
           <Button variant="ghost" size="icon" className="h-6 w-6 hover:bg-destructive/10 hover:text-destructive" onClick={() => deleteGeneration.mutate(record.id)} disabled={deleteGeneration.isPending} title="Delete">
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
               <path d="M2 2l8 8M10 2l-8 8" />
@@ -78,8 +80,15 @@ export const GenerationRow = memo(function GenerationRow({ record, layout, onReg
           </Button>
         </div>
 
+        {/* Enhanced prompt (shown when AI enhance produced a different prompt) */}
+        {record.ai_enhance && record.prompt !== record.name && (
+          <p className="text-[10px] text-muted-foreground leading-relaxed truncate" title={record.prompt}>
+            <span className="text-accent/70 mr-1">Prompt:</span>{record.prompt}
+          </p>
+        )}
+
         {/* Image grid — click opens editor */}
-        <div className={cn("gap-2", isGrid ? "grid grid-cols-2" : "flex")}>
+        <div className={cn("gap-2", isGrid ? "grid grid-cols-2" : "flex flex-wrap")}>
           {record.variations.map((variation) => (
             <button
               key={variation.index}
@@ -95,7 +104,7 @@ export const GenerationRow = memo(function GenerationRow({ record, layout, onReg
               <img
                 src={`/api/images/${variation.preview_path}?t=${cacheBust(record)}`}
                 alt={`${record.name} v${variation.index + 1}`}
-                className="h-full w-full object-contain p-1.5 scale-110 transition-colors group-hover:bg-muted/30"
+                className="h-full w-full object-contain p-1 transition-colors group-hover:bg-muted/30"
                 loading="lazy"
                 decoding="async"
               />
@@ -130,6 +139,7 @@ export const GenerationRow = memo(function GenerationRow({ record, layout, onReg
           variationIndex={editorVariation}
           open={true}
           onOpenChange={(open) => { if (!open) setEditorVariation(null); }}
+          onVariationChange={setEditorVariation}
         />
       )}
     </>

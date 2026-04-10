@@ -1,13 +1,18 @@
+import { Minus, Clapperboard, Flame, Zap, Gem, Circle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const MOODS = [
-  { value: "none", label: "None" },
-  { value: "cinematic", label: "Cinematic" },
-  { value: "vibrant", label: "Vibrant" },
-  { value: "dynamic", label: "Dynamic" },
-  { value: "elegant", label: "Elegant" },
-  { value: "minimal", label: "Minimal" },
-] as const;
+const MOODS: {
+  value: string;
+  label: string;
+  Icon: React.ComponentType<{ className?: string }>;
+}[] = [
+  { value: "none", label: "None", Icon: Minus },
+  { value: "cinematic", label: "Cinema", Icon: Clapperboard },
+  { value: "vibrant", label: "Vibrant", Icon: Flame },
+  { value: "dynamic", label: "Dynamic", Icon: Zap },
+  { value: "elegant", label: "Elegant", Icon: Gem },
+  { value: "minimal", label: "Minimal", Icon: Circle },
+];
 
 interface MoodDropdownProps {
   value: string;
@@ -17,27 +22,26 @@ interface MoodDropdownProps {
 export function MoodDropdown({ value, onChange }: MoodDropdownProps) {
   return (
     <div>
-      <label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1 block font-medium">
+      <label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5 block font-medium">
         Mood
       </label>
-      <div className="relative">
-        <select
-          value={value || "none"}
-          onChange={(e) => onChange(e.target.value)}
-          className={cn(
-            "w-full appearance-none rounded-lg border border-border bg-background text-foreground",
-            "px-3 pr-8 py-2 text-sm",
-            "cursor-pointer transition-colors",
-            "hover:border-accent/40 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30",
-          )}
-        >
-          {MOODS.map((m) => (
-            <option key={m.value} value={m.value}>{m.label}</option>
-          ))}
-        </select>
-        <svg className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-muted-foreground" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5">
-          <path d="M3 4.5l3 3 3-3" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
+      <div className="grid grid-cols-6 gap-1">
+        {MOODS.map((m) => (
+          <button
+            key={m.value}
+            onClick={() => onChange(m.value)}
+            title={m.label}
+            className={cn(
+              "flex flex-col items-center gap-1 rounded-lg py-2 px-1 transition-all text-center",
+              value === m.value
+                ? "bg-accent/15 ring-1 ring-accent/30 text-accent"
+                : "bg-input hover:bg-card/80 text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <m.Icon className="h-3.5 w-3.5" />
+            <span className="text-[8px] font-medium leading-none">{m.label}</span>
+          </button>
+        ))}
       </div>
     </div>
   );

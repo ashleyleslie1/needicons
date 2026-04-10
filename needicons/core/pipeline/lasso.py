@@ -160,13 +160,75 @@ def _grabcut_select(
     return Image.fromarray(output_mask, mode="L")
 
 
+_sam_predictor = None
+
+
+def _get_sam_predictor():
+    """Lazy-load SAM model and return a cached SamPredictor."""
+    global _sam_predictor
+    if _sam_predictor is not None:
+        return _sam_predictor
+
+    import os
+    import torch
+    from segment_anything import sam_model_registry, SamPredictor
+
+    cache_dir = os.path.expanduser("~/.cache/needicons/models")
+    checkpoint = os.path.join(cache_dir, "sam_vit_b_01ec64.pth")
+    if not os.path.exists(checkpoint):
+        raise ValueError(
+            f"SAM checkpoint not found at {checkpoint}. "
+            "Download from https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth"
+        )
+
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    sam = sam_model_registry["vit_b"](checkpoint=checkpoint)
+    sam.to(device=device)
+    _sam_predictor = SamPredictor(sam)
+    return _sam_predictor
+
+
 def _sam_select(
     image: Image.Image,
     point: tuple[int, int],
     mode: str,
 ) -> Image.Image:
-    """SAM point-based selection. Requires segment-anything package."""
-    raise ValueError("SAM strategy not yet implemented. Install: pip install segment-anything")
+    """SAM point-based selection. Uses Segment Anything Model."""
+    predictor = _get_sam_predictor()
+
+    img_rgba = image.convert("RGBA")
+    img_rgb = np.array(img_rgba.convert("RGB"))
+
+    predictor.set_image(img_rgb)
+
+    input_point = np.array([[point[0], point[1]]])
+    # Label 1 = foreground point, 0 = background point
+    # For "remove" mode: user clicked on background, so label=0 (background)
+    # For "protect" mode: user clicked on foreground, so label=1 (foreground)
+    input_label = np.array([0 if mode == "remove" else 1])
+
+    masks, scores, _ = predictor.predict(
+        point_coords=input_point,
+        point_labels=input_label,
+        multimask_output=True,
+    )
+
+    # Pick the mask with highest score
+    best_idx = np.argmax(scores)
+    mask = masks[best_idx]
+
+    h, w = img_rgb.shape[:2]
+    if mode == "remove":
+        # mask=True where SAM thinks the object is; invert for "remove" semantics
+        # SAM labels background as the clicked region — but with label=0, SAM
+        # returns the foreground mask. We want: 255=keep, 0=transparent
+        # So if user clicked background (label=0), SAM gives foreground mask → keep that
+        output_mask = np.where(mask, 255, 0).astype(np.uint8)
+    else:
+        # protect mode: mask is the protected region
+        output_mask = np.where(mask, 255, 0).astype(np.uint8)
+
+    return Image.fromarray(output_mask, mode="L")
 
 
 def _cascadepsp_select(

@@ -21,7 +21,8 @@ def test_stroke_outer_expands():
             img.putpixel((x, y), (255, 0, 0, 255))
     step = StrokeStep()
     result = step.process(img, {"width": 5, "color": "#00FF00", "position": "outer"})
-    r, g, b, a = result.getpixel((35, 50))
+    # Width 5 stroke: pixels at distance 1-4 from edge should have stroke color
+    r, g, b, a = result.getpixel((36, 50))  # 4px from content edge
     assert g > 0 and a > 0
 
 

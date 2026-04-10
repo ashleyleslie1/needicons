@@ -1,7 +1,6 @@
 import type { PostProcessingSettings } from "@/lib/types";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
-import { cn } from "@/lib/utils";
 
 interface ControlsBarProps {
   settings: PostProcessingSettings;
@@ -10,101 +9,112 @@ interface ControlsBarProps {
   iconCount: number;
 }
 
-const SHAPES = [
-  { value: "none", label: "\u2014", title: "None" },
-  { value: "circle", label: "\u25CB", title: "Circle" },
-  { value: "rounded_rect", label: "\u25A2", title: "Rounded" },
-  { value: "square", label: "\u25A1", title: "Square" },
-] as const;
-
-export function ControlsBar({ settings, onChange, onExport, iconCount }: ControlsBarProps) {
+export function ControlsBar({ settings, onChange }: ControlsBarProps) {
   function updateStroke(updates: Partial<typeof settings.stroke>) {
     onChange({ ...settings, stroke: { ...settings.stroke, ...updates } });
   }
   function updateShadow(updates: Partial<typeof settings.shadow>) {
     onChange({ ...settings, shadow: { ...settings.shadow, ...updates } });
   }
+  function updateFill(updates: Partial<typeof settings.fill>) {
+    onChange({ ...settings, fill: { ...settings.fill, ...updates } });
+  }
   function updateMask(updates: Partial<typeof settings.mask>) {
     onChange({ ...settings, mask: { ...settings.mask, ...updates } });
   }
-  function updatePadding(updates: Partial<typeof settings.padding>) {
-    onChange({ ...settings, padding: { ...settings.padding, ...updates } });
-  }
+
+  const hasBg = settings.fill.type !== "none";
 
   return (
-    <div className="border-b border-border bg-card/50 px-8 py-5">
-      <div className="mb-4 flex flex-wrap items-center gap-x-8 gap-y-3">
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-muted-foreground">Outline</span>
+    <div className="border-b border-border/50 bg-card/20 backdrop-blur-sm px-8 py-3">
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+        {/* Outline */}
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] font-medium text-muted-foreground">Outline</span>
           <Switch
             checked={settings.stroke.enabled}
             onCheckedChange={(checked) => updateStroke({ enabled: checked })}
           />
           {settings.stroke.enabled && (
-            <>
-              <span className="text-[11px] text-muted-foreground">Thickness</span>
+            <div className="flex items-center gap-2 ml-1 pl-2 border-l border-border/50">
               <Slider
                 value={[settings.stroke.width]}
                 onValueChange={([v]) => updateStroke({ width: v })}
-                min={1} max={20} step={1} className="w-24"
+                min={1} max={20} step={1} className="w-20"
               />
-              <span className="text-[11px] text-muted-foreground">{settings.stroke.width}px</span>
-              <span className="text-[11px] text-muted-foreground">Color</span>
+              <span className="text-[10px] text-muted-foreground tabular-nums w-5">{settings.stroke.width}</span>
               <input
                 type="color"
                 value={settings.stroke.color}
                 onChange={(e) => updateStroke({ color: e.target.value })}
-                className="h-5 w-5 cursor-pointer rounded border border-border"
+                className="h-5 w-5 cursor-pointer rounded border border-border/50"
               />
-            </>
+            </div>
           )}
         </div>
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-muted-foreground">Shadow</span>
+
+        <div className="h-4 w-px bg-border/50" />
+
+        {/* Shadow */}
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] font-medium text-muted-foreground">Shadow</span>
           <Switch
             checked={settings.shadow.enabled}
             onCheckedChange={(checked) => updateShadow({ enabled: checked })}
           />
+          {settings.shadow.enabled && (
+            <div className="flex items-center gap-2 ml-1 pl-2 border-l border-border/50">
+              <input
+                type="color"
+                value={settings.shadow.color.slice(0, 7)}
+                onChange={(e) => updateShadow({ color: e.target.value })}
+                className="h-5 w-5 cursor-pointer rounded border border-border/50"
+              />
+            </div>
+          )}
         </div>
-      </div>
-      <div className="flex flex-wrap items-center gap-x-8 gap-y-3">
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-muted-foreground">Shape</span>
-          <div className="flex gap-1">
-            {SHAPES.map((shape) => (
-              <button
-                key={shape.value}
-                onClick={() => updateMask({ shape: shape.value })}
-                title={shape.title}
-                className={cn(
-                  "flex h-7 w-7 items-center justify-center rounded border text-sm transition-colors",
-                  settings.mask.shape === shape.value
-                    ? "border-accent bg-accent/10 text-accent"
-                    : "border-border text-muted-foreground hover:border-muted-foreground",
-                )}
-              >
-                {shape.label}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-muted-foreground">Padding</span>
-          <Slider
-            value={[settings.padding.percent ?? 10]}
-            onValueChange={([v]) => updatePadding({ percent: v })}
-            min={0} max={30} step={1} className="w-20"
-          />
-          <span className="text-[11px] text-muted-foreground">{settings.padding.percent ?? 10}%</span>
-        </div>
-        <div className="ml-auto">
-          <button
-            onClick={onExport}
-            disabled={iconCount === 0}
-            className="rounded-lg bg-accent px-5 py-2 text-sm font-semibold text-accent-foreground transition-colors hover:bg-accent-hover disabled:opacity-50"
-          >
-            Export
-          </button>
+
+        <div className="h-4 w-px bg-border/50" />
+
+        {/* Background */}
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] font-medium text-muted-foreground">Background</span>
+          {hasBg ? (
+            <button
+              onClick={() => updateFill({ type: "none" })}
+              className="h-5 w-5 rounded border border-border/50 cursor-pointer"
+              style={{ backgroundColor: settings.fill.color }}
+              title="Click to remove background"
+            />
+          ) : (
+            <button
+              onClick={() => updateFill({ type: "solid", color: "#FFFFFF" })}
+              className="h-5 w-5 rounded border border-border/50 cursor-pointer"
+              style={{
+                backgroundImage: "linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(-45deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(-45deg, transparent 75%, #ccc 75%)",
+                backgroundSize: "6px 6px",
+                backgroundPosition: "0 0, 0 3px, 3px -3px, -3px 0",
+              }}
+              title="Transparent — click to add background"
+            />
+          )}
+          {hasBg && (
+            <div className="flex items-center gap-2 ml-1 pl-2 border-l border-border/50">
+              <input
+                type="color"
+                value={settings.fill.color}
+                onChange={(e) => updateFill({ color: e.target.value })}
+                className="h-5 w-5 cursor-pointer rounded border border-border/50"
+              />
+              <span className="text-[10px] text-muted-foreground">Radius</span>
+              <Slider
+                value={[settings.mask.corner_radius]}
+                onValueChange={([v]) => updateMask({ shape: v > 0 ? "rounded_rect" : "square", corner_radius: v })}
+                min={0} max={50} step={2} className="w-16"
+              />
+              <span className="text-[10px] text-muted-foreground tabular-nums w-5">{settings.mask.corner_radius}</span>
+            </div>
+          )}
         </div>
       </div>
     </div>

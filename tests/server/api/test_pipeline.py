@@ -72,8 +72,8 @@ async def test_export_creates_zip(app):
         assert dl_resp.headers["content-type"] == "application/zip"
         zf = zipfile.ZipFile(io.BytesIO(dl_resp.content))
         names = zf.namelist()
-        assert "128x/tent.png" in names
-        assert "64x/jerky.png" in names
+        assert "png/128/tent.png" in names
+        assert "png/64/jerky.png" in names
         assert "manifest.json" in names
 
 

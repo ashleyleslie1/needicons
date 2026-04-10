@@ -1,17 +1,17 @@
 import type { IconStyle } from "@/lib/types";
+import { Square, PenTool, Sparkles, Layers, Sticker } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const STYLES: {
   value: IconStyle;
   label: string;
-  desc: string;
-  preview: React.CSSProperties;
+  Icon: React.ComponentType<{ className?: string }>;
 }[] = [
-  { value: "solid", label: "Solid", desc: "Bold filled silhouette", preview: { background: "currentColor", borderRadius: "2px" } },
-  { value: "outline", label: "Outline", desc: "Clean line art", preview: { border: "2px solid currentColor", borderRadius: "2px", background: "transparent" } },
-  { value: "colorful", label: "Colorful", desc: "Rich colors, polished", preview: { background: "linear-gradient(135deg, #e74c3c, #3498db)", borderRadius: "2px" } },
-  { value: "flat", label: "Flat", desc: "Minimal, limited palette", preview: { background: "#3498db", borderRadius: "2px" } },
-  { value: "sticker", label: "Sticker", desc: "Playful 3D, rounded", preview: { background: "#f39c12", borderRadius: "50%", boxShadow: "0 1px 3px rgba(0,0,0,0.4)" } },
+  { value: "solid", label: "Solid", Icon: Square },
+  { value: "outline", label: "Outline", Icon: PenTool },
+  { value: "colorful", label: "Colorful", Icon: Sparkles },
+  { value: "flat", label: "Flat", Icon: Layers },
+  { value: "sticker", label: "Sticker", Icon: Sticker },
 ];
 
 interface StyleDropdownProps {
@@ -20,34 +20,28 @@ interface StyleDropdownProps {
 }
 
 export function StyleDropdown({ value, onChange }: StyleDropdownProps) {
-  const selected = STYLES.find((s) => s.value === value) || STYLES[0];
-
   return (
-    <div className="relative">
-      <label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1 block font-medium">
+    <div>
+      <label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5 block font-medium">
         Style
       </label>
-      <div className="relative">
-        <div className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={selected.preview} />
-        <select
-          value={value}
-          onChange={(e) => onChange(e.target.value as IconStyle)}
-          className={cn(
-            "w-full appearance-none rounded-lg border border-border bg-background text-foreground",
-            "pl-9 pr-8 py-2 text-sm",
-            "cursor-pointer transition-colors",
-            "hover:border-accent/40 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30",
-          )}
-        >
-          {STYLES.map((s) => (
-            <option key={s.value} value={s.value}>
-              {s.label} — {s.desc}
-            </option>
-          ))}
-        </select>
-        <svg className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-muted-foreground" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5">
-          <path d="M3 4.5l3 3 3-3" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
+      <div className="grid grid-cols-5 gap-1">
+        {STYLES.map((s) => (
+          <button
+            key={s.value}
+            onClick={() => onChange(s.value)}
+            title={s.label}
+            className={cn(
+              "flex flex-col items-center gap-1 rounded-lg py-2 px-1 transition-all text-center",
+              value === s.value
+                ? "bg-accent/15 ring-1 ring-accent/30 text-accent"
+                : "bg-input hover:bg-card/80 text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <s.Icon className="h-4 w-4" />
+            <span className="text-[9px] font-medium leading-none">{s.label}</span>
+          </button>
+        ))}
       </div>
     </div>
   );

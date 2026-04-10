@@ -15,14 +15,14 @@ export function MainTabs({ activeTab, onTabChange }: MainTabsProps) {
   const iconCount = project?.icons.length ?? 0;
 
   return (
-    <div className="flex border-b border-border px-8">
+    <div className="flex gap-1 border-b border-border/50 px-6 pt-1">
       <button
         onClick={() => onTabChange("generate")}
         className={cn(
-          "border-b-2 px-5 py-3 text-sm font-medium transition-colors",
+          "relative px-4 py-2.5 text-sm font-medium transition-all rounded-t-lg",
           activeTab === "generate"
-            ? "border-accent text-foreground"
-            : "border-transparent text-muted-foreground hover:text-foreground",
+            ? "text-foreground bg-card/60 backdrop-blur-sm border border-border/50 border-b-transparent -mb-px"
+            : "text-muted-foreground hover:text-foreground hover:bg-card/30",
         )}
       >
         Generate
@@ -30,15 +30,20 @@ export function MainTabs({ activeTab, onTabChange }: MainTabsProps) {
       <button
         onClick={() => onTabChange("project")}
         className={cn(
-          "flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-medium transition-colors",
+          "relative flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all rounded-t-lg",
           activeTab === "project"
-            ? "border-accent text-foreground"
-            : "border-transparent text-muted-foreground hover:text-foreground",
+            ? "text-foreground bg-card/60 backdrop-blur-sm border border-border/50 border-b-transparent -mb-px"
+            : "text-muted-foreground hover:text-foreground hover:bg-card/30",
         )}
       >
         Project
         {iconCount > 0 && (
-          <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
+          <span className={cn(
+            "rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums",
+            activeTab === "project"
+              ? "bg-accent/15 text-accent"
+              : "bg-muted text-muted-foreground",
+          )}>
             {iconCount}
           </span>
         )}

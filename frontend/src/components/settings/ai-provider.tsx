@@ -2,53 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useSettings, useUpdateProviderSettings } from "@/hooks/api/use-settings";
-import { useEdition } from "@/hooks/use-edition";
-
-const ALL_MODELS = [
-  { id: "gpt-image-1.5", label: "GPT Image 1.5", desc: "Best quality" },
-  { id: "gpt-image-1-mini", label: "GPT Image Mini", desc: "Fast & cheap" },
-  { id: "dall-e-3", label: "DALL-E 3", desc: "Classic" },
-] as const;
-
-function ModelSelector({ currentModel, onSelect }: { currentModel: string; onSelect: (model: string) => void }) {
-  const { showAllModels, showDalle3Warning } = useEdition();
-
-  const models = showAllModels
-    ? ALL_MODELS
-    : ALL_MODELS.filter((m) => m.id !== "dall-e-3");
-
-  return (
-    <div className="flex flex-wrap gap-2">
-      {models.map((model) => {
-        const isDalle3 = model.id === "dall-e-3";
-        return (
-          <button
-            key={model.id}
-            type="button"
-            onClick={() => onSelect(model.id)}
-            className={`flex flex-col items-start px-3 py-2 rounded-md border text-sm transition-colors ${
-              currentModel === model.id
-                ? "border-accent bg-accent/10 text-foreground"
-                : "border-border text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <span className="font-medium">
-              {model.label}
-              {isDalle3 && showDalle3Warning && (
-                <span className="ml-1.5 inline-flex items-center rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-500">
-                  Legacy
-                </span>
-              )}
-            </span>
-            <span className="text-[10px] opacity-60">
-              {isDalle3 && showDalle3Warning ? "Inconsistent results for icons" : model.desc}
-            </span>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
+import { Brain, Plus, Check } from "lucide-react";
 
 export function AiProviderSettings() {
   const { data: settings, isLoading } = useSettings();
@@ -65,38 +19,59 @@ export function AiProviderSettings() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div>
-        <h1 className="text-xl font-semibold mb-1">AI Provider</h1>
+        <h1 className="text-xl font-semibold mb-1">API Keys</h1>
         <p className="text-sm text-muted-foreground">
-          Configure your OpenAI API key and default generation model.
+          Connect your AI providers. Model selection is done per-generation in the Generate tab.
         </p>
       </div>
 
-      <div className="space-y-3">
-        <h2 className="text-sm font-semibold text-foreground">API Key</h2>
+      {/* OpenAI */}
+      <div className="rounded-xl border border-border/50 bg-card/30 p-5 space-y-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10">
+            <Brain className="h-4 w-4 text-emerald-500" />
+          </div>
+          <div className="flex-1">
+            <h2 className="text-sm font-semibold text-foreground">OpenAI</h2>
+            <p className="text-[10px] text-muted-foreground">GPT Image 1.5, GPT Image Mini</p>
+          </div>
+          {provider?.api_key_set && (
+            <span className="flex items-center gap-1 text-xs text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+              <Check className="h-3 w-3" />
+              Connected
+            </span>
+          )}
+        </div>
+
         {isLoading ? (
           <p className="text-xs text-muted-foreground">Loading...</p>
         ) : (
           <div className="space-y-2">
             <div className="flex items-center gap-3">
-              <code className="text-xs font-mono bg-muted px-2 py-1 rounded flex-1">
-                {provider?.api_key ?? "Not set"}
+              <code className="text-xs font-mono bg-input px-3 py-1.5 rounded-lg flex-1 text-muted-foreground">
+                {provider?.api_key_set && provider.api_key
+                  ? (() => {
+                      const key = provider.api_key;
+                      const start = key.slice(0, Math.min(10, key.length));
+                      const end = key.slice(-3);
+                      const midLen = Math.max(0, key.length - 13);
+                      return `${start}${"*".repeat(midLen)}${end}`;
+                    })()
+                  : "Not configured"}
               </code>
-              {provider?.api_key_set && (
-                <span className="text-xs text-green-500 flex items-center gap-1">
-                  <span>&#10003;</span><span>key verified</span>
-                </span>
-              )}
             </div>
             {!editingKey ? (
-              <Button variant="outline" size="sm" onClick={() => setEditingKey(true)}>Change</Button>
+              <Button variant="outline" size="sm" onClick={() => setEditingKey(true)}>
+                {provider?.api_key_set ? "Change Key" : "Add Key"}
+              </Button>
             ) : (
               <div className="space-y-2">
                 <Input type="password" placeholder="sk-..." value={newKey} onChange={(e) => setNewKey(e.target.value)} className="text-sm" />
                 <div className="flex gap-2">
                   <Button size="sm" onClick={handleSaveKey} disabled={!newKey || updateProvider.isPending}>Save</Button>
-                  <Button variant="ghost" size="sm" onClick={() => { setEditingKey(false); setNewKey(""); }}>Cancel</Button>
+                  <Button variant="outline" size="sm" onClick={() => { setEditingKey(false); setNewKey(""); }}>Cancel</Button>
                 </div>
               </div>
             )}
@@ -104,19 +79,17 @@ export function AiProviderSettings() {
         )}
       </div>
 
-      <div className="space-y-3">
-        <h2 className="text-sm font-semibold text-foreground">Image Model</h2>
-        {isLoading ? (
-          <p className="text-xs text-muted-foreground">Loading...</p>
-        ) : (
-          <ModelSelector
-            currentModel={provider?.default_model ?? "gpt-image-1.5"}
-            onSelect={(model) => updateProvider.mutate({ default_model: model })}
-          />
-        )}
-        <p className="mt-3 text-xs text-muted-foreground">
-          GPT Image models support transparent backgrounds. HQ mode uses 4x more API calls.
-        </p>
+      {/* Future providers */}
+      <div className="rounded-xl border border-border/50 border-dashed bg-card/10 p-5">
+        <div className="flex items-center gap-3">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted">
+            <Plus className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <div>
+            <h2 className="text-sm font-medium text-muted-foreground">More providers coming soon</h2>
+            <p className="text-[10px] text-muted-foreground">Google Gemini, Stability AI, and more</p>
+          </div>
+        </div>
       </div>
     </div>
   );

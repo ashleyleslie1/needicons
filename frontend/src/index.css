@@ -4,20 +4,21 @@
 
 @layer base {
   :root {
-    --background: #fafafa;
-    --foreground: #1a1a1a;
+    --background: #f8f8fc;
+    --foreground: #1a1a2e;
     --accent: #7c6ef0;
     --accent-foreground: #ffffff;
     --accent-hover: #6a5dd6;
-    --card: #ffffff;
-    --card-foreground: #1a1a1a;
-    --border: #e5e5e5;
-    --muted: #f3f3f3;
-    --muted-foreground: #737373;
+    --card: rgba(255, 255, 255, 0.7);
+    --card-foreground: #1a1a2e;
+    --border: rgba(0, 0, 0, 0.08);
+    --muted: rgba(0, 0, 0, 0.04);
+    --muted-foreground: #6b6b80;
     --destructive: #ef4444;
     --destructive-foreground: #ffffff;
     --success: #22c55e;
-    --surface: #f5f5f5;
+    --surface: rgba(255, 255, 255, 0.5);
+    --input: #ffffff;
     --radius-lg: 12px;
     --radius-md: 8px;
     --radius-sm: 6px;
@@ -26,25 +27,22 @@
   }
 
   .dark {
-    --background: #0e0e18;
-    --foreground: #e0e0e8;
+    --background: #161616;
+    --foreground: #ececec;
     --accent: #7c6ef0;
     --accent-foreground: #ffffff;
     --accent-hover: #9589f5;
-    --card: rgba(18, 18, 28, 0.85);
-    --card-foreground: #e0e0e8;
-    --border: rgba(255, 255, 255, 0.07);
-    --muted: rgba(30, 30, 45, 0.6);
-    --muted-foreground: #9999aa;
+    --card: rgba(28, 28, 28, 0.7);
+    --card-foreground: #ececec;
+    --border: rgba(255, 255, 255, 0.1);
+    --muted: rgba(255, 255, 255, 0.06);
+    --muted-foreground: #b0b0b0;
     --destructive: #ef4444;
     --destructive-foreground: #ffffff;
     --success: #22c55e;
-    --surface: rgba(20, 20, 32, 0.7);
-    --glass: rgba(18, 18, 30, 0.75);
-    --glass-border: rgba(255, 255, 255, 0.08);
-    --glass-highlight: rgba(255, 255, 255, 0.04);
+    --surface: rgba(22, 22, 22, 0.9);
+    --input: #222222;
   }
-
 
   body {
     @apply bg-background text-foreground;
@@ -56,3 +54,15 @@
   }
 }
 
+/* Glass utility classes */
+@layer components {
+  .glass {
+    @apply bg-card backdrop-blur-xl border border-border;
+  }
+  .glass-subtle {
+    @apply bg-card/40 backdrop-blur-md border border-border/50;
+  }
+  .glass-strong {
+    @apply bg-card/80 backdrop-blur-2xl border border-border;
+  }
+}

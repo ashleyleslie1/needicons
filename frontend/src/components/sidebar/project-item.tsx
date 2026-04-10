@@ -16,8 +16,8 @@ export function ProjectItem({ project, isActive, onClick }: ProjectItemProps) {
       className={cn(
         "flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors",
         isActive
-          ? "bg-card font-semibold text-foreground shadow-sm"
-          : "text-muted-foreground hover:bg-muted hover:text-foreground",
+          ? "bg-accent/10 font-semibold text-accent"
+          : "text-muted-foreground hover:bg-card/40 hover:text-foreground",
       )}
     >
       <span className="truncate">{project.name}</span>

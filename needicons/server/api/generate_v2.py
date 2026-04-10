@@ -34,21 +34,29 @@ def _save_image(state, image: Image.Image, path: str) -> None:
         f.write(buf.getvalue())
 
 
-def _make_preview(image: Image.Image, gpu_provider: str = "auto") -> Image.Image:
-    bg = BackgroundRemovalStep()
-    if not bg.can_skip(image, {"enabled": True}):
-        image = bg.process(image, {
-            "model": "isnet-general-use",
-            "alpha_matting": True,
-            "alpha_matting_foreground_threshold": 240,
-            "alpha_matting_background_threshold": 20,
-            "gpu_provider": gpu_provider,
-        })
-        # Clean up near-white residual pixels that rembg sometimes leaves
-        image = cleanup_background_residue(image)
+_GPT_IMAGE_MODELS = {"gpt-image-1", "gpt-image-1.5", "gpt-image-1-mini"}
+
+
+def _is_gpt_image_model(model: str) -> bool:
+    return model in _GPT_IMAGE_MODELS or model.startswith("gpt-image")
+
+
+def _make_preview(image: Image.Image, gpu_provider: str = "auto", model: str = "") -> Image.Image:
+    # GPT Image models already output transparent PNGs — skip BG removal
+    if not _is_gpt_image_model(model):
+        bg = BackgroundRemovalStep()
+        if not bg.can_skip(image, {"enabled": True}):
+            image = bg.process(image, {
+                "model": "isnet-general-use",
+                "alpha_matting": True,
+                "alpha_matting_foreground_threshold": 240,
+                "alpha_matting_background_threshold": 20,
+                "gpu_provider": gpu_provider,
+            })
+            image = cleanup_background_residue(image)
     # Normalize size so all icons fill ~80% of the preview canvas uniformly
     wn = WeightNormalizationStep()
-    image = wn.process(image, {"enabled": True, "target_fill": 0.80})
+    image = wn.process(image, {"enabled": True, "target_fill": 0.90})
     centering = CenteringStep()
     image = centering.process(image, {})
     return image.resize((256, 256), Image.LANCZOS)
@@ -92,8 +100,82 @@ def _emit(job: dict, event_type: str, data: dict):
     job["events"].append({"type": event_type, **data})
 
 
+_BATCH_SIZE = 10  # Max concurrent API calls per generation job
+
+
+async def _generate_one(state, job, provider, item, idx, total, style, quality, style_prompt,
+                         project_id, default_model, api_quality, mood, ai_enhance, gpu_provider):
+    """Generate a single icon (one prompt). Returns (idx, record) or (idx, None) on failure."""
+    name = item["name"]
+    prompt = item.get("prompt", name)
+
+    _emit(job, "progress", {"index": idx, "total": total, "name": name,
+           "status": "enhancing" if ai_enhance else "generating",
+           "style": style.value, "model": default_model, "mood": mood})
+
+    api_key = get_api_key(state)
+    if ai_enhance and api_key:
+        try:
+            enhanced = await enhance_prompt(
+                subject=item["name"],
+                description=item.get("prompt", ""),
+                style=style.value,
+                mood=mood,
+                style_prompt=style_prompt,
+                api_key=api_key,
+            )
+            if enhanced:
+                item["prompt"] = enhanced
+                prompt = enhanced
+        except Exception as e:
+            import logging
+            logging.warning(f"AI enhance failed: {e}")
+
+    if ai_enhance:
+        _emit(job, "progress", {"index": idx, "total": total, "name": name,
+               "status": "generating", "style": style.value, "model": default_model, "mood": mood})
+
+    record = GenerationRecord(
+        project_id=project_id, name=name, prompt=prompt,
+        style=style, quality=quality, model=default_model, api_quality=api_quality,
+        mood=mood, ai_enhance=ai_enhance,
+    )
+
+    try:
+        if quality == QualityMode.HQ:
+            images, raw_images = await _generate_hq(provider, name, prompt, style, style_prompt, api_quality=api_quality, mood=mood)
+        else:
+            images, raw_images = await _generate_normal(provider, name, prompt, style, style_prompt, api_quality=api_quality, mood=mood)
+    except Exception as e:
+        msg = str(e)
+        if "401" in msg or "auth" in msg.lower() or "api key" in msg.lower():
+            raise  # Re-raise auth errors to stop the whole job
+        _emit(job, "error", {"message": f"Generation failed: {msg[:200]}", "name": name})
+        return (idx, None)
+
+    _emit(job, "progress", {"index": idx, "total": total, "name": name,
+           "status": "processing", "style": style.value, "model": default_model, "mood": mood})
+
+    for ri, raw_img in enumerate(raw_images):
+        raw_path = f"images/{record.id}/original/r{ri}.png"
+        _save_image(state, raw_img, raw_path)
+    record.original_count = len(raw_images)
+
+    for i, img in enumerate(images):
+        source_path = f"images/{record.id}/raw/v{i}.png"
+        preview_path = f"images/{record.id}/preview/v{i}.png"
+        _save_image(state, img, source_path)
+        preview = _make_preview(img, gpu_provider, model=record.model)
+        _save_image(state, preview, preview_path)
+        record.variations.append(GenerationVariation(
+            index=i, source_path=source_path, preview_path=preview_path,
+        ))
+
+    return (idx, record)
+
+
 async def _run_generation(state, job: dict):
-    """Background task: generate icons and emit events. Skips already-completed prompts."""
+    """Background task: generate icons in batches of 10 concurrent API calls."""
     params = job["params"]
     prompts = params["prompts"]
     style = IconStyle(params["style"])
@@ -119,80 +201,45 @@ async def _run_generation(state, job: dict):
     provider = OpenAIProvider(api_key=api_key, default_model=default_model)
     total = len(prompts)
 
-    for idx, item in enumerate(prompts):
-        # Skip already completed prompts (for resume)
-        if idx <= completed_idx:
-            continue
+    # Filter to remaining prompts
+    remaining = [(idx, item) for idx, item in enumerate(prompts) if idx > completed_idx]
 
-        name = item["name"]
-        prompt = item.get("prompt", name)
-
-        _emit(job, "progress", {"index": idx, "total": total, "name": name, "status": "generating"})
-
-        if ai_enhance and api_key:
-            try:
-                enhanced = await enhance_prompt(
-                    subject=item["name"],
-                    description=item.get("prompt", ""),
-                    style=style.value,
-                    mood=mood,
-                    style_prompt=style_prompt,
-                    api_key=api_key,
-                )
-                if enhanced:
-                    item["prompt"] = enhanced
-                    prompt = enhanced
-            except Exception:
-                pass  # Fall back to static prompt on failure
-
-        record = GenerationRecord(
-            project_id=project_id, name=name, prompt=prompt,
-            style=style, quality=quality, model=default_model, api_quality=api_quality,
-            mood=mood, ai_enhance=ai_enhance,
-        )
+    # Process in batches of _BATCH_SIZE
+    for batch_start in range(0, len(remaining), _BATCH_SIZE):
+        batch = remaining[batch_start:batch_start + _BATCH_SIZE]
 
         try:
-            if quality == QualityMode.HQ:
-                images, raw_images = await _generate_hq(provider, name, prompt, style, style_prompt, api_quality=api_quality, mood=mood)
-            else:
-                images, raw_images = await _generate_normal(provider, name, prompt, style, style_prompt, api_quality=api_quality, mood=mood)
-        except Exception as e:
-            msg = str(e)
-            if "401" in msg or "auth" in msg.lower() or "api key" in msg.lower():
-                _emit(job, "error", {"message": "Invalid API key. Check your key in Settings."})
-                job["status"] = "failed"
-                await asyncio.sleep(5)
-                state.jobs.pop(job["id"], None)
-                state.save_jobs()
-                return
-            _emit(job, "error", {"message": f"Generation failed: {msg[:200]}", "name": name})
+            results = await asyncio.gather(*[
+                _generate_one(state, job, provider, item, idx, total, style, quality,
+                              style_prompt, project_id, default_model, api_quality,
+                              mood, ai_enhance, gpu_provider)
+                for idx, item in batch
+            ], return_exceptions=True)
+        except Exception:
+            results = []
+
+        # Process results in order
+        for result in results:
+            if isinstance(result, Exception):
+                msg = str(result)
+                if "401" in msg or "auth" in msg.lower() or "api key" in msg.lower():
+                    _emit(job, "error", {"message": "Invalid API key. Check your key in Settings."})
+                    job["status"] = "failed"
+                    await asyncio.sleep(5)
+                    state.jobs.pop(job["id"], None)
+                    state.save_jobs()
+                    return
+                continue
+
+            idx, record = result
+            if record:
+                state.generation_records[record.id] = record
+                _emit(job, "record", record.model_dump(mode="json"))
+
             job["completed_idx"] = idx
-            state.save_jobs()
-            continue
 
-        _emit(job, "progress", {"index": idx, "total": total, "name": name, "status": "processing"})
-
-        # Save original API response for debug
-        for ri, raw_img in enumerate(raw_images):
-            raw_path = f"images/{record.id}/original/r{ri}.png"
-            _save_image(state, raw_img, raw_path)
-        record.original_count = len(raw_images)
-
-        for i, img in enumerate(images):
-            source_path = f"images/{record.id}/raw/v{i}.png"
-            preview_path = f"images/{record.id}/preview/v{i}.png"
-            _save_image(state, img, source_path)
-            preview = _make_preview(img, gpu_provider)
-            _save_image(state, preview, preview_path)
-            record.variations.append(GenerationVariation(
-                index=i, source_path=source_path, preview_path=preview_path,
-            ))
-
-        state.generation_records[record.id] = record
-        job["completed_idx"] = idx
         state.save_data()
-
-        _emit(job, "record", record.model_dump(mode="json"))
+        state.save_jobs()
 
     _emit(job, "done", {"total": total})
     job["status"] = "completed"
@@ -296,7 +343,7 @@ async def generate_icons(request: Request):
         raise HTTPException(status_code=400, detail="No API key configured")
 
     provider_config = state.config.get("provider", {})
-    default_model = provider_config.get("default_model", "dall-e-3")
+    default_model = body.get("model") or provider_config.get("default_model", "gpt-image-1-mini")
 
     if project_id:
         project = state.projects[project_id]
@@ -467,7 +514,7 @@ async def remove_generation_bg(gen_id: str, request: Request):
                 raw_img = Image.open(full_original).convert("RGBA")
                 _save_image(state, raw_img, variation.source_path)
                 wn = WeightNormalizationStep()
-                preview = wn.process(raw_img, {"enabled": True, "target_fill": 0.80})
+                preview = wn.process(raw_img, {"enabled": True, "target_fill": 0.90})
                 centering = CenteringStep()
                 preview = centering.process(preview, {})
                 preview = preview.resize((256, 256), Image.LANCZOS)
@@ -503,7 +550,7 @@ async def remove_generation_bg(gen_id: str, request: Request):
 
         from needicons.core.pipeline.normalize import CenteringStep, WeightNormalizationStep
         wn = WeightNormalizationStep()
-        processed = wn.process(processed, {"enabled": True, "target_fill": 0.80})
+        processed = wn.process(processed, {"enabled": True, "target_fill": 0.90})
         centering = CenteringStep()
         preview = centering.process(processed, {})
         preview = preview.resize((256, 256), Image.LANCZOS)
@@ -540,7 +587,7 @@ async def color_adjust_generation(gen_id: str, request: Request):
         processed = await loop.run_in_executor(None, _reprocess_variation, original, record, gpu_provider)
         _save_image(state, processed, variation.source_path)
         wn = WeightNormalizationStep()
-        preview = wn.process(processed, {"enabled": True, "target_fill": 0.80})
+        preview = wn.process(processed, {"enabled": True, "target_fill": 0.90})
         centering = CenteringStep()
         preview = centering.process(preview, {})
         preview = preview.resize((256, 256), Image.LANCZOS)
@@ -573,7 +620,7 @@ async def edge_cleanup_generation(gen_id: str, request: Request):
         processed = await loop.run_in_executor(None, _reprocess_variation, original, record, gpu_provider)
         _save_image(state, processed, variation.source_path)
         wn = WeightNormalizationStep()
-        preview = wn.process(processed, {"enabled": True, "target_fill": 0.80})
+        preview = wn.process(processed, {"enabled": True, "target_fill": 0.90})
         centering = CenteringStep()
         preview = centering.process(preview, {})
         preview = preview.resize((256, 256), Image.LANCZOS)
@@ -609,7 +656,7 @@ async def upscale_generation(gen_id: str, request: Request):
         processed = await loop.run_in_executor(None, _reprocess_variation, original, record, gpu_provider)
         _save_image(state, processed, variation.source_path)
         wn = WeightNormalizationStep()
-        preview = wn.process(processed, {"enabled": True, "target_fill": 0.80})
+        preview = wn.process(processed, {"enabled": True, "target_fill": 0.90})
         centering = CenteringStep()
         preview = centering.process(preview, {})
         preview = preview.resize((256, 256), Image.LANCZOS)
@@ -642,7 +689,7 @@ async def denoise_generation(gen_id: str, request: Request):
         processed = await loop.run_in_executor(None, _reprocess_variation, original, record, gpu_provider)
         _save_image(state, processed, variation.source_path)
         wn = WeightNormalizationStep()
-        preview = wn.process(processed, {"enabled": True, "target_fill": 0.80})
+        preview = wn.process(processed, {"enabled": True, "target_fill": 0.90})
         centering = CenteringStep()
         preview = centering.process(preview, {})
         preview = preview.resize((256, 256), Image.LANCZOS)
@@ -706,7 +753,7 @@ async def add_lasso_mask(gen_id: str, request: Request):
         processed = await loop.run_in_executor(None, _reprocess_variation, original, record, gpu_provider)
         _save_image(state, processed, variation.source_path)
         wn = WeightNormalizationStep()
-        preview = wn.process(processed, {"enabled": True, "target_fill": 0.80})
+        preview = wn.process(processed, {"enabled": True, "target_fill": 0.90})
         centering = CenteringStep()
         preview = centering.process(preview, {})
         preview = preview.resize((256, 256), Image.LANCZOS)
@@ -742,7 +789,7 @@ async def delete_lasso_mask(gen_id: str, mask_id: str, request: Request):
         processed = await loop.run_in_executor(None, _reprocess_variation, original, record, gpu_provider)
         _save_image(state, processed, variation.source_path)
         wn = WeightNormalizationStep()
-        preview = wn.process(processed, {"enabled": True, "target_fill": 0.80})
+        preview = wn.process(processed, {"enabled": True, "target_fill": 0.90})
         centering = CenteringStep()
         preview = centering.process(preview, {})
         preview = preview.resize((256, 256), Image.LANCZOS)
@@ -750,3 +797,59 @@ async def delete_lasso_mask(gen_id: str, mask_id: str, request: Request):
 
     state.save_data()
     return record.model_dump()
+
+
+@router.post("/api/generations/{gen_id}/refine")
+async def refine_variation(gen_id: str, request: Request):
+    """Refine a variation with streaming partial images via SSE."""
+    state = request.app.state.app_state
+    record = state.generation_records.get(gen_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Generation record not found")
+
+    body = await request.json()
+    prompt = body.get("prompt", "").strip()
+    variation_index = body.get("variation_index", 0)
+
+    if not prompt:
+        raise HTTPException(status_code=400, detail="Prompt is required")
+
+    variation = next((v for v in record.variations if v.index == variation_index), None)
+    if not variation:
+        raise HTTPException(status_code=404, detail="Variation not found")
+
+    api_key = get_api_key(state)
+    if not api_key:
+        raise HTTPException(status_code=400, detail="No API key configured")
+
+    provider_config = state.config.get("provider", {})
+    default_model = provider_config.get("default_model", "gpt-image-1-mini")
+
+    source_path = state.data_dir / variation.source_path
+    if not source_path.exists():
+        raise HTTPException(status_code=404, detail="Source image not found")
+
+    source_image = Image.open(source_path).convert("RGBA")
+    provider = OpenAIProvider(api_key=api_key, default_model=default_model)
+
+    async def stream_refine():
+        try:
+            async for partial_b64, final_image in provider.edit_stream(source_image, prompt):
+                if partial_b64 is not None:
+                    yield f"event: partial\ndata: {json.dumps({'image': partial_b64})}\n\n"
+                if final_image is not None:
+                    # Save final image
+                    record.refine_version = getattr(record, "refine_version", 0) + 1
+                    _save_image(state, final_image, variation.source_path)
+                    wn = WeightNormalizationStep()
+                    preview = wn.process(final_image, {"enabled": True, "target_fill": 0.90})
+                    centering = CenteringStep()
+                    preview = centering.process(preview, {})
+                    preview = preview.resize((256, 256), Image.LANCZOS)
+                    _save_image(state, preview, variation.preview_path)
+                    state.save_data()
+                    yield f"event: done\ndata: {json.dumps({'record': record.model_dump()})}\n\n"
+        except Exception as e:
+            yield f"event: error\ndata: {json.dumps({'detail': str(e)})}\n\n"
+
+    return StreamingResponse(stream_refine(), media_type="text/event-stream")

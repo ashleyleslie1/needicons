@@ -2,16 +2,18 @@ import { useState } from "react";
 import type { GenerationRecord } from "@/lib/types";
 import { GenerationRow } from "./generation-row";
 import { cn } from "@/lib/utils";
+import { List, LayoutGrid } from "lucide-react";
 
 interface ResultsHistoryProps {
   records: GenerationRecord[];
+  pendingCard?: React.ReactNode;
   onRegenerate?: (record: GenerationRecord) => void;
 }
 
-export function ResultsHistory({ records, onRegenerate }: ResultsHistoryProps) {
+export function ResultsHistory({ records, pendingCard, onRegenerate }: ResultsHistoryProps) {
   const [layout, setLayout] = useState<"list" | "grid">("list");
 
-  if (records.length === 0) return null;
+  if (records.length === 0 && !pendingCard) return null;
 
   return (
     <div>
@@ -21,30 +23,21 @@ export function ResultsHistory({ records, onRegenerate }: ResultsHistoryProps) {
           onClick={() => setLayout("list")}
           className={cn(
             "rounded-md p-1.5 transition-colors",
-            layout === "list" ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground",
+            layout === "list" ? "bg-accent/15 text-accent" : "text-muted-foreground hover:text-foreground",
           )}
           title="List view"
         >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <rect x="1" y="2" width="14" height="3" rx="1" fill="currentColor" />
-            <rect x="1" y="7" width="14" height="3" rx="1" fill="currentColor" opacity="0.6" />
-            <rect x="1" y="12" width="14" height="3" rx="1" fill="currentColor" opacity="0.3" />
-          </svg>
+          <List className="h-4 w-4" />
         </button>
         <button
           onClick={() => setLayout("grid")}
           className={cn(
             "rounded-md p-1.5 transition-colors",
-            layout === "grid" ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground",
+            layout === "grid" ? "bg-accent/15 text-accent" : "text-muted-foreground hover:text-foreground",
           )}
           title="Grid view"
         >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <rect x="1" y="1" width="6" height="6" rx="1" fill="currentColor" />
-            <rect x="9" y="1" width="6" height="6" rx="1" fill="currentColor" opacity="0.6" />
-            <rect x="1" y="9" width="6" height="6" rx="1" fill="currentColor" opacity="0.6" />
-            <rect x="9" y="9" width="6" height="6" rx="1" fill="currentColor" opacity="0.3" />
-          </svg>
+          <LayoutGrid className="h-4 w-4" />
         </button>
       </div>
 
@@ -53,6 +46,9 @@ export function ResultsHistory({ records, onRegenerate }: ResultsHistoryProps) {
           ? "flex flex-col gap-4"
           : "grid grid-cols-3 gap-4",
       )}>
+        {/* Pending generation card — first in the list */}
+        {pendingCard}
+
         {records.map((record) => (
           <GenerationRow
             key={record.id}

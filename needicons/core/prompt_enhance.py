@@ -39,7 +39,7 @@ async def enhance_prompt(
             {"role": "system", "content": _SYSTEM_PROMPT},
             {"role": "user", "content": user_message},
         ],
-        max_tokens=200,
+        max_completion_tokens=200,
         temperature=0.7,
     )
 

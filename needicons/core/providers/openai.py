@@ -142,3 +142,65 @@ class OpenAIProvider(ImageProvider):
                 resp = httpx.get(item.url)
                 images.append(Image.open(io.BytesIO(resp.content)).convert("RGBA"))
         return images
+
+    def _prepare_edit_input(self, image: Image.Image) -> str:
+        """Encode image as base64 data URL for Responses API."""
+        buf = io.BytesIO()
+        image.save(buf, format="PNG")
+        return f"data:image/png;base64,{base64.b64encode(buf.getvalue()).decode()}"
+
+    async def edit(self, image: Image.Image, prompt: str) -> Image.Image:
+        """Edit an image (non-streaming). Returns final image."""
+        async for _partial, final in self.edit_stream(image, prompt):
+            if final is not None:
+                return final
+        raise ValueError("No image generated in response")
+
+    async def edit_stream(self, image: Image.Image, prompt: str):
+        """Edit an image with streaming. Yields (partial_b64, final_image) tuples.
+
+        For partial images: yields (base64_string, None)
+        For final image: yields (None, PIL.Image)
+
+        Uses Responses API with stream=True and partial_images.
+        Docs: https://developers.openai.com/api/docs/guides/image-generation
+        """
+        data_url = self._prepare_edit_input(image)
+
+        stream = await self._client.responses.create(
+            model="gpt-4.1-mini",
+            stream=True,
+            input=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "input_image", "image_url": data_url},
+                        {"type": "input_text", "text": prompt},
+                    ],
+                }
+            ],
+            tools=[{
+                "type": "image_generation",
+                "background": "transparent",
+                "size": "1024x1024",
+                "action": "edit",
+                "partial_images": 3,
+            }],
+        )
+
+        final_b64 = None
+        async for event in stream:
+            if event.type == "response.image_generation_call.partial_image":
+                yield (event.partial_image_b64, None)
+            elif event.type == "response.completed":
+                # Extract final image from completed response
+                for item in event.response.output:
+                    if getattr(item, "type", None) == "image_generation_call":
+                        final_b64 = item.result
+                        break
+
+        if final_b64:
+            data = base64.b64decode(final_b64)
+            yield (None, Image.open(io.BytesIO(data)).convert("RGBA"))
+        else:
+            raise ValueError("No image generated in response")

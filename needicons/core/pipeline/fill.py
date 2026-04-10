@@ -1,8 +1,8 @@
-"""Background fill pipeline step."""
+"""Background fill pipeline step with optional corner radius."""
 from __future__ import annotations
 
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageDraw
 
 from needicons.core.pipeline.base import PipelineStep
 
@@ -28,6 +28,7 @@ class BackgroundFillStep(PipelineStep):
             return image
 
         w, h = image.size
+        corner_radius = config.get("corner_radius", 0)
 
         if fill_type == "solid":
             color = _hex_to_rgba(config.get("color", "#FFFFFF"))
@@ -37,7 +38,24 @@ class BackgroundFillStep(PipelineStep):
         else:
             return image
 
+        # Apply corner radius to the background
+        if corner_radius > 0:
+            mask = Image.new("L", (w, h), 0)
+            draw = ImageDraw.Draw(mask)
+            draw.rounded_rectangle([0, 0, w - 1, h - 1], radius=corner_radius, fill=255)
+            bg.putalpha(mask)
+
+        # Composite icon on top of background
         bg.paste(image, (0, 0), image)
+
+        # Re-apply the rounded mask to clip everything
+        if corner_radius > 0:
+            final_alpha = bg.split()[3]
+            combined = Image.fromarray(
+                np.minimum(np.array(final_alpha), np.array(mask)), "L"
+            )
+            bg.putalpha(combined)
+
         return bg
 
     def _make_gradient(self, w: int, h: int, config: dict) -> Image.Image:

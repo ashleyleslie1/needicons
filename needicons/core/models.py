@@ -206,6 +206,7 @@ class GenerationRecord(BaseModel):
     upscale_factor: int = 1  # 1=none, 2, 4
     denoise_strength: int = 0
     lasso_masks: list[LassoMask] = Field(default_factory=list)
+    refine_version: int = 0
     created_at: str = Field(default_factory=lambda: datetime.datetime.utcnow().isoformat())
 
     @model_validator(mode="before")

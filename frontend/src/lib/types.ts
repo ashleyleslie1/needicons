@@ -207,6 +207,7 @@ export interface GenerationRecord {
   upscale_factor: number;
   denoise_strength: number;
   lasso_masks: LassoMask[];
+  refine_version: number;
 }
 
 export interface Project {
@@ -226,11 +227,14 @@ export interface GenerateIconsRequest {
   mood: string;
   ai_enhance: boolean;
   project_id: string;
+  model?: string;
 }
 
 export interface ExportProjectRequest {
   sizes: number[];
   formats: string[];
+  svg_smoothing?: number;
+  svg_optimize?: boolean;
 }
 
 export interface ExportJobStatus {
