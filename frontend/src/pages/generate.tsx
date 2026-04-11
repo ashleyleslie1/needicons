@@ -146,17 +146,19 @@ export function GeneratePage() {
     }
   }
 
-  async function handleDeleteGroupDuplicates(name: string, recordIds: string[]) {
-    if (!confirm(`Delete ${recordIds.length} duplicate entries for "${name}"? Picked entries are kept.`)) return;
+  async function handleDeleteGroupDuplicates(name: string, mode: "keep_picked" | "keep_newest_only") {
+    const msg = mode === "keep_picked"
+      ? `Delete unpicked duplicates for "${name}"? Picked entries are kept.`
+      : `Delete ALL duplicates for "${name}"? Only the newest entry is kept.`;
+    if (!confirm(msg)) return;
+    if (!activeProjectId) return;
     setIsDeletingDupes(true);
     try {
-      for (const id of recordIds) {
-        await api.deleteGeneration(id);
-      }
+      await api.deleteGroupDuplicates(activeProjectId, name, mode);
       qc.invalidateQueries({ queryKey: ["generation-history"] });
       qc.invalidateQueries({ queryKey: ["projects"] });
     } catch {
-      alert("Failed to delete some entries.");
+      alert("Failed to delete duplicates.");
     } finally {
       setIsDeletingDupes(false);
     }

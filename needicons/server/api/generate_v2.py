@@ -784,6 +784,59 @@ async def delete_duplicate_generations(request: Request):
     return {"deleted": len(to_delete), "kept": len(by_name), "preview": preview}
 
 
+@router.post("/api/generations/delete-group-duplicates")
+async def delete_group_duplicates(request: Request):
+    """Delete duplicates for a specific icon name."""
+    state = request.app.state.app_state
+    body = await request.json()
+    project_id = body.get("project_id", "")
+    name = body.get("name", "").lower()
+    mode = body.get("mode", "keep_picked")  # "keep_picked" or "keep_newest_only"
+
+    if not name:
+        raise HTTPException(status_code=400, detail="Name is required")
+
+    # Find all records with this name
+    matching = [
+        r for r in state.generation_records.values()
+        if r.name.lower() == name and (not project_id or r.project_id == project_id)
+    ]
+
+    if len(matching) < 2:
+        return {"deleted": 0, "kept": len(matching)}
+
+    to_delete = []
+    if mode == "keep_newest_only":
+        # Keep only the newest, delete everything else
+        newest = max(matching, key=lambda r: r.created_at)
+        to_delete = [r.id for r in matching if r.id != newest.id]
+    else:
+        # Keep all picked + newest unpicked
+        picked = [r for r in matching if any(v.picked for v in r.variations)]
+        unpicked = [r for r in matching if not any(v.picked for v in r.variations)]
+        if picked:
+            # Delete all unpicked
+            to_delete = [r.id for r in unpicked]
+        else:
+            # No picks — keep newest, delete rest
+            newest = max(matching, key=lambda r: r.created_at)
+            to_delete = [r.id for r in matching if r.id != newest.id]
+
+    for gen_id in to_delete:
+        record = state.generation_records.get(gen_id)
+        if record and record.project_id:
+            project = state.projects.get(record.project_id)
+            if project:
+                project.icons = [i for i in project.icons if not i.source_path.startswith(f"images/{gen_id}/")]
+        if gen_id in state.generation_records:
+            del state.generation_records[gen_id]
+
+    if to_delete:
+        asyncio.create_task(asyncio.to_thread(state.save_data))
+
+    return {"deleted": len(to_delete), "kept": len(matching) - len(to_delete)}
+
+
 @router.post("/api/generations/{gen_id}/remove-bg")
 async def remove_generation_bg(gen_id: str, request: Request):
     """Apply or remove background removal. level 0=restore, 1-10=process. request_id for staleness."""

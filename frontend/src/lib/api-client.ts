@@ -433,6 +433,13 @@ export const api = {
     });
   },
 
+  deleteGroupDuplicates(projectId: string, name: string, mode: "keep_picked" | "keep_newest_only"): Promise<{ deleted: number; kept: number }> {
+    return request("/generations/delete-group-duplicates", {
+      method: "POST",
+      body: JSON.stringify({ project_id: projectId, name, mode }),
+    });
+  },
+
   deleteDuplicates(projectId: string): Promise<{ deleted: number; kept: number; preview: Array<{ name: string; total: number; keeping: number; deleting: number }> }> {
     return request("/generations/delete-duplicates", {
       method: "POST",

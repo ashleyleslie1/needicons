@@ -14,7 +14,7 @@ interface ResultsHistoryProps {
   onToggleDuplicates?: () => void;
   duplicateNameCount?: number;
   onDeleteDuplicates?: () => void;
-  onDeleteGroupDuplicates?: (name: string, recordIds: string[]) => void;
+  onDeleteGroupDuplicates?: (name: string, mode: "keep_picked" | "keep_newest_only") => void;
   isDeleting?: boolean;
   searchQuery?: string;
   onSearchChange?: (query: string) => void;
@@ -153,42 +153,29 @@ export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpicke
             return (
               <div key={record.id}>
                 {showGroupHeader && (() => {
-                  const groupRecords = records.filter((r) => r.name.toLowerCase() === record.name.toLowerCase());
-                  // Keep picked + newest unpicked
-                  const unpickedIds = groupRecords
-                    .filter((r) => !r.variations.some((v) => v.picked))
-                    .sort((a, b) => b.created_at.localeCompare(a.created_at))
-                    .slice(1)
-                    .map((r) => r.id);
-                  // All except newest (regardless of picks)
-                  const allExceptNewest = [...groupRecords]
-                    .sort((a, b) => b.created_at.localeCompare(a.created_at))
-                    .slice(1)
-                    .map((r) => r.id);
-
                   return (
                     <div className="flex items-center gap-2 mb-2 mt-4 first:mt-0">
                       <span className="text-sm font-bold text-accent">{record.name}</span>
                       <span className="text-xs text-muted-foreground font-medium">({groupCount}x)</span>
-                      {onDeleteGroupDuplicates && unpickedIds.length > 0 && (
+                      {onDeleteGroupDuplicates && groupCount > 1 && (
                         <button
-                          onClick={() => onDeleteGroupDuplicates(record.name, unpickedIds)}
+                          onClick={() => onDeleteGroupDuplicates(record.name, "keep_picked")}
                           disabled={isDeleting}
                           className="flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium text-destructive bg-destructive/5 border border-destructive/20 hover:bg-destructive/15 hover:border-destructive/40 transition-all disabled:opacity-50"
                         >
                           <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
                             <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
                           </svg>
-                          Delete duplicates ({unpickedIds.length})
+                          Delete duplicates
                         </button>
                       )}
-                      {onDeleteGroupDuplicates && allExceptNewest.length > 0 && (
+                      {onDeleteGroupDuplicates && groupCount > 1 && (
                         <button
-                          onClick={() => onDeleteGroupDuplicates(record.name, allExceptNewest)}
+                          onClick={() => onDeleteGroupDuplicates(record.name, "keep_newest_only")}
                           disabled={isDeleting}
                           className="flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium text-muted-foreground border border-border/50 hover:text-destructive hover:bg-destructive/10 hover:border-destructive/30 transition-all disabled:opacity-50"
                         >
-                          Delete all ({allExceptNewest.length})
+                          Delete all
                         </button>
                       )}
                       <div className="flex-1 h-px bg-border/30" />
