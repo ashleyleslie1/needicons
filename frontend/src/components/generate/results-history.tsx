@@ -154,18 +154,23 @@ export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpicke
               <div key={record.id}>
                 {showGroupHeader && (() => {
                   const groupRecords = records.filter((r) => r.name.toLowerCase() === record.name.toLowerCase());
+                  // Keep picked + newest unpicked
                   const unpickedIds = groupRecords
                     .filter((r) => !r.variations.some((v) => v.picked))
                     .sort((a, b) => b.created_at.localeCompare(a.created_at))
-                    .slice(1) // keep newest unpicked
+                    .slice(1)
                     .map((r) => r.id);
-                  const deletableCount = unpickedIds.length;
+                  // All except newest (regardless of picks)
+                  const allExceptNewest = [...groupRecords]
+                    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+                    .slice(1)
+                    .map((r) => r.id);
 
                   return (
                     <div className="flex items-center gap-2 mb-2 mt-4 first:mt-0">
                       <span className="text-sm font-bold text-accent">{record.name}</span>
                       <span className="text-xs text-muted-foreground font-medium">({groupCount}x)</span>
-                      {onDeleteGroupDuplicates && deletableCount > 0 && (
+                      {onDeleteGroupDuplicates && unpickedIds.length > 0 && (
                         <button
                           onClick={() => onDeleteGroupDuplicates(record.name, unpickedIds)}
                           disabled={isDeleting}
@@ -174,7 +179,16 @@ export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpicke
                           <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
                             <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
                           </svg>
-                          Delete duplicates ({deletableCount})
+                          Delete duplicates ({unpickedIds.length})
+                        </button>
+                      )}
+                      {onDeleteGroupDuplicates && allExceptNewest.length > 0 && (
+                        <button
+                          onClick={() => onDeleteGroupDuplicates(record.name, allExceptNewest)}
+                          disabled={isDeleting}
+                          className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-destructive/70 hover:text-destructive hover:bg-destructive/10 transition-all disabled:opacity-50"
+                        >
+                          Delete all ({allExceptNewest.length})
                         </button>
                       )}
                       <div className="flex-1 h-px bg-border/30" />
