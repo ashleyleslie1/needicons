@@ -426,6 +426,13 @@ export const api = {
     });
   },
 
+  deleteDuplicates(projectId: string): Promise<{ deleted: number; kept: number }> {
+    return request<{ deleted: number; kept: number }>("/generations/delete-duplicates", {
+      method: "POST",
+      body: JSON.stringify({ project_id: projectId }),
+    });
+  },
+
   retryAllFailed(jobId: string): Promise<{ status: string; job_id: string; count: number }> {
     return request<{ status: string; job_id: string; count: number }>(`/generate/queue/${jobId}/retry-all`, {
       method: "POST",

@@ -2,6 +2,7 @@ import { useState, useMemo, useRef, useCallback } from "react";
 import { useSidebar } from "@/hooks/ui/use-sidebar";
 import { useGenerateIcons } from "@/hooks/api/use-generate-v2";
 import { api } from "@/lib/api-client";
+import { useQueryClient } from "@tanstack/react-query";
 import { useGenerationHistory } from "@/hooks/api/use-generation-history";
 import { useProject } from "@/hooks/api/use-projects";
 import { useSettings } from "@/hooks/api/use-settings";
@@ -56,6 +57,7 @@ export function GeneratePage() {
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
   const [dismissedFailBanner, setDismissedFailBanner] = useState(false);
   const [duplicateWarning, setDuplicateWarning] = useState<{ duplicates: string[]; prompts: Array<{ name: string; prompt: string }> } | null>(null);
+  const [isDeletingDupes, setIsDeletingDupes] = useState(false);
 
   const parsedPrompts = parsePrompts(promptText);
   const iconCount = parsedPrompts.length;
@@ -126,6 +128,25 @@ export function GeneratePage() {
     const viewport = scrollRef.current?.querySelector("[data-radix-scroll-area-viewport]");
     if (viewport) viewport.scrollTop = 0;
   }, []);
+
+  const qc = useQueryClient();
+
+  async function handleDeleteDuplicates() {
+    if (!activeProjectId) return;
+    if (!confirm("Delete all duplicate entries? This keeps the picked (or newest) entry for each name and removes the rest.")) return;
+    setIsDeletingDupes(true);
+    try {
+      const result = await api.deleteDuplicates(activeProjectId);
+      qc.invalidateQueries({ queryKey: ["generation-history"] });
+      qc.invalidateQueries({ queryKey: ["projects"] });
+      setShowDuplicatesOnly(false);
+      alert(`Deleted ${result.deleted} duplicate entries, kept ${result.kept} unique names.`);
+    } catch {
+      alert("Failed to delete duplicates.");
+    } finally {
+      setIsDeletingDupes(false);
+    }
+  }
 
   async function handleRetryAllFailed() {
     const jobId = gen.lastJobId;
@@ -273,6 +294,8 @@ export function GeneratePage() {
               showDuplicatesOnly={showDuplicatesOnly}
               onToggleDuplicates={() => { setShowDuplicatesOnly(!showDuplicatesOnly); if (!showDuplicatesOnly) setShowUnpickedOnly(false); scrollToTop(); }}
               duplicateNameCount={duplicateNames.size}
+              onDeleteDuplicates={handleDeleteDuplicates}
+              isDeleting={isDeletingDupes}
               searchQuery={searchQuery}
               onSearchChange={(q) => { setSearchQuery(q); if (q) scrollToTop(); }}
               totalCount={history.length}

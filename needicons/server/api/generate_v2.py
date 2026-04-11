@@ -715,6 +715,51 @@ async def delete_generation(gen_id: str, request: Request):
     return {"status": "deleted"}
 
 
+@router.post("/api/generations/delete-duplicates")
+async def delete_duplicate_generations(request: Request):
+    """Delete duplicate generation records, keeping the picked or newest for each name."""
+    state = request.app.state.app_state
+    body = await request.json()
+    project_id = body.get("project_id", "")
+
+    # Group records by lowercase name
+    by_name: dict[str, list] = {}
+    for rec_id, record in state.generation_records.items():
+        if project_id and record.project_id != project_id:
+            continue
+        key = record.name.lower()
+        by_name.setdefault(key, []).append(record)
+
+    to_delete = []
+    for name, records in by_name.items():
+        if len(records) < 2:
+            continue
+        # Keep the picked one, or the newest if none picked
+        picked = [r for r in records if any(v.picked for v in r.variations)]
+        if picked:
+            keep = picked[0]
+        else:
+            keep = max(records, key=lambda r: r.created_at)
+        for r in records:
+            if r.id != keep.id:
+                to_delete.append(r.id)
+
+    # Delete them
+    for gen_id in to_delete:
+        record = state.generation_records.get(gen_id)
+        if record and record.project_id:
+            project = state.projects.get(record.project_id)
+            if project:
+                project.icons = [i for i in project.icons if not i.source_path.startswith(f"images/{gen_id}/")]
+        if gen_id in state.generation_records:
+            del state.generation_records[gen_id]
+
+    if to_delete:
+        asyncio.create_task(asyncio.to_thread(state.save_data))
+
+    return {"deleted": len(to_delete), "kept": len(by_name)}
+
+
 @router.post("/api/generations/{gen_id}/remove-bg")
 async def remove_generation_bg(gen_id: str, request: Request):
     """Apply or remove background removal. level 0=restore, 1-10=process. request_id for staleness."""

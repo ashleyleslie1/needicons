@@ -66,13 +66,19 @@
     @apply bg-card/80 backdrop-blur-2xl border border-border;
   }
   .checkerboard {
+    --cb-a: #ccc;
+    --cb-b: #fff;
     background-image:
-      linear-gradient(45deg, #ccc 25%, transparent 25%),
-      linear-gradient(-45deg, #ccc 25%, transparent 25%),
-      linear-gradient(45deg, transparent 75%, #ccc 75%),
-      linear-gradient(-45deg, transparent 75%, #ccc 75%);
+      linear-gradient(45deg, var(--cb-a) 25%, transparent 25%),
+      linear-gradient(-45deg, var(--cb-a) 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, var(--cb-a) 75%),
+      linear-gradient(-45deg, transparent 75%, var(--cb-a) 75%);
     background-size: 12px 12px;
     background-position: 0 0, 0 6px, 6px -6px, -6px 0;
-    background-color: #fff;
+    background-color: var(--cb-b);
+  }
+  .dark .checkerboard {
+    --cb-a: #2a2a2a;
+    --cb-b: #1e1e1e;
   }
 }

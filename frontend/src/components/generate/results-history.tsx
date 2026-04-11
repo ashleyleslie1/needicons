@@ -13,12 +13,14 @@ interface ResultsHistoryProps {
   showDuplicatesOnly?: boolean;
   onToggleDuplicates?: () => void;
   duplicateNameCount?: number;
+  onDeleteDuplicates?: () => void;
+  isDeleting?: boolean;
   searchQuery?: string;
   onSearchChange?: (query: string) => void;
   totalCount?: number;
 }
 
-export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpickedOnly, onToggleUnpicked, showDuplicatesOnly, onToggleDuplicates, duplicateNameCount, searchQuery, onSearchChange, totalCount }: ResultsHistoryProps) {
+export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpickedOnly, onToggleUnpicked, showDuplicatesOnly, onToggleDuplicates, duplicateNameCount, onDeleteDuplicates, isDeleting, searchQuery, onSearchChange, totalCount }: ResultsHistoryProps) {
   const [layout, setLayout] = useState<"list" | "grid">("list");
 
   if (records.length === 0 && !pendingCard && !showUnpickedOnly && !showDuplicatesOnly && !searchQuery) return null;
@@ -86,6 +88,20 @@ export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpicke
             {showDuplicatesOnly
               ? `Duplicates — ${duplicateNameCount ?? 0} names, ${records.length} entries`
               : "Show duplicates"}
+          </button>
+        )}
+
+        {/* Delete duplicates — only when filter is active */}
+        {showDuplicatesOnly && onDeleteDuplicates && records.length > 0 && (
+          <button
+            onClick={onDeleteDuplicates}
+            disabled={isDeleting}
+            className="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-medium text-destructive hover:bg-destructive/10 transition-all disabled:opacity-50"
+          >
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+            </svg>
+            {isDeleting ? "Deleting..." : "Delete duplicates"}
           </button>
         )}
 
