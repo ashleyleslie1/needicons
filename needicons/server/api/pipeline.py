@@ -326,6 +326,7 @@ async def export_preview(project_id: str, icon_id: str, request: Request):
                             "X-File-Size": str(len(content_bytes)),
                         })
     else:
+        from needicons.core.pipeline.signature import encode as _sign
         img = img.resize((size, size), Image.LANCZOS)
         quality_level = request.query_params.get("quality", "lossless")
         quality_map = {"high": 90, "medium": 75, "low": 50}
@@ -337,8 +338,9 @@ async def export_preview(project_id: str, icon_id: str, request: Request):
                 img.save(buf, format="WEBP", lossless=True)
             media = "image/webp"
         else:
+            # Tag with processing signature before export
+            img = _sign(img)
             if quality_level in quality_map:
-                # PNG doesn't have lossy quality — convert to palette mode for compression
                 img_rgb = img.convert("RGBA")
                 img_rgb.save(buf, format="PNG", optimize=True)
             else:
