@@ -58,6 +58,7 @@ export function GeneratePage() {
   const [dismissedFailBanner, setDismissedFailBanner] = useState(false);
   const [duplicateWarning, setDuplicateWarning] = useState<{ duplicates: string[]; prompts: Array<{ name: string; prompt: string }> } | null>(null);
   const [isDeletingDupes, setIsDeletingDupes] = useState(false);
+  const [dupePreview, setDupePreview] = useState<{ would_delete: number; duplicate_names: number; preview: Array<{ name: string; total: number; keeping: number; deleting: number; has_picks: boolean }> } | null>(null);
 
   const parsedPrompts = parsePrompts(promptText);
   const iconCount = parsedPrompts.length;
@@ -133,14 +134,27 @@ export function GeneratePage() {
 
   async function handleDeleteDuplicates() {
     if (!activeProjectId) return;
-    if (!confirm("Delete all duplicate entries? This keeps the picked (or newest) entry for each name and removes the rest.")) return;
+    try {
+      const preview = await api.previewDeleteDuplicates(activeProjectId);
+      if (preview.would_delete === 0) {
+        alert("No duplicates to delete.");
+        return;
+      }
+      setDupePreview(preview);
+    } catch {
+      alert("Failed to check duplicates.");
+    }
+  }
+
+  async function confirmDeleteDuplicates() {
+    if (!activeProjectId) return;
     setIsDeletingDupes(true);
     try {
-      const result = await api.deleteDuplicates(activeProjectId);
+      await api.deleteDuplicates(activeProjectId);
       qc.invalidateQueries({ queryKey: ["generation-history"] });
       qc.invalidateQueries({ queryKey: ["projects"] });
       setShowDuplicatesOnly(false);
-      alert(`Deleted ${result.deleted} duplicate entries, kept ${result.kept} unique names.`);
+      setDupePreview(null);
     } catch {
       alert("Failed to delete duplicates.");
     } finally {
@@ -417,6 +431,44 @@ export function GeneratePage() {
               }}
             >
               Regenerate all
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete duplicates preview dialog */}
+      <Dialog open={!!dupePreview} onOpenChange={(open) => { if (!open) setDupePreview(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete duplicate entries</DialogTitle>
+            <DialogDescription>
+              {dupePreview?.would_delete} entries will be removed across {dupePreview?.duplicate_names} names.
+              Entries with picks are never deleted.
+            </DialogDescription>
+          </DialogHeader>
+          {dupePreview && (
+            <div className="max-h-60 overflow-auto rounded-lg border border-border/50 bg-muted/20 p-2 text-[11px] space-y-0.5">
+              {dupePreview.preview.map((item) => (
+                <div key={item.name} className="flex items-center gap-2 py-0.5">
+                  <span className="text-foreground font-medium truncate flex-1">{item.name}</span>
+                  <span className="text-muted-foreground shrink-0">
+                    {item.total}x → keep {item.keeping}, delete {item.deleting}
+                  </span>
+                  {item.has_picks && (
+                    <span className="text-[9px] text-accent shrink-0">picked</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="ghost" onClick={() => setDupePreview(null)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              onClick={confirmDeleteDuplicates}
+              disabled={isDeletingDupes}
+            >
+              {isDeletingDupes ? "Deleting..." : `Delete ${dupePreview?.would_delete} entries`}
             </Button>
           </DialogFooter>
         </DialogContent>

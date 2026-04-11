@@ -152,9 +152,9 @@ export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpicke
             return (
               <div key={record.id}>
                 {showGroupHeader && (
-                  <div className="flex items-center gap-2 mb-1 mt-3 first:mt-0">
-                    <span className="text-[11px] font-semibold text-accent">{record.name}</span>
-                    <span className="text-[10px] text-muted-foreground">({groupCount}x)</span>
+                  <div className="flex items-center gap-2 mb-2 mt-4 first:mt-0">
+                    <span className="text-sm font-bold text-accent">{record.name}</span>
+                    <span className="text-xs text-muted-foreground font-medium">({groupCount}x)</span>
                     <div className="flex-1 h-px bg-border/30" />
                   </div>
                 )}

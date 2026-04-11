@@ -717,10 +717,11 @@ async def delete_generation(gen_id: str, request: Request):
 
 @router.post("/api/generations/delete-duplicates")
 async def delete_duplicate_generations(request: Request):
-    """Delete duplicate generation records, keeping the picked or newest for each name."""
+    """Preview or execute duplicate deletion. Never deletes entries with picks."""
     state = request.app.state.app_state
     body = await request.json()
     project_id = body.get("project_id", "")
+    dry_run = body.get("dry_run", False)
 
     # Group records by lowercase name
     by_name: dict[str, list] = {}
@@ -731,20 +732,43 @@ async def delete_duplicate_generations(request: Request):
         by_name.setdefault(key, []).append(record)
 
     to_delete = []
+    preview: list[dict] = []
     for name, records in by_name.items():
         if len(records) < 2:
             continue
-        # Keep the picked one, or the newest if none picked
+        # Never delete entries with a pick — only delete unpicked duplicates
         picked = [r for r in records if any(v.picked for v in r.variations)]
-        if picked:
-            keep = picked[0]
-        else:
-            keep = max(records, key=lambda r: r.created_at)
-        for r in records:
-            if r.id != keep.id:
-                to_delete.append(r.id)
+        unpicked = [r for r in records if not any(v.picked for v in r.variations)]
 
-    # Delete them
+        if picked:
+            # Keep all picked, delete unpicked duplicates
+            deletable = unpicked
+        else:
+            # No picks — keep the newest, delete the rest
+            newest = max(records, key=lambda r: r.created_at)
+            deletable = [r for r in records if r.id != newest.id]
+
+        for r in deletable:
+            to_delete.append(r.id)
+
+        if deletable:
+            preview.append({
+                "name": records[0].name,
+                "total": len(records),
+                "keeping": len(records) - len(deletable),
+                "deleting": len(deletable),
+                "has_picks": len(picked) > 0,
+            })
+
+    if dry_run:
+        return {
+            "dry_run": True,
+            "would_delete": len(to_delete),
+            "duplicate_names": len(preview),
+            "preview": preview,
+        }
+
+    # Execute deletion
     for gen_id in to_delete:
         record = state.generation_records.get(gen_id)
         if record and record.project_id:
@@ -757,7 +781,7 @@ async def delete_duplicate_generations(request: Request):
     if to_delete:
         asyncio.create_task(asyncio.to_thread(state.save_data))
 
-    return {"deleted": len(to_delete), "kept": len(by_name)}
+    return {"deleted": len(to_delete), "kept": len(by_name), "preview": preview}
 
 
 @router.post("/api/generations/{gen_id}/remove-bg")

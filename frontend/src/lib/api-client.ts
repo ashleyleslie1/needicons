@@ -426,8 +426,15 @@ export const api = {
     });
   },
 
-  deleteDuplicates(projectId: string): Promise<{ deleted: number; kept: number }> {
-    return request<{ deleted: number; kept: number }>("/generations/delete-duplicates", {
+  previewDeleteDuplicates(projectId: string): Promise<{ dry_run: true; would_delete: number; duplicate_names: number; preview: Array<{ name: string; total: number; keeping: number; deleting: number; has_picks: boolean }> }> {
+    return request("/generations/delete-duplicates", {
+      method: "POST",
+      body: JSON.stringify({ project_id: projectId, dry_run: true }),
+    });
+  },
+
+  deleteDuplicates(projectId: string): Promise<{ deleted: number; kept: number; preview: Array<{ name: string; total: number; keeping: number; deleting: number }> }> {
+    return request("/generations/delete-duplicates", {
       method: "POST",
       body: JSON.stringify({ project_id: projectId }),
     });
