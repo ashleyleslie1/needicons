@@ -26,6 +26,23 @@ export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpicke
     <div>
       {/* View toggle + filter */}
       <div className="mb-4 flex items-center gap-2">
+        {/* Search — left side */}
+        {onSearchChange && (
+          <div className="relative">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground">
+              <circle cx="11" cy="11" r="8" />
+              <path d="M21 21l-4.3-4.3" />
+            </svg>
+            <input
+              type="text"
+              value={searchQuery ?? ""}
+              onChange={(e) => onSearchChange(e.target.value)}
+              placeholder="Search..."
+              className="h-7 w-40 rounded-lg border border-border/50 bg-input pl-7 pr-2 text-[11px] text-foreground placeholder:text-muted-foreground focus:border-accent/50 focus:outline-none focus:ring-1 focus:ring-accent/20 transition-all"
+            />
+          </div>
+        )}
+
         {/* Unpicked filter */}
         {onToggleUnpicked && (
           <button
@@ -64,24 +81,14 @@ export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpicke
           </button>
         )}
 
-        {/* Search */}
-        {onSearchChange && (
-          <div className="relative ml-auto mr-2">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground">
-              <circle cx="11" cy="11" r="8" />
-              <path d="M21 21l-4.3-4.3" />
-            </svg>
-            <input
-              type="text"
-              value={searchQuery ?? ""}
-              onChange={(e) => onSearchChange(e.target.value)}
-              placeholder="Search..."
-              className="h-7 w-40 rounded-lg border border-border/50 bg-input pl-7 pr-2 text-[11px] text-foreground placeholder:text-muted-foreground focus:border-accent/50 focus:outline-none focus:ring-1 focus:ring-accent/20 transition-all"
-            />
-          </div>
+        {/* Result count — right side */}
+        {(showUnpickedOnly || showDuplicatesOnly || searchQuery) && (
+          <span className="ml-auto text-[11px] text-muted-foreground mr-2">
+            {records.length} of {totalCount ?? records.length}
+          </span>
         )}
 
-        <div className="flex items-center gap-1">
+        <div className={cn("flex items-center gap-1", !(showUnpickedOnly || showDuplicatesOnly || searchQuery) && "ml-auto")}>
           <button
             onClick={() => setLayout("list")}
             className={cn(
@@ -104,13 +111,6 @@ export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpicke
           </button>
         </div>
       </div>
-
-      {/* Active filter indicator */}
-      {(showUnpickedOnly || showDuplicatesOnly || searchQuery) && records.length > 0 && (
-        <p className="text-[11px] text-muted-foreground mb-2">
-          Showing {records.length} of {totalCount ?? records.length} results
-        </p>
-      )}
 
       <div className={cn(
         layout === "list"
