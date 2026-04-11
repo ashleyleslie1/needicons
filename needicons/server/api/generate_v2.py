@@ -117,18 +117,7 @@ async def _generate_one_streaming(provider, config):
     return partials, final
 
 
-_MAX_RETRIES = 2  # Reduced from 3 to limit runaway costs
-_TRANSIENT_CODES = {"429", "500", "502", "503", "529"}
-_MAX_BATCH_SIZE_WARN = 50  # Warn if generating more than this many icons at once
-
-
-def _is_transient_error(msg: str) -> bool:
-    """Check if an error is transient and worth retrying."""
-    for code in _TRANSIENT_CODES:
-        if code in msg:
-            return True
-    lower = msg.lower()
-    return any(kw in lower for kw in ("rate_limit", "rate limit", "overloaded", "timeout", "timed out"))
+_BATCH_LIMIT_DEFAULT = 100  # Max icons per batch without explicit confirmation
 
 
 async def _generate_one(state, job, provider, queue_item, total, style, quality, style_prompt,
@@ -175,64 +164,49 @@ async def _generate_one(state, job, provider, queue_item, total, style, quality,
         mood=mood, ai_enhance=ai_enhance,
     )
 
-    attempt = queue_item.get("attempts", 0)
-    last_error = None
+    try:
+        variation_results: list[Image.Image | None] = [None] * n_variations
 
-    for retry in range(max(1, _MAX_RETRIES - attempt)):
-        try:
-            variation_results: list[Image.Image | None] = [None] * n_variations
+        async def _stream_variation(vi: int):
+            config = GenerationConfig(
+                style_prompt=style_prompt, subject=name,
+                description=prompt if prompt != name else "",
+                mode=GenerationMode.PRECISION, style=style,
+                api_quality=api_quality, mood=mood,
+            )
+            try:
+                async for partial_b64, final_img in provider.generate_stream(config):
+                    if partial_b64 is not None:
+                        _emit(job, "partial_image", {
+                            "index": idx, "variation": vi,
+                            "image": partial_b64,
+                        })
+                    if final_img is not None:
+                        variation_results[vi] = final_img
+            except Exception:
+                result = await provider.generate(config)
+                if result:
+                    variation_results[vi] = result[0]
 
-            async def _stream_variation(vi: int):
-                config = GenerationConfig(
-                    style_prompt=style_prompt, subject=name,
-                    description=prompt if prompt != name else "",
-                    mode=GenerationMode.PRECISION, style=style,
-                    api_quality=api_quality, mood=mood,
-                )
-                try:
-                    async for partial_b64, final_img in provider.generate_stream(config):
-                        if partial_b64 is not None:
-                            _emit(job, "partial_image", {
-                                "index": idx, "variation": vi,
-                                "image": partial_b64,
-                            })
-                        if final_img is not None:
-                            variation_results[vi] = final_img
-                except Exception:
-                    result = await provider.generate(config)
-                    if result:
-                        variation_results[vi] = result[0]
+        await asyncio.gather(*[_stream_variation(vi) for vi in range(n_variations)])
 
-            await asyncio.gather(*[_stream_variation(vi) for vi in range(n_variations)])
+        images = [img for img in variation_results if img is not None]
+        if not images:
+            raise RuntimeError("All variations returned empty results")
+        raw_images = list(images)
+    except Exception as e:
+        msg = str(e)
+        state._db.update_queue_item(queue_id, attempts=queue_item.get("attempts", 0) + 1,
+                                    updated_at=datetime.now(timezone.utc).isoformat())
 
-            images = [img for img in variation_results if img is not None]
-            if not images:
-                raise RuntimeError("All variations returned empty results")
-            raw_images = list(images)
-            last_error = None
-            break  # Success
-        except Exception as e:
-            msg = str(e)
-            attempt += 1
-            state._db.update_queue_item(queue_id, attempts=attempt, updated_at=datetime.now(timezone.utc).isoformat())
+        if "401" in msg or "auth" in msg.lower() or "api key" in msg.lower():
+            raise  # Auth errors bubble up to stop the whole job
 
-            if "401" in msg or "auth" in msg.lower() or "api key" in msg.lower():
-                raise  # Auth errors are not retryable
-
-            last_error = msg
-            if _is_transient_error(msg) and retry < _MAX_RETRIES - 1:
-                delay = 2 ** (retry + 1)  # 2s, 4s, 8s
-                logging.warning(f"Transient error for '{name}', retry {retry + 1}/{_MAX_RETRIES} in {delay}s: {msg[:100]}")
-                _emit(job, "queue_update", {"queue_id": queue_id, "status": "retrying", "attempt": attempt, "delay": delay})
-                await asyncio.sleep(delay)
-                continue
-            break  # Non-transient error, don't retry
-
-    if last_error:
+        # No automatic retry — mark as failed, user retries manually
         now = datetime.now(timezone.utc).isoformat()
-        state._db.update_queue_item(queue_id, status="failed", error=last_error[:500], updated_at=now)
-        _emit(job, "queue_update", {"queue_id": queue_id, "status": "failed", "error": last_error[:200]})
-        _emit(job, "error", {"message": f"Generation failed: {last_error[:200]}", "name": name})
+        state._db.update_queue_item(queue_id, status="failed", error=msg[:500], updated_at=now)
+        _emit(job, "queue_update", {"queue_id": queue_id, "status": "failed", "error": msg[:200]})
+        _emit(job, "error", {"message": f"Generation failed: {msg[:200]}", "name": name})
         return (idx, None)
 
     _emit(job, "progress", {"index": idx, "total": total, "name": name,
