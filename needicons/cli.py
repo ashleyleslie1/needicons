@@ -109,15 +109,18 @@ def _cmd_verify(args):
     from PIL import Image
     from needicons.core.pipeline.signature import verify
 
-    # Default: check all PNGs in the verify/ folder
+    # Default: check all images in the verify/ folder
     if args.file:
         files = [Path(args.file)]
     else:
         verify_dir = Path(__file__).resolve().parent.parent / "verify"
-        files = sorted(verify_dir.glob("*.png"))
+        files = sorted(
+            f for ext in ("*.png", "*.webp", "*.jpg", "*.jpeg")
+            for f in verify_dir.glob(ext)
+        )
         if not files:
-            print(f"  No PNG files found in {verify_dir}")
-            print(f"  Drop a PNG into the verify/ folder and run again")
+            print(f"  No image files found in {verify_dir}")
+            print(f"  Drop images into the verify/ folder and run again")
             sys.exit(1)
 
     any_fail = False
