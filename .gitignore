@@ -43,7 +43,11 @@ docs/
 .superpowers/
 .playwright-mcp/
 
+# Verify folder (drop PNGs here to test signatures)
+verify/*.png
+
 # Test
+test-results/
 .pytest_cache/
 htmlcov/
 .coverage

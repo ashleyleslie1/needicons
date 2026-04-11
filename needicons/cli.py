@@ -104,23 +104,37 @@ def _start_vite_dev(backend_port: int):
 
 
 def _cmd_verify(args):
-    """Check processing signature on an image file."""
+    """Check processing signature on image file(s)."""
     from pathlib import Path
     from PIL import Image
     from needicons.core.pipeline.signature import verify
 
-    path = Path(args.file)
-    if not path.exists():
-        print(f"  File not found: {path}")
-        sys.exit(1)
-
-    img = Image.open(path)
-    result = verify(img)
-    if result:
-        print(f"  PASS — {path.name} has a valid processing signature")
+    # Default: check all PNGs in the verify/ folder
+    if args.file:
+        files = [Path(args.file)]
     else:
-        print(f"  FAIL — {path.name} has no valid signature")
-    sys.exit(0 if result else 1)
+        verify_dir = Path(__file__).resolve().parent.parent / "verify"
+        files = sorted(verify_dir.glob("*.png"))
+        if not files:
+            print(f"  No PNG files found in {verify_dir}")
+            print(f"  Drop a PNG into the verify/ folder and run again")
+            sys.exit(1)
+
+    any_fail = False
+    for path in files:
+        if not path.exists():
+            print(f"  File not found: {path}")
+            any_fail = True
+            continue
+        img = Image.open(path)
+        result = verify(img)
+        if result:
+            print(f"  PASS — {path.name}")
+        else:
+            print(f"  FAIL — {path.name}")
+            any_fail = True
+
+    sys.exit(1 if any_fail else 0)
 
 
 def main():
@@ -131,8 +145,8 @@ def main():
     sub = parser.add_subparsers(dest="command")
 
     # verify subcommand
-    verify_p = sub.add_parser("verify", help="Check processing signature on an exported image")
-    verify_p.add_argument("file", help="Path to PNG image file")
+    verify_p = sub.add_parser("verify", help="Check processing signature on exported images")
+    verify_p.add_argument("file", nargs="?", default=None, help="Path to PNG (default: all PNGs in verify/ folder)")
 
     # server flags (default command)
     parser.add_argument("--host", default="127.0.0.1", help="Host to bind to")
