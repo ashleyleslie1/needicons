@@ -174,7 +174,7 @@ export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpicke
                         <button
                           onClick={() => onDeleteGroupDuplicates(record.name, unpickedIds)}
                           disabled={isDeleting}
-                          className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-destructive hover:bg-destructive/10 transition-all disabled:opacity-50"
+                          className="flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium text-destructive bg-destructive/5 border border-destructive/20 hover:bg-destructive/15 hover:border-destructive/40 transition-all disabled:opacity-50"
                         >
                           <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
                             <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
@@ -186,7 +186,7 @@ export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpicke
                         <button
                           onClick={() => onDeleteGroupDuplicates(record.name, allExceptNewest)}
                           disabled={isDeleting}
-                          className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-destructive/70 hover:text-destructive hover:bg-destructive/10 transition-all disabled:opacity-50"
+                          className="flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium text-muted-foreground border border-border/50 hover:text-destructive hover:bg-destructive/10 hover:border-destructive/30 transition-all disabled:opacity-50"
                         >
                           Delete all ({allExceptNewest.length})
                         </button>
