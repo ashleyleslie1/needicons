@@ -117,8 +117,9 @@ async def _generate_one_streaming(provider, config):
     return partials, final
 
 
-_MAX_RETRIES = 3
+_MAX_RETRIES = 2  # Reduced from 3 to limit runaway costs
 _TRANSIENT_CODES = {"429", "500", "502", "503", "529"}
+_MAX_BATCH_SIZE_WARN = 50  # Warn if generating more than this many icons at once
 
 
 def _is_transient_error(msg: str) -> bool:
@@ -341,18 +342,24 @@ async def _run_generation(state, job: dict):
 
 
 def resume_jobs(state):
-    """Resume any jobs that were interrupted (called on app startup)."""
+    """Check for interrupted jobs on startup. Does NOT auto-resume — logs info only.
+
+    Auto-resuming caused runaway API costs when servers restarted repeatedly.
+    Users must explicitly retry via the UI or API.
+    """
     for job in list(state.jobs.values()):
         if job.get("status") == "resumable":
-            # Reset any 'generating' queue items back to 'pending' (interrupted mid-generation)
             queue_items = state._db.get_queue_items(job["id"])
+            pending = sum(1 for qi in queue_items if qi["status"] in ("pending", "generating"))
+            if pending > 0:
+                logging.info(f"Job {job['id']} has {pending} unfinished items. Use retry UI to resume.")
+            # Mark as paused, not running — user must explicitly resume
+            job["status"] = "paused"
             for qi in queue_items:
                 if qi["status"] == "generating":
                     state._db.update_queue_item(qi["id"], status="pending",
                                                 updated_at=datetime.now(timezone.utc).isoformat())
-            job["status"] = "running"
-            job["events"] = job.get("events", [])
-            asyncio.create_task(_run_generation(state, job))
+            state.save_jobs()
 
 
 def _reprocess_variation(original: Image.Image, record, gpu_provider: str = "auto") -> Image.Image:
@@ -450,6 +457,19 @@ async def generate_icons(request: Request):
         project.quality_preference = quality
 
     valid_prompts = [p for p in prompts if p.get("name")]
+
+    # Safety limit — prevent accidental massive API spend
+    max_icons = state.config.get("generation", {}).get("max_batch_size", 100)
+    if len(valid_prompts) > max_icons:
+        confirmed = body.get("confirm_large_batch", False)
+        if not confirmed:
+            est_cost = len(valid_prompts) * variations * 0.04  # rough estimate
+            raise HTTPException(
+                status_code=400,
+                detail=f"Batch too large: {len(valid_prompts)} icons x {variations} variations. "
+                       f"Estimated cost: ~${est_cost:.0f}. "
+                       f"Set max_batch_size in config or pass confirm_large_batch=true to proceed."
+            )
 
     job_id = _new_id()
     now = datetime.now(timezone.utc).isoformat()
