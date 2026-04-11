@@ -14,13 +14,14 @@ interface ResultsHistoryProps {
   onToggleDuplicates?: () => void;
   duplicateNameCount?: number;
   onDeleteDuplicates?: () => void;
+  onDeleteGroupDuplicates?: (name: string, recordIds: string[]) => void;
   isDeleting?: boolean;
   searchQuery?: string;
   onSearchChange?: (query: string) => void;
   totalCount?: number;
 }
 
-export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpickedOnly, onToggleUnpicked, showDuplicatesOnly, onToggleDuplicates, duplicateNameCount, onDeleteDuplicates, isDeleting, searchQuery, onSearchChange, totalCount }: ResultsHistoryProps) {
+export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpickedOnly, onToggleUnpicked, showDuplicatesOnly, onToggleDuplicates, duplicateNameCount, onDeleteDuplicates, onDeleteGroupDuplicates, isDeleting, searchQuery, onSearchChange, totalCount }: ResultsHistoryProps) {
   const [layout, setLayout] = useState<"list" | "grid">("list");
 
   if (records.length === 0 && !pendingCard && !showUnpickedOnly && !showDuplicatesOnly && !searchQuery) return null;
@@ -151,13 +152,35 @@ export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpicke
 
             return (
               <div key={record.id}>
-                {showGroupHeader && (
-                  <div className="flex items-center gap-2 mb-2 mt-4 first:mt-0">
-                    <span className="text-sm font-bold text-accent">{record.name}</span>
-                    <span className="text-xs text-muted-foreground font-medium">({groupCount}x)</span>
-                    <div className="flex-1 h-px bg-border/30" />
-                  </div>
-                )}
+                {showGroupHeader && (() => {
+                  const groupRecords = records.filter((r) => r.name.toLowerCase() === record.name.toLowerCase());
+                  const unpickedIds = groupRecords
+                    .filter((r) => !r.variations.some((v) => v.picked))
+                    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+                    .slice(1) // keep newest unpicked
+                    .map((r) => r.id);
+                  const deletableCount = unpickedIds.length;
+
+                  return (
+                    <div className="flex items-center gap-2 mb-2 mt-4 first:mt-0">
+                      <span className="text-sm font-bold text-accent">{record.name}</span>
+                      <span className="text-xs text-muted-foreground font-medium">({groupCount}x)</span>
+                      {onDeleteGroupDuplicates && deletableCount > 0 && (
+                        <button
+                          onClick={() => onDeleteGroupDuplicates(record.name, unpickedIds)}
+                          disabled={isDeleting}
+                          className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-destructive hover:bg-destructive/10 transition-all disabled:opacity-50"
+                        >
+                          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                            <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+                          </svg>
+                          Delete {deletableCount}
+                        </button>
+                      )}
+                      <div className="flex-1 h-px bg-border/30" />
+                    </div>
+                  );
+                })()}
                 <GenerationRow
                   record={record}
                   layout={layout}

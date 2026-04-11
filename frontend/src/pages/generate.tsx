@@ -146,6 +146,22 @@ export function GeneratePage() {
     }
   }
 
+  async function handleDeleteGroupDuplicates(name: string, recordIds: string[]) {
+    if (!confirm(`Delete ${recordIds.length} duplicate entries for "${name}"? Picked entries are kept.`)) return;
+    setIsDeletingDupes(true);
+    try {
+      for (const id of recordIds) {
+        await api.deleteGeneration(id);
+      }
+      qc.invalidateQueries({ queryKey: ["generation-history"] });
+      qc.invalidateQueries({ queryKey: ["projects"] });
+    } catch {
+      alert("Failed to delete some entries.");
+    } finally {
+      setIsDeletingDupes(false);
+    }
+  }
+
   async function confirmDeleteDuplicates() {
     if (!activeProjectId) return;
     setIsDeletingDupes(true);
@@ -309,6 +325,7 @@ export function GeneratePage() {
               onToggleDuplicates={() => { setShowDuplicatesOnly(!showDuplicatesOnly); if (!showDuplicatesOnly) setShowUnpickedOnly(false); scrollToTop(); }}
               duplicateNameCount={duplicateNames.size}
               onDeleteDuplicates={handleDeleteDuplicates}
+              onDeleteGroupDuplicates={handleDeleteGroupDuplicates}
               isDeleting={isDeletingDupes}
               searchQuery={searchQuery}
               onSearchChange={(q) => { setSearchQuery(q); if (q) scrollToTop(); }}
