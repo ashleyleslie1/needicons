@@ -103,17 +103,48 @@ def _start_vite_dev(backend_port: int):
     return proc
 
 
+def _cmd_verify(args):
+    """Check processing signature on an image file."""
+    from pathlib import Path
+    from PIL import Image
+    from needicons.core.pipeline.signature import verify
+
+    path = Path(args.file)
+    if not path.exists():
+        print(f"  File not found: {path}")
+        sys.exit(1)
+
+    img = Image.open(path)
+    result = verify(img)
+    if result:
+        print(f"  PASS — {path.name} has a valid processing signature")
+    else:
+        print(f"  FAIL — {path.name} has no valid signature")
+    sys.exit(0 if result else 1)
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="needicons",
         description="NeedIcons — AI-powered icon pack generator",
     )
+    sub = parser.add_subparsers(dest="command")
+
+    # verify subcommand
+    verify_p = sub.add_parser("verify", help="Check processing signature on an exported image")
+    verify_p.add_argument("file", help="Path to PNG image file")
+
+    # server flags (default command)
     parser.add_argument("--host", default="127.0.0.1", help="Host to bind to")
     parser.add_argument("--port", type=int, default=8420, help="Preferred port (auto-finds open port if busy)")
     parser.add_argument("--data-dir", default=None, help="Data directory path")
     parser.add_argument("--dev", action="store_true", help="Start Vite dev server alongside backend (hot reload)")
 
     args = parser.parse_args()
+
+    if args.command == "verify":
+        _cmd_verify(args)
+        return
 
     # Kill any existing NeedIcons processes
     _kill_existing_needicons()
