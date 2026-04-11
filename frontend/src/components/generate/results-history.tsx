@@ -15,10 +15,10 @@ interface ResultsHistoryProps {
   totalCount?: number;
 }
 
-export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpickedOnly, onToggleUnpicked, showDuplicatesOnly, onToggleDuplicates }: ResultsHistoryProps) {
+export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpickedOnly, onToggleUnpicked, showDuplicatesOnly, onToggleDuplicates, totalCount }: ResultsHistoryProps) {
   const [layout, setLayout] = useState<"list" | "grid">("list");
 
-  if (records.length === 0 && !pendingCard && !showUnpickedOnly) return null;
+  if (records.length === 0 && !pendingCard && !showUnpickedOnly && !showDuplicatesOnly) return null;
 
   return (
     <div>
@@ -86,6 +86,13 @@ export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpicke
         </div>
       </div>
 
+      {/* Active filter indicator */}
+      {(showUnpickedOnly || showDuplicatesOnly) && records.length > 0 && (
+        <p className="text-[11px] text-muted-foreground mb-2">
+          Showing {records.length} of {totalCount ?? records.length} results
+        </p>
+      )}
+
       <div className={cn(
         layout === "list"
           ? "flex flex-col gap-4"
@@ -93,9 +100,9 @@ export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpicke
       )}>
         {pendingCard}
 
-        {records.length === 0 && showUnpickedOnly ? (
+        {records.length === 0 && (showUnpickedOnly || showDuplicatesOnly) ? (
           <div className="text-center py-8 text-sm text-muted-foreground">
-            All icons have been picked
+            {showUnpickedOnly ? "All icons have been picked" : "No duplicate names found"}
           </div>
         ) : (
           records.map((record) => (

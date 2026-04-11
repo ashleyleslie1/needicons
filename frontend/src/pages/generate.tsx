@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useCallback } from "react";
 import { useSidebar } from "@/hooks/ui/use-sidebar";
 import { useGenerateIcons } from "@/hooks/api/use-generate-v2";
 import { api } from "@/lib/api-client";
@@ -118,6 +118,13 @@ export function GeneratePage() {
   const progress = gen.progress;
   const partials = gen.partialImages;
   const lastDone = gen.lastDone;
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const scrollToTop = useCallback(() => {
+    // ScrollArea uses a viewport div — scroll it to top
+    const viewport = scrollRef.current?.querySelector("[data-radix-scroll-area-viewport]");
+    if (viewport) viewport.scrollTop = 0;
+  }, []);
 
   async function handleRetryAllFailed() {
     const jobId = gen.lastJobId;
@@ -219,7 +226,7 @@ export function GeneratePage() {
       </div>
 
       {/* RIGHT PANEL - Results */}
-      <ScrollArea className="flex-1 min-w-0">
+      <ScrollArea className="flex-1 min-w-0" ref={scrollRef}>
         <div className="p-4 space-y-4">
           {/* Failed generation banner */}
           {lastDone && lastDone.failed > 0 && !dismissedFailBanner && (
@@ -255,9 +262,9 @@ export function GeneratePage() {
                   : history
               }
               showUnpickedOnly={showUnpickedOnly}
-              onToggleUnpicked={() => { setShowUnpickedOnly(!showUnpickedOnly); if (!showUnpickedOnly) setShowDuplicatesOnly(false); }}
+              onToggleUnpicked={() => { setShowUnpickedOnly(!showUnpickedOnly); if (!showUnpickedOnly) setShowDuplicatesOnly(false); scrollToTop(); }}
               showDuplicatesOnly={showDuplicatesOnly}
-              onToggleDuplicates={() => { setShowDuplicatesOnly(!showDuplicatesOnly); if (!showDuplicatesOnly) setShowUnpickedOnly(false); }}
+              onToggleDuplicates={() => { setShowDuplicatesOnly(!showDuplicatesOnly); if (!showDuplicatesOnly) setShowUnpickedOnly(false); scrollToTop(); }}
               totalCount={history.length}
               pendingCard={gen.isPending ? (
                 <div className="rounded-xl border border-border/50 bg-card/60 backdrop-blur-md p-3 space-y-2">
