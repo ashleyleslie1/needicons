@@ -26,12 +26,10 @@ export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpicke
     <div>
       {/* View toggle + filter */}
       <div className="mb-4 flex items-center gap-2">
-        {/* Result count — left side when filter active */}
-        {(showUnpickedOnly || showDuplicatesOnly || searchQuery) && (
-          <span className="text-[11px] text-muted-foreground shrink-0">
-            {records.length} of {totalCount ?? records.length}
-          </span>
-        )}
+        {/* Result count */}
+        <span className="text-[11px] text-muted-foreground shrink-0">
+          {records.length} of {totalCount ?? records.length}
+        </span>
 
         {/* Search */}
         {onSearchChange && (
