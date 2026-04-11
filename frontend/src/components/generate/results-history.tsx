@@ -12,12 +12,13 @@ interface ResultsHistoryProps {
   onToggleUnpicked?: () => void;
   showDuplicatesOnly?: boolean;
   onToggleDuplicates?: () => void;
+  duplicateNameCount?: number;
   searchQuery?: string;
   onSearchChange?: (query: string) => void;
   totalCount?: number;
 }
 
-export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpickedOnly, onToggleUnpicked, showDuplicatesOnly, onToggleDuplicates, searchQuery, onSearchChange, totalCount }: ResultsHistoryProps) {
+export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpickedOnly, onToggleUnpicked, showDuplicatesOnly, onToggleDuplicates, duplicateNameCount, searchQuery, onSearchChange, totalCount }: ResultsHistoryProps) {
   const [layout, setLayout] = useState<"list" | "grid">("list");
 
   if (records.length === 0 && !pendingCard && !showUnpickedOnly && !showDuplicatesOnly && !searchQuery) return null;
@@ -82,7 +83,9 @@ export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpicke
               <rect x="3" y="3" width="7" height="7" rx="1" />
               <rect x="14" y="3" width="7" height="7" rx="1" />
             </svg>
-            {showDuplicatesOnly ? `Duplicates (${records.length})` : "Show duplicates"}
+            {showDuplicatesOnly
+              ? `Duplicates — ${duplicateNameCount ?? 0} names, ${records.length} entries`
+              : "Show duplicates"}
           </button>
         )}
 
