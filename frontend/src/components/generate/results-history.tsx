@@ -12,13 +12,15 @@ interface ResultsHistoryProps {
   onToggleUnpicked?: () => void;
   showDuplicatesOnly?: boolean;
   onToggleDuplicates?: () => void;
+  searchQuery?: string;
+  onSearchChange?: (query: string) => void;
   totalCount?: number;
 }
 
-export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpickedOnly, onToggleUnpicked, showDuplicatesOnly, onToggleDuplicates, totalCount }: ResultsHistoryProps) {
+export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpickedOnly, onToggleUnpicked, showDuplicatesOnly, onToggleDuplicates, searchQuery, onSearchChange, totalCount }: ResultsHistoryProps) {
   const [layout, setLayout] = useState<"list" | "grid">("list");
 
-  if (records.length === 0 && !pendingCard && !showUnpickedOnly && !showDuplicatesOnly) return null;
+  if (records.length === 0 && !pendingCard && !showUnpickedOnly && !showDuplicatesOnly && !searchQuery) return null;
 
   return (
     <div>
@@ -62,7 +64,24 @@ export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpicke
           </button>
         )}
 
-        <div className="ml-auto flex items-center gap-1">
+        {/* Search */}
+        {onSearchChange && (
+          <div className="relative ml-auto mr-2">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground">
+              <circle cx="11" cy="11" r="8" />
+              <path d="M21 21l-4.3-4.3" />
+            </svg>
+            <input
+              type="text"
+              value={searchQuery ?? ""}
+              onChange={(e) => onSearchChange(e.target.value)}
+              placeholder="Search..."
+              className="h-7 w-40 rounded-lg border border-border/50 bg-input pl-7 pr-2 text-[11px] text-foreground placeholder:text-muted-foreground focus:border-accent/50 focus:outline-none focus:ring-1 focus:ring-accent/20 transition-all"
+            />
+          </div>
+        )}
+
+        <div className="flex items-center gap-1">
           <button
             onClick={() => setLayout("list")}
             className={cn(
@@ -87,7 +106,7 @@ export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpicke
       </div>
 
       {/* Active filter indicator */}
-      {(showUnpickedOnly || showDuplicatesOnly) && records.length > 0 && (
+      {(showUnpickedOnly || showDuplicatesOnly || searchQuery) && records.length > 0 && (
         <p className="text-[11px] text-muted-foreground mb-2">
           Showing {records.length} of {totalCount ?? records.length} results
         </p>
@@ -105,14 +124,31 @@ export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpicke
             {showUnpickedOnly ? "All icons have been picked" : "No duplicate names found"}
           </div>
         ) : (
-          records.map((record) => (
-            <GenerationRow
-              key={record.id}
-              record={record}
-              layout={layout}
-              onRegenerate={onRegenerate}
-            />
-          ))
+          records.map((record, i) => {
+            // Show name group header when duplicates filter is active and name changes
+            const prevName = i > 0 ? records[i - 1].name.toLowerCase() : null;
+            const showGroupHeader = showDuplicatesOnly && record.name.toLowerCase() !== prevName;
+            const groupCount = showDuplicatesOnly
+              ? records.filter((r) => r.name.toLowerCase() === record.name.toLowerCase()).length
+              : 0;
+
+            return (
+              <div key={record.id}>
+                {showGroupHeader && (
+                  <div className="flex items-center gap-2 mb-1 mt-3 first:mt-0">
+                    <span className="text-[11px] font-semibold text-accent">{record.name}</span>
+                    <span className="text-[10px] text-muted-foreground">({groupCount}x)</span>
+                    <div className="flex-1 h-px bg-border/30" />
+                  </div>
+                )}
+                <GenerationRow
+                  record={record}
+                  layout={layout}
+                  onRegenerate={onRegenerate}
+                />
+              </div>
+            );
+          })
         )}
       </div>
     </div>

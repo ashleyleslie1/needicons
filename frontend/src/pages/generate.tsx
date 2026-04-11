@@ -52,6 +52,7 @@ export function GeneratePage() {
   const [variations, setVariations] = useState(4);
   const [showUnpickedOnly, setShowUnpickedOnly] = useState(false);
   const [showDuplicatesOnly, setShowDuplicatesOnly] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
   const [dismissedFailBanner, setDismissedFailBanner] = useState(false);
   const [duplicateWarning, setDuplicateWarning] = useState<{ duplicates: string[]; prompts: Array<{ name: string; prompt: string }> } | null>(null);
@@ -254,17 +255,25 @@ export function GeneratePage() {
 
           {history && history.length > 0 ? (
             <ResultsHistory
-              records={
-                showUnpickedOnly
-                  ? history.filter((r) => !r.variations.some((v) => v.picked))
-                  : showDuplicatesOnly
-                  ? history.filter((r) => duplicateNames.has(r.name.toLowerCase()))
-                  : history
-              }
+              records={(() => {
+                let filtered = history;
+                if (showUnpickedOnly) filtered = filtered.filter((r) => !r.variations.some((v) => v.picked));
+                if (showDuplicatesOnly) {
+                  filtered = filtered.filter((r) => duplicateNames.has(r.name.toLowerCase()));
+                  filtered = [...filtered].sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
+                }
+                if (searchQuery) {
+                  const q = searchQuery.toLowerCase();
+                  filtered = filtered.filter((r) => r.name.toLowerCase().includes(q) || r.prompt.toLowerCase().includes(q));
+                }
+                return filtered;
+              })()}
               showUnpickedOnly={showUnpickedOnly}
               onToggleUnpicked={() => { setShowUnpickedOnly(!showUnpickedOnly); if (!showUnpickedOnly) setShowDuplicatesOnly(false); scrollToTop(); }}
               showDuplicatesOnly={showDuplicatesOnly}
               onToggleDuplicates={() => { setShowDuplicatesOnly(!showDuplicatesOnly); if (!showDuplicatesOnly) setShowUnpickedOnly(false); scrollToTop(); }}
+              searchQuery={searchQuery}
+              onSearchChange={(q) => { setSearchQuery(q); if (q) scrollToTop(); }}
               totalCount={history.length}
               pendingCard={gen.isPending ? (
                 <div className="rounded-xl border border-border/50 bg-card/60 backdrop-blur-md p-3 space-y-2">
