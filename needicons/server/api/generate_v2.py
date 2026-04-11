@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 import io
 import json
+import logging
+from datetime import datetime, timezone
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import StreamingResponse
 from PIL import Image
@@ -115,11 +117,32 @@ async def _generate_one_streaming(provider, config):
     return partials, final
 
 
-async def _generate_one(state, job, provider, item, idx, total, style, quality, style_prompt,
-                         project_id, default_model, api_quality, mood, ai_enhance, gpu_provider):
-    """Generate a single icon (one prompt) with partial image streaming. Returns (idx, record) or (idx, None) on failure."""
-    name = item["name"]
-    prompt = item.get("prompt", name)
+_MAX_RETRIES = 3
+_TRANSIENT_CODES = {"429", "500", "502", "503", "529"}
+
+
+def _is_transient_error(msg: str) -> bool:
+    """Check if an error is transient and worth retrying."""
+    for code in _TRANSIENT_CODES:
+        if code in msg:
+            return True
+    lower = msg.lower()
+    return any(kw in lower for kw in ("rate_limit", "rate limit", "overloaded", "timeout", "timed out"))
+
+
+async def _generate_one(state, job, provider, queue_item, total, style, quality, style_prompt,
+                         project_id, default_model, api_quality, mood, ai_enhance, gpu_provider,
+                         n_variations=4):
+    """Generate a single icon (one prompt) with partial image streaming + retry. Returns (idx, record) or (idx, None) on failure."""
+    idx = queue_item["idx"]
+    name = queue_item["name"]
+    prompt = queue_item["prompt"]
+    queue_id = queue_item["id"]
+    now = datetime.now(timezone.utc).isoformat()
+
+    # Mark as generating in queue
+    state._db.update_queue_item(queue_id, status="generating", updated_at=now)
+    _emit(job, "queue_update", {"queue_id": queue_id, "status": "generating"})
 
     _emit(job, "progress", {"index": idx, "total": total, "name": name,
            "status": "enhancing" if ai_enhance else "generating",
@@ -129,18 +152,16 @@ async def _generate_one(state, job, provider, item, idx, total, style, quality, 
     if ai_enhance and api_key:
         try:
             enhanced = await enhance_prompt(
-                subject=item["name"],
-                description=item.get("prompt", ""),
+                subject=name,
+                description=prompt if prompt != name else "",
                 style=style.value,
                 mood=mood,
                 style_prompt=style_prompt,
                 api_key=api_key,
             )
             if enhanced:
-                item["prompt"] = enhanced
                 prompt = enhanced
         except Exception as e:
-            import logging
             logging.warning(f"AI enhance failed: {e}")
 
     if ai_enhance:
@@ -153,42 +174,64 @@ async def _generate_one(state, job, provider, item, idx, total, style, quality, 
         mood=mood, ai_enhance=ai_enhance,
     )
 
-    try:
-        # Generate 4 variations in parallel, each streaming partial images
-        n_variations = 4 if quality == QualityMode.NORMAL else 1
-        variation_results: list[Image.Image | None] = [None] * n_variations
+    attempt = queue_item.get("attempts", 0)
+    last_error = None
 
-        async def _stream_variation(vi: int):
-            config = GenerationConfig(
-                style_prompt=style_prompt, subject=name,
-                description=prompt if prompt != name else "",
-                mode=GenerationMode.PRECISION, style=style,
-                api_quality=api_quality, mood=mood,
-            )
-            try:
-                async for partial_b64, final_img in provider.generate_stream(config):
-                    if partial_b64 is not None:
-                        _emit(job, "partial_image", {
-                            "index": idx, "variation": vi,
-                            "image": partial_b64,
-                        })
-                    if final_img is not None:
-                        variation_results[vi] = final_img
-            except Exception:
-                # Fall back to non-streaming
-                result = await provider.generate(config)
-                if result:
-                    variation_results[vi] = result[0]
+    for retry in range(max(1, _MAX_RETRIES - attempt)):
+        try:
+            variation_results: list[Image.Image | None] = [None] * n_variations
 
-        await asyncio.gather(*[_stream_variation(vi) for vi in range(n_variations)])
+            async def _stream_variation(vi: int):
+                config = GenerationConfig(
+                    style_prompt=style_prompt, subject=name,
+                    description=prompt if prompt != name else "",
+                    mode=GenerationMode.PRECISION, style=style,
+                    api_quality=api_quality, mood=mood,
+                )
+                try:
+                    async for partial_b64, final_img in provider.generate_stream(config):
+                        if partial_b64 is not None:
+                            _emit(job, "partial_image", {
+                                "index": idx, "variation": vi,
+                                "image": partial_b64,
+                            })
+                        if final_img is not None:
+                            variation_results[vi] = final_img
+                except Exception:
+                    result = await provider.generate(config)
+                    if result:
+                        variation_results[vi] = result[0]
 
-        images = [img for img in variation_results if img is not None]
-        raw_images = list(images)
-    except Exception as e:
-        msg = str(e)
-        if "401" in msg or "auth" in msg.lower() or "api key" in msg.lower():
-            raise
-        _emit(job, "error", {"message": f"Generation failed: {msg[:200]}", "name": name})
+            await asyncio.gather(*[_stream_variation(vi) for vi in range(n_variations)])
+
+            images = [img for img in variation_results if img is not None]
+            if not images:
+                raise RuntimeError("All variations returned empty results")
+            raw_images = list(images)
+            last_error = None
+            break  # Success
+        except Exception as e:
+            msg = str(e)
+            attempt += 1
+            state._db.update_queue_item(queue_id, attempts=attempt, updated_at=datetime.now(timezone.utc).isoformat())
+
+            if "401" in msg or "auth" in msg.lower() or "api key" in msg.lower():
+                raise  # Auth errors are not retryable
+
+            last_error = msg
+            if _is_transient_error(msg) and retry < _MAX_RETRIES - 1:
+                delay = 2 ** (retry + 1)  # 2s, 4s, 8s
+                logging.warning(f"Transient error for '{name}', retry {retry + 1}/{_MAX_RETRIES} in {delay}s: {msg[:100]}")
+                _emit(job, "queue_update", {"queue_id": queue_id, "status": "retrying", "attempt": attempt, "delay": delay})
+                await asyncio.sleep(delay)
+                continue
+            break  # Non-transient error, don't retry
+
+    if last_error:
+        now = datetime.now(timezone.utc).isoformat()
+        state._db.update_queue_item(queue_id, status="failed", error=last_error[:500], updated_at=now)
+        _emit(job, "queue_update", {"queue_id": queue_id, "status": "failed", "error": last_error[:200]})
+        _emit(job, "error", {"message": f"Generation failed: {last_error[:200]}", "name": name})
         return (idx, None)
 
     _emit(job, "progress", {"index": idx, "total": total, "name": name,
@@ -209,13 +252,17 @@ async def _generate_one(state, job, provider, item, idx, total, style, quality, 
             index=i, source_path=source_path, preview_path=preview_path,
         ))
 
+    # Mark queue item as completed
+    now = datetime.now(timezone.utc).isoformat()
+    state._db.update_queue_item(queue_id, status="completed", record_id=record.id, updated_at=now)
+    _emit(job, "queue_update", {"queue_id": queue_id, "status": "completed", "record_id": record.id})
+
     return (idx, record)
 
 
 async def _run_generation(state, job: dict):
-    """Background task: generate icons in batches of 10 concurrent API calls."""
+    """Background task: generate icons in batches of 10 concurrent API calls, driven by queue."""
     params = job["params"]
-    prompts = params["prompts"]
     style = IconStyle(params["style"])
     quality = QualityMode(params["quality"])
     project_id = params.get("project_id", "")
@@ -223,8 +270,8 @@ async def _run_generation(state, job: dict):
     api_quality = params.get("api_quality", "")
     mood = params.get("mood", "")
     ai_enhance = params.get("ai_enhance", False)
+    n_variations = params.get("variations", 4)
     style_prompt = ""
-    completed_idx = job.get("completed_idx", -1)
     gpu_provider = state.config.get("gpu", {}).get("provider", "auto")
 
     api_key = get_api_key(state)
@@ -237,10 +284,10 @@ async def _run_generation(state, job: dict):
         return
 
     provider = OpenAIProvider(api_key=api_key, default_model=default_model)
-    total = len(prompts)
 
-    # Filter to remaining prompts
-    remaining = [(idx, item) for idx, item in enumerate(prompts) if idx > completed_idx]
+    # Load pending items from queue (supports resume after crash)
+    remaining = state._db.get_pending_queue_items(job["id"])
+    total = job.get("total", len(remaining))
 
     # Process in batches of _BATCH_SIZE
     for batch_start in range(0, len(remaining), _BATCH_SIZE):
@@ -248,10 +295,10 @@ async def _run_generation(state, job: dict):
 
         try:
             results = await asyncio.gather(*[
-                _generate_one(state, job, provider, item, idx, total, style, quality,
+                _generate_one(state, job, provider, qi, total, style, quality,
                               style_prompt, project_id, default_model, api_quality,
-                              mood, ai_enhance, gpu_provider)
-                for idx, item in batch
+                              mood, ai_enhance, gpu_provider, n_variations)
+                for qi in batch
             ], return_exceptions=True)
         except Exception:
             results = []
@@ -279,9 +326,15 @@ async def _run_generation(state, job: dict):
         asyncio.create_task(asyncio.to_thread(state.save_data))
         state.save_jobs()
 
-    _emit(job, "done", {"total": total})
+    # Compute final stats from queue
+    all_items = state._db.get_queue_items(job["id"])
+    completed_count = sum(1 for i in all_items if i["status"] == "completed")
+    failed_count = sum(1 for i in all_items if i["status"] == "failed")
+
+    _emit(job, "done", {"total": total, "completed": completed_count, "failed": failed_count})
     job["status"] = "completed"
-    # Clean up after a short delay (let SSE clients read final events)
+    # Clean up job after a short delay (let SSE clients read final events)
+    # Queue data stays in SQLite for retry/review
     await asyncio.sleep(5)
     state.jobs.pop(job["id"], None)
     state.save_jobs()
@@ -289,9 +342,16 @@ async def _run_generation(state, job: dict):
 
 def resume_jobs(state):
     """Resume any jobs that were interrupted (called on app startup)."""
-    for job in state.jobs.values():
+    for job in list(state.jobs.values()):
         if job.get("status") == "resumable":
+            # Reset any 'generating' queue items back to 'pending' (interrupted mid-generation)
+            queue_items = state._db.get_queue_items(job["id"])
+            for qi in queue_items:
+                if qi["status"] == "generating":
+                    state._db.update_queue_item(qi["id"], status="pending",
+                                                updated_at=datetime.now(timezone.utc).isoformat())
             job["status"] = "running"
+            job["events"] = job.get("events", [])
             asyncio.create_task(_run_generation(state, job))
 
 
@@ -375,6 +435,7 @@ async def generate_icons(request: Request):
     api_quality = body.get("api_quality", "")
     mood = body.get("mood", "")
     ai_enhance = body.get("ai_enhance", False)
+    variations = max(1, min(4, body.get("variations", 4)))
 
     api_key = get_api_key(state)
     if not api_key:
@@ -391,10 +452,35 @@ async def generate_icons(request: Request):
     valid_prompts = [p for p in prompts if p.get("name")]
 
     job_id = _new_id()
+    now = datetime.now(timezone.utc).isoformat()
+
+    # Insert all prompts into generation queue for persistence/recovery
+    queue_items = []
+    for idx, item in enumerate(valid_prompts):
+        queue_items.append({
+            "id": _new_id(),
+            "job_id": job_id,
+            "project_id": project_id or "",
+            "idx": idx,
+            "name": item["name"],
+            "prompt": item.get("prompt", item["name"]),
+            "style": style.value,
+            "model": default_model,
+            "api_quality": api_quality,
+            "mood": mood,
+            "ai_enhance": ai_enhance,
+            "variations": variations,
+            "status": "pending",
+            "created_at": now,
+            "updated_at": now,
+        })
+    state._db.insert_queue_items(queue_items)
+
     job = {
         "id": job_id,
         "status": "running",
         "project_id": project_id,
+        "total": len(valid_prompts),
         "params": {
             "prompts": valid_prompts,
             "style": style.value,
@@ -404,6 +490,7 @@ async def generate_icons(request: Request):
             "api_quality": api_quality,
             "mood": mood,
             "ai_enhance": ai_enhance,
+            "variations": variations,
         },
         "completed_idx": -1,
         "events": [],
@@ -452,6 +539,112 @@ async def get_active_jobs(request: Request):
         if j.get("status") in ("running", "resumable")
     ]
     return active
+
+
+@router.get("/api/generate/queue/{job_id}")
+async def get_queue_status(job_id: str, request: Request):
+    """Get per-icon queue status for a generation job."""
+    state = request.app.state.app_state
+    items = state._db.get_queue_items(job_id)
+    if not items:
+        raise HTTPException(status_code=404, detail="No queue items found for this job")
+    summary = {
+        "job_id": job_id,
+        "total": len(items),
+        "completed": sum(1 for i in items if i["status"] == "completed"),
+        "failed": sum(1 for i in items if i["status"] == "failed"),
+        "pending": sum(1 for i in items if i["status"] in ("pending", "generating")),
+        "items": items,
+    }
+    return summary
+
+
+@router.post("/api/generate/queue/{item_id}/retry")
+async def retry_queue_item(item_id: str, request: Request):
+    """Retry a single failed queue item."""
+    state = request.app.state.app_state
+    item = state._db.get_queue_item(item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Queue item not found")
+    if item["status"] != "failed":
+        raise HTTPException(status_code=400, detail="Only failed items can be retried")
+
+    # Reset item to pending
+    now = datetime.now(timezone.utc).isoformat()
+    state._db.update_queue_item(item_id, status="pending", error=None, updated_at=now)
+
+    # Check if a job exists for this; if not, create one
+    job_id = item["job_id"]
+    job = state.jobs.get(job_id)
+    if not job or job.get("status") not in ("running",):
+        # Create a new retry job
+        job = {
+            "id": job_id,
+            "status": "running",
+            "project_id": item["project_id"],
+            "total": 1,
+            "params": {
+                "prompts": [{"name": item["name"], "prompt": item["prompt"]}],
+                "style": item["style"],
+                "quality": "normal",
+                "model": item["model"],
+                "project_id": item["project_id"],
+                "api_quality": item.get("api_quality", ""),
+                "mood": item.get("mood", ""),
+                "ai_enhance": bool(item.get("ai_enhance", 0)),
+                "variations": item.get("variations", 4),
+            },
+            "completed_idx": -1,
+            "events": [],
+        }
+        state.jobs[job_id] = job
+        state.save_jobs()
+        asyncio.create_task(_run_generation(state, job))
+
+    return {"status": "retrying", "job_id": job_id, "item_id": item_id}
+
+
+@router.post("/api/generate/queue/{job_id}/retry-all")
+async def retry_all_failed(job_id: str, request: Request):
+    """Retry all failed items in a job's queue."""
+    state = request.app.state.app_state
+    items = state._db.get_queue_items(job_id)
+    failed = [i for i in items if i["status"] == "failed"]
+    if not failed:
+        raise HTTPException(status_code=400, detail="No failed items to retry")
+
+    now = datetime.now(timezone.utc).isoformat()
+    for item in failed:
+        state._db.update_queue_item(item["id"], status="pending", error=None, updated_at=now)
+
+    # Create/reuse job
+    job = state.jobs.get(job_id)
+    if not job or job.get("status") not in ("running",):
+        first = failed[0]
+        job = {
+            "id": job_id,
+            "status": "running",
+            "project_id": first["project_id"],
+            "total": len(failed),
+            "params": {
+                "prompts": [{"name": i["name"], "prompt": i["prompt"]} for i in failed],
+                "style": first["style"],
+                "quality": "normal",
+                "model": first["model"],
+                "project_id": first["project_id"],
+                "api_quality": first.get("api_quality", ""),
+                "mood": first.get("mood", ""),
+                "ai_enhance": bool(first.get("ai_enhance", 0)),
+                "variations": first.get("variations", 4),
+            },
+            "completed_idx": -1,
+            "events": [],
+        }
+        state.jobs[job_id] = job
+        state.save_jobs()
+        asyncio.create_task(_run_generation(state, job))
+
+    return {"status": "retrying", "job_id": job_id, "count": len(failed)}
 
 
 @router.post("/api/generations/{gen_id}/pick/{variation_index}")

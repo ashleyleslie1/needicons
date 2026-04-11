@@ -9,7 +9,9 @@ export function ProjectSidebar() {
   const { activeProjectId, setActiveProjectId } = useSidebar();
 
   useEffect(() => {
-    if (!activeProjectId && projects && projects.length > 0) {
+    if (!projects || projects.length === 0) return;
+    // If no active project or stored ID doesn't match any project, select first
+    if (!activeProjectId || !projects.some((p) => p.id === activeProjectId)) {
       setActiveProjectId(projects[0].id);
     }
   }, [activeProjectId, projects, setActiveProjectId]);

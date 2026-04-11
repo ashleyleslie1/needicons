@@ -11,6 +11,7 @@ import type {
   ExportProjectRequest,
   ExportJobStatus,
   ModelCapabilities,
+  QueueStatus,
 } from "./types";
 
 export class ApiError extends Error {
@@ -198,6 +199,7 @@ export const api = {
     es.addEventListener("progress", handler);
     es.addEventListener("partial_image", handler);
     es.addEventListener("record", handler);
+    es.addEventListener("queue_update", handler);
     es.addEventListener("error", handler);
     es.addEventListener("done", (e) => {
       try {
@@ -411,5 +413,22 @@ export const api = {
 
   getRefreshStatus(projectId: string, jobId: string): Promise<{ status: string; completed: number; total: number }> {
     return request<{ status: string; completed: number; total: number }>(`/projects/${projectId}/refresh-previews/${jobId}`);
+  },
+
+  // Generation Queue
+  getQueueStatus(jobId: string): Promise<QueueStatus> {
+    return request<QueueStatus>(`/generate/queue/${jobId}`);
+  },
+
+  retryQueueItem(itemId: string): Promise<{ status: string; job_id: string; item_id: string }> {
+    return request<{ status: string; job_id: string; item_id: string }>(`/generate/queue/${itemId}/retry`, {
+      method: "POST",
+    });
+  },
+
+  retryAllFailed(jobId: string): Promise<{ status: string; job_id: string; count: number }> {
+    return request<{ status: string; job_id: string; count: number }>(`/generate/queue/${jobId}/retry-all`, {
+      method: "POST",
+    });
   },
 };

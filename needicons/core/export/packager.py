@@ -7,6 +7,7 @@ import zipfile
 from datetime import datetime, timezone
 from PIL import Image
 from needicons.core.pipeline.resize import resize_multi
+from needicons.core.pipeline.signature import encode as _sign
 
 
 def _simplify_path_precision(svg_str: str, precision: int = 1) -> str:
@@ -335,12 +336,14 @@ def build_zip(
 
             for fmt in raster_formats:
                 for size, img in resized.items():
+                    # Tag processed images with pipeline signature
+                    out = _sign(img) if fmt == "png" else img
                     img_buf = io.BytesIO()
                     save_format = "PNG" if fmt == "png" else fmt.upper()
                     if save_format == "WEBP":
-                        img.save(img_buf, format="WEBP", lossless=True)
+                        out.save(img_buf, format="WEBP", lossless=True)
                     else:
-                        img.save(img_buf, format=save_format)
+                        out.save(img_buf, format=save_format)
                     zf.writestr(f"{fmt}/{size}/{name}.{fmt}", img_buf.getvalue())
 
             if has_svg:

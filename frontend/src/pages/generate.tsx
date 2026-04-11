@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useSidebar } from "@/hooks/ui/use-sidebar";
 import { useGenerateIcons } from "@/hooks/api/use-generate-v2";
+import { api } from "@/lib/api-client";
 import { useGenerationHistory } from "@/hooks/api/use-generation-history";
 import { useProject } from "@/hooks/api/use-projects";
 import { useSettings } from "@/hooks/api/use-settings";
@@ -10,10 +11,12 @@ import { ModelDropdown } from "@/components/generate/model-dropdown";
 import { QualityToggle } from "@/components/generate/quality-toggle";
 import { ResultsHistory } from "@/components/generate/results-history";
 import { ApiKeyModal } from "@/components/generation/api-key-modal";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { cn } from "@/lib/utils";
 import type { IconStyle } from "@/lib/types";
 
 function parsePrompts(input: string): Array<{ name: string; prompt: string }> {
@@ -46,17 +49,38 @@ export function GeneratePage() {
   const [quality, setQuality] = useState("");
   const [mood, setMood] = useState("none");
   const [aiEnhance, setAiEnhance] = useState(false);
+  const [variations, setVariations] = useState(4);
+  const [showUnpickedOnly, setShowUnpickedOnly] = useState(false);
+  const [showDuplicatesOnly, setShowDuplicatesOnly] = useState(false);
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+  const [dismissedFailBanner, setDismissedFailBanner] = useState(false);
+  const [duplicateWarning, setDuplicateWarning] = useState<{ duplicates: string[]; prompts: Array<{ name: string; prompt: string }> } | null>(null);
 
   const parsedPrompts = parsePrompts(promptText);
   const iconCount = parsedPrompts.length;
 
   const effectiveModel = model || settings?.provider?.default_model || "gpt-image-1.5";
 
-  function handleGenerate() {
-    if (!activeProjectId || parsedPrompts.length === 0) return;
+  const existingNames = useMemo(() => {
+    if (!history) return new Set<string>();
+    return new Set(history.map((r) => r.name.toLowerCase()));
+  }, [history]);
+
+  const duplicateNames = useMemo(() => {
+    if (!history) return new Set<string>();
+    const counts = new Map<string, number>();
+    for (const r of history) {
+      const key = r.name.toLowerCase();
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return new Set([...counts.entries()].filter(([, c]) => c > 1).map(([k]) => k));
+  }, [history]);
+
+  function doGenerate(prompts: Array<{ name: string; prompt: string }>) {
+    if (!activeProjectId || prompts.length === 0) return;
+    setDismissedFailBanner(false);
     gen.start({
-      prompts: parsedPrompts,
+      prompts,
       style,
       quality: "normal" as const,
       api_quality: quality,
@@ -64,8 +88,19 @@ export function GeneratePage() {
       ai_enhance: aiEnhance,
       project_id: activeProjectId,
       model: effectiveModel,
+      variations,
     });
     setPromptText("");
+  }
+
+  function handleGenerate() {
+    if (!activeProjectId || parsedPrompts.length === 0) return;
+    const dupes = parsedPrompts.filter((p) => existingNames.has(p.name.toLowerCase()));
+    if (dupes.length > 0) {
+      setDuplicateWarning({ duplicates: dupes.map((d) => d.name), prompts: parsedPrompts });
+      return;
+    }
+    doGenerate(parsedPrompts);
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -77,11 +112,22 @@ export function GeneratePage() {
 
   function handleApiKeySaved() {
     setShowApiKeyModal(false);
-    handleGenerate();
+    doGenerate(parsedPrompts);
   }
 
   const progress = gen.progress;
   const partials = gen.partialImages;
+  const lastDone = gen.lastDone;
+
+  async function handleRetryAllFailed() {
+    const jobId = gen.lastJobId;
+    if (!jobId) return;
+    try {
+      await api.retryAllFailed(jobId);
+    } catch {
+      // Job may have been cleaned up
+    }
+  }
 
   return (
     <div className="flex flex-1 overflow-hidden min-w-0">
@@ -133,6 +179,29 @@ export function GeneratePage() {
           />
         </div>
 
+        {/* Variations */}
+        <div>
+          <label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5 block font-medium">
+            Variations
+          </label>
+          <div className="flex gap-1">
+            {[1, 2, 3, 4].map((n) => (
+              <button
+                key={n}
+                onClick={() => setVariations(n)}
+                className={cn(
+                  "flex-1 rounded-lg py-1.5 text-xs font-medium transition-all",
+                  variations === n
+                    ? "bg-accent/15 text-accent"
+                    : "bg-card/40 text-muted-foreground hover:text-foreground hover:bg-card/60",
+                )}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Generate button */}
         <div className="mt-auto pt-2">
           <Button
@@ -152,9 +221,44 @@ export function GeneratePage() {
       {/* RIGHT PANEL - Results */}
       <ScrollArea className="flex-1 min-w-0">
         <div className="p-4 space-y-4">
+          {/* Failed generation banner */}
+          {lastDone && lastDone.failed > 0 && !dismissedFailBanner && (
+            <div className="flex items-center gap-3 rounded-xl border border-destructive/30 bg-destructive/5 backdrop-blur-md p-3">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="text-destructive shrink-0">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M12 8v4M12 16h.01" />
+              </svg>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-foreground">
+                  {lastDone.completed}/{lastDone.total} generated, {lastDone.failed} failed
+                </p>
+                <p className="text-[10px] text-muted-foreground">Some icons failed due to API errors or rate limits</p>
+              </div>
+              <Button size="sm" variant="outline" className="shrink-0 text-xs" onClick={handleRetryAllFailed}>
+                Retry {lastDone.failed} failed
+              </Button>
+              <button onClick={() => setDismissedFailBanner(true)} className="text-muted-foreground hover:text-foreground p-1">
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                  <path d="M2 2l8 8M10 2l-8 8" />
+                </svg>
+              </button>
+            </div>
+          )}
+
           {history && history.length > 0 ? (
             <ResultsHistory
-              records={history}
+              records={
+                showUnpickedOnly
+                  ? history.filter((r) => !r.variations.some((v) => v.picked))
+                  : showDuplicatesOnly
+                  ? history.filter((r) => duplicateNames.has(r.name.toLowerCase()))
+                  : history
+              }
+              showUnpickedOnly={showUnpickedOnly}
+              onToggleUnpicked={() => { setShowUnpickedOnly(!showUnpickedOnly); if (!showUnpickedOnly) setShowDuplicatesOnly(false); }}
+              showDuplicatesOnly={showDuplicatesOnly}
+              onToggleDuplicates={() => { setShowDuplicatesOnly(!showDuplicatesOnly); if (!showDuplicatesOnly) setShowUnpickedOnly(false); }}
+              totalCount={history.length}
               pendingCard={gen.isPending ? (
                 <div className="rounded-xl border border-border/50 bg-card/60 backdrop-blur-md p-3 space-y-2">
                   <div className="flex items-center gap-2">
@@ -176,7 +280,7 @@ export function GeneratePage() {
                     </span>
                   </div>
                   <div className="flex gap-2">
-                    {[0, 1, 2, 3].map((i) => (
+                    {Array.from({ length: variations }, (_, i) => (
                       <div key={i} className="relative aspect-square w-[100px] shrink-0 overflow-hidden rounded-lg bg-muted/20 ring-1 ring-border">
                         {partials[i] ? (
                           <img src={partials[i]} alt={`Generating v${i + 1}`} className="h-full w-full object-contain p-1 animate-pulse" />
@@ -187,7 +291,10 @@ export function GeneratePage() {
                     ))}
                   </div>
                   {progress && progress.total > 1 && (
-                    <Progress className="mt-1" value={((progress.index + (progress.status === "processing" ? 0.5 : 0)) / progress.total) * 100} />
+                    <div className="flex items-center gap-2 mt-1">
+                      <Progress className="flex-1" value={((progress.index + (progress.status === "processing" ? 0.5 : 0)) / progress.total) * 100} />
+                      <span className="text-[11px] text-muted-foreground shrink-0">{progress.index}/{progress.total}</span>
+                    </div>
                   )}
                 </div>
               ) : undefined}
@@ -202,7 +309,10 @@ export function GeneratePage() {
               <svg className="h-8 w-8 animate-spin text-accent mb-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <circle cx="12" cy="12" r="10" strokeDasharray="60" strokeDashoffset="20" strokeLinecap="round" />
               </svg>
-              <p className="text-sm text-muted-foreground">Generating {progress?.name ?? "icons"}...</p>
+              <p className="text-sm text-muted-foreground">
+                Generating {progress?.name ?? "icons"}...
+                {progress && progress.total > 1 && ` (${progress.index}/${progress.total})`}
+              </p>
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center py-24 text-center">
@@ -225,6 +335,52 @@ export function GeneratePage() {
         onClose={() => setShowApiKeyModal(false)}
         onSaved={handleApiKeySaved}
       />
+
+      {/* Duplicate name warning dialog */}
+      <Dialog open={!!duplicateWarning} onOpenChange={(open) => { if (!open) setDuplicateWarning(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Duplicate icon names</DialogTitle>
+            <DialogDescription>
+              {duplicateWarning && duplicateWarning.duplicates.length === 1
+                ? `"${duplicateWarning.duplicates[0]}" already exists in your history.`
+                : `${duplicateWarning?.duplicates.length} names already exist in your history:`}
+            </DialogDescription>
+          </DialogHeader>
+          {duplicateWarning && duplicateWarning.duplicates.length > 1 && (
+            <div className="max-h-40 overflow-auto rounded-lg border border-border/50 bg-muted/20 p-2 text-sm">
+              {duplicateWarning.duplicates.map((name) => (
+                <div key={name} className="py-0.5 text-muted-foreground">{name}</div>
+              ))}
+            </div>
+          )}
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="ghost" onClick={() => setDuplicateWarning(null)}>Cancel</Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (!duplicateWarning) return;
+                const dupeSet = new Set(duplicateWarning.duplicates.map((d) => d.toLowerCase()));
+                const filtered = duplicateWarning.prompts.filter((p) => !dupeSet.has(p.name.toLowerCase()));
+                setDuplicateWarning(null);
+                if (filtered.length > 0) doGenerate(filtered);
+              }}
+            >
+              Skip duplicates ({duplicateWarning ? duplicateWarning.prompts.length - duplicateWarning.duplicates.length : 0} new)
+            </Button>
+            <Button
+              onClick={() => {
+                if (!duplicateWarning) return;
+                const prompts = duplicateWarning.prompts;
+                setDuplicateWarning(null);
+                doGenerate(prompts);
+              }}
+            >
+              Regenerate all
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

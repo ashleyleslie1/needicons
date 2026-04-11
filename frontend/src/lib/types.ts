@@ -228,6 +228,7 @@ export interface GenerateIconsRequest {
   ai_enhance: boolean;
   project_id: string;
   model?: string;
+  variations?: number;
 }
 
 export interface ExportProjectRequest {
@@ -243,6 +244,32 @@ export interface ExportJobStatus {
   total: number;
   current_icon: string;
   error: string | null;
+}
+
+export interface QueueItem {
+  id: string;
+  job_id: string;
+  project_id: string;
+  idx: number;
+  name: string;
+  prompt: string;
+  style: string;
+  model: string;
+  status: "pending" | "generating" | "completed" | "failed" | "skipped";
+  error: string | null;
+  attempts: number;
+  record_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface QueueStatus {
+  job_id: string;
+  total: number;
+  completed: number;
+  failed: number;
+  pending: number;
+  items: QueueItem[];
 }
 
 export interface ModelCapabilities {

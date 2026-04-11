@@ -82,8 +82,8 @@ export const GenerationRow = memo(function GenerationRow({ record, layout, onReg
 
         {/* Enhanced prompt (shown when AI enhance produced a different prompt) */}
         {record.ai_enhance && record.prompt !== record.name && (
-          <p className="text-[10px] text-muted-foreground leading-relaxed truncate" title={record.prompt}>
-            <span className="text-accent/70 mr-1">Prompt:</span>{record.prompt}
+          <p className="text-[10px] text-muted-foreground leading-relaxed line-clamp-2 break-words" title={record.prompt}>
+            <span className="text-accent/70 mr-1">AI:</span>{record.prompt}
           </p>
         )}
 

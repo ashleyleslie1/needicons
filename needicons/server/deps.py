@@ -37,10 +37,23 @@ class DirtyDict(dict):
         self._dirty.discard(key)
         return result
 
+    def get(self, key, *args):
+        """Track accessed keys — they might be mutated in place."""
+        result = super().get(key, *args)
+        if result is not None:
+            if not hasattr(self, "_accessed"):
+                self._accessed: set[str] = set()
+            self._accessed.add(key)
+        return result
+
     def flush(self) -> tuple[set[str], set[str]]:
         dirty = getattr(self, "_dirty", set())
+        accessed = getattr(self, "_accessed", set())
         deleted = getattr(self, "_deleted", set())
+        # Accessed keys might have been mutated in place — treat as dirty
+        dirty = dirty | (accessed - deleted)
         self._dirty = set()
+        self._accessed = set()
         self._deleted = set()
         return dirty, deleted
 

@@ -18,12 +18,29 @@ interface PartialImage {
   image: string; // base64
 }
 
+export interface QueueUpdate {
+  queue_id: string;
+  status: string;
+  error?: string;
+  record_id?: string;
+  attempt?: number;
+  delay?: number;
+}
+
+export interface DoneEvent {
+  total: number;
+  completed: number;
+  failed: number;
+}
+
 interface UseGenerateResult {
   start: (data: GenerateIconsRequest) => void;
   isPending: boolean;
   progress: GenerationProgress | null;
   partialImages: Record<number, string>; // variation index -> base64 data URL
   jobId: string | null;
+  lastDone: DoneEvent | null;
+  lastJobId: string | null;
 }
 
 /**
@@ -36,6 +53,8 @@ export function useGenerateIcons(projectId: string | undefined): UseGenerateResu
   const jobIdRef = useRef<string | null>(null);
   const [progress, setProgress] = useState<GenerationProgress | null>(null);
   const [partialImages, setPartialImages] = useState<Record<number, string>>({});
+  const [lastDone, setLastDone] = useState<DoneEvent | null>(null);
+  const lastJobIdRef = useRef<string | null>(null);
 
   // Poll for active jobs so we reconnect after backend restart or page refresh
   const activeJobId = qc.getQueryData<string>(["active-generation-job"]) ?? null;
@@ -58,7 +77,19 @@ export function useGenerateIcons(projectId: string | undefined): UseGenerateResu
       setPartialImages({});
       qc.invalidateQueries({ queryKey: ["generation-history"] });
       qc.invalidateQueries({ queryKey: ["projects"] });
-    } else if (event.type === "done" || event.type === "error") {
+    } else if (event.type === "done") {
+      const doneData = event.data as DoneEvent;
+      setProgress(null);
+      setPartialImages({});
+      if (doneData.failed > 0) {
+        setLastDone(doneData);
+      }
+      jobIdRef.current = null;
+      qc.setQueryData(["active-generation-job"], null);
+      qc.invalidateQueries({ queryKey: ["generation-history"] });
+      qc.invalidateQueries({ queryKey: ["projects"] });
+      qc.invalidateQueries({ queryKey: ["active-generation-jobs"] });
+    } else if (event.type === "error") {
       setProgress(null);
       setPartialImages({});
       jobIdRef.current = null;
@@ -72,6 +103,7 @@ export function useGenerateIcons(projectId: string | undefined): UseGenerateResu
   const subscribe = useCallback((jobId: string) => {
     unsubRef.current?.();
     jobIdRef.current = jobId;
+    lastJobIdRef.current = jobId;
     qc.setQueryData(["active-generation-job"], jobId);
     unsubRef.current = api.subscribeToJob(jobId, handleEvent);
   }, [handleEvent, qc]);
@@ -104,11 +136,13 @@ export function useGenerateIcons(projectId: string | undefined): UseGenerateResu
   const hasUnsubscribedJob = (activeJobs?.length ?? 0) > 0 && !activeJobId;
 
   return {
-    start: (data: GenerateIconsRequest) => mutation.mutate(data),
+    start: (data: GenerateIconsRequest) => { setLastDone(null); mutation.mutate(data); },
     isPending: mutation.isPending || !!activeJobId || hasUnsubscribedJob,
     progress,
     partialImages,
     jobId: activeJobId,
+    lastDone,
+    lastJobId: lastJobIdRef.current,
   };
 }
 
