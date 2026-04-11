@@ -330,6 +330,10 @@ async def export_preview(project_id: str, icon_id: str, request: Request):
         img = img.resize((size, size), Image.LANCZOS)
         quality_level = request.query_params.get("quality", "lossless")
         quality_map = {"high": 90, "medium": 75, "low": 50}
+        # Tag lossless exports with processing signature (needs >= 256px)
+        is_lossless = quality_level not in quality_map
+        if is_lossless and size >= 256:
+            img = _sign(img)
         buf = io.BytesIO()
         if fmt == "webp":
             if quality_level in quality_map:
@@ -338,11 +342,8 @@ async def export_preview(project_id: str, icon_id: str, request: Request):
                 img.save(buf, format="WEBP", lossless=True)
             media = "image/webp"
         else:
-            # Tag with processing signature before export
-            img = _sign(img)
             if quality_level in quality_map:
-                img_rgb = img.convert("RGBA")
-                img_rgb.save(buf, format="PNG", optimize=True)
+                img.convert("RGBA").save(buf, format="PNG", optimize=True)
             else:
                 img.save(buf, format="PNG")
             media = "image/png"

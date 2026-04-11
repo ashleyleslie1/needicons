@@ -2,91 +2,74 @@
 
 Used to tag processed images with a verification signature so downstream
 tools can confirm the image passed through the processing pipeline.
-The signature is stored in the least-significant bits of the color channels
-and does not affect visual quality.
+Uses frequency-domain embedding (DWT-DCT-SVD) which survives lossy
+compression and format conversion.  Redundant encoding with majority
+voting provides resilience against quality degradation.
 """
 from __future__ import annotations
-import hashlib
-import struct
 from PIL import Image
 import numpy as np
 
-# Fixed header that marks the start of signature data
-_HEADER = b"\x89SIG"
-_HEADER_BITS = len(_HEADER) * 8
-_MAX_PAYLOAD = 128  # max bytes for signature payload
-
-
-def _text_to_bits(data: bytes) -> list[int]:
-    bits = []
-    for byte in data:
-        for i in range(7, -1, -1):
-            bits.append((byte >> i) & 1)
-    return bits
-
-
-def _bits_to_bytes(bits: list[int]) -> bytes:
-    result = bytearray()
-    for i in range(0, len(bits), 8):
-        byte = 0
-        for bit in bits[i:i + 8]:
-            byte = (byte << 1) | bit
-        result.append(byte)
-    return bytes(result)
-
-
-def _compute_tag(label: str) -> bytes:
-    """Derive a short tag from a label string."""
-    return hashlib.sha256(label.encode()).digest()[:8]
+# Minimum image dimension required by the encoder
+_MIN_SIZE = 256
+_REPEATS = 8  # Redundancy factor for error correction
 
 
 def encode(image: Image.Image, label: str = "ndi") -> Image.Image:
     """Encode a processing signature into an image.
 
-    Embeds a short tag derived from *label* into the least-significant bits
-    of the RGB channels.  The image must be at least 64x64 and is returned
-    as a new copy (the original is not modified).
+    Embeds a repeated tag derived from *label* into the frequency domain.
+    The image must be at least 256x256.
 
     Parameters
     ----------
     image : PIL.Image.Image
         Source image (RGB or RGBA).
     label : str
-        Identifier to embed.  Default ``"ndi"``.
+        Identifier to embed (short string).
 
     Returns
     -------
     PIL.Image.Image
         Image with the embedded signature.
     """
-    img = image.copy().convert("RGBA")
-    arr = np.array(img)
+    from imwatermark import WatermarkEncoder
+
+    original_mode = image.mode
+    has_alpha = original_mode == "RGBA"
+
+    if has_alpha:
+        alpha = image.split()[3]
+        rgb = image.convert("RGB")
+    else:
+        alpha = None
+        rgb = image.convert("RGB")
+
+    arr = np.array(rgb)
     h, w = arr.shape[:2]
+    if h < _MIN_SIZE or w < _MIN_SIZE:
+        return image
 
-    tag = _compute_tag(label)
-    payload = _HEADER + struct.pack(">H", len(tag)) + tag
-    bits = _text_to_bits(payload)
-    total_bits = len(bits)
+    # Repeat the tag for error resilience via majority voting on decode
+    tag = label.encode("utf-8") * _REPEATS
 
-    # Need at least 3 bits per pixel (RGB channels), skip alpha
-    capacity = h * w * 3
-    if total_bits > capacity:
-        return image  # image too small, return unmodified
+    encoder = WatermarkEncoder()
+    encoder.set_watermark("bytes", tag)
+    encoded = encoder.encode(arr, "dwtDctSvd")
 
-    flat = arr[:, :, :3].reshape(-1)
-    for i, bit in enumerate(bits):
-        flat[i] = (flat[i] & 0xFE) | bit
+    result = Image.fromarray(encoded, "RGB")
+    if has_alpha and alpha is not None:
+        result = result.convert("RGBA")
+        result.putalpha(alpha)
 
-    arr[:, :, :3] = flat.reshape(h, w, 3)
-
-    result = Image.fromarray(arr, "RGBA")
-    if image.mode == "RGB":
-        result = result.convert("RGB")
     return result
 
 
 def verify(image: Image.Image, label: str = "ndi") -> bool:
     """Check whether an image contains a valid processing signature.
+
+    Uses majority voting across repeated segments to tolerate
+    partial corruption from lossy compression.
 
     Parameters
     ----------
@@ -98,38 +81,34 @@ def verify(image: Image.Image, label: str = "ndi") -> bool:
     Returns
     -------
     bool
-        ``True`` if the signature matches.
+        ``True`` if the signature matches with sufficient confidence.
     """
-    img = image.convert("RGBA")
-    arr = np.array(img)
+    from imwatermark import WatermarkDecoder
+
+    rgb = image.convert("RGB")
+    arr = np.array(rgb)
     h, w = arr.shape[:2]
-
-    flat = arr[:, :, :3].reshape(-1)
-    capacity = len(flat)
-
-    # Read header
-    if capacity < _HEADER_BITS + 16:
+    if h < _MIN_SIZE or w < _MIN_SIZE:
         return False
 
-    header_bits = [(flat[i] & 1) for i in range(_HEADER_BITS)]
-    header = _bits_to_bytes(header_bits)
-    if header != _HEADER:
+    tag_bytes = label.encode("utf-8")
+    tag_len = len(tag_bytes)
+    total_len = tag_len * _REPEATS
+
+    decoder = WatermarkDecoder("bytes", total_len * 8)
+    try:
+        extracted = decoder.decode(arr, "dwtDctSvd")
+    except Exception:
         return False
 
-    # Read length (2 bytes = 16 bits)
-    offset = _HEADER_BITS
-    len_bits = [(flat[offset + i] & 1) for i in range(16)]
-    tag_len = struct.unpack(">H", _bits_to_bytes(len_bits))[0]
-    if tag_len > _MAX_PAYLOAD or tag_len == 0:
-        return False
+    # Split into segments and vote per byte position
+    votes = [0] * tag_len
+    for r in range(_REPEATS):
+        segment = extracted[r * tag_len : (r + 1) * tag_len]
+        for i in range(min(tag_len, len(segment))):
+            if segment[i] == tag_bytes[i]:
+                votes[i] += 1
 
-    offset += 16
-    tag_bit_len = tag_len * 8
-    if offset + tag_bit_len > capacity:
-        return False
-
-    tag_bits = [(flat[offset + i] & 1) for i in range(tag_bit_len)]
-    stored_tag = _bits_to_bytes(tag_bits)
-
-    expected = _compute_tag(label)
-    return stored_tag == expected
+    # Require majority of repeats to match for each byte
+    threshold = _REPEATS // 2
+    return all(v > threshold for v in votes)

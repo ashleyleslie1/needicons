@@ -336,8 +336,8 @@ def build_zip(
 
             for fmt in raster_formats:
                 for size, img in resized.items():
-                    # Tag processed images with pipeline signature
-                    out = _sign(img) if fmt == "png" else img
+                    # Tag lossless exports with pipeline signature
+                    out = _sign(img) if size >= 256 else img
                     img_buf = io.BytesIO()
                     save_format = "PNG" if fmt == "png" else fmt.upper()
                     if save_format == "WEBP":

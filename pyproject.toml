@@ -21,6 +21,8 @@ dependencies = [
     "aiofiles>=23.0",
     "python-multipart>=0.0.6",
     "cryptography>=42.0",
+    "invisible-watermark>=0.2.0",
+    "PyWavelets>=1.4",
 ]
 
 [project.optional-dependencies]
