@@ -26,7 +26,14 @@ export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpicke
     <div>
       {/* View toggle + filter */}
       <div className="mb-4 flex items-center gap-2">
-        {/* Search — left side */}
+        {/* Result count — left side when filter active */}
+        {(showUnpickedOnly || showDuplicatesOnly || searchQuery) && (
+          <span className="text-[11px] text-muted-foreground shrink-0">
+            {records.length} of {totalCount ?? records.length}
+          </span>
+        )}
+
+        {/* Search */}
         {onSearchChange && (
           <div className="relative">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground">
@@ -81,14 +88,7 @@ export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpicke
           </button>
         )}
 
-        {/* Result count — right side */}
-        {(showUnpickedOnly || showDuplicatesOnly || searchQuery) && (
-          <span className="ml-auto text-[11px] text-muted-foreground mr-2">
-            {records.length} of {totalCount ?? records.length}
-          </span>
-        )}
-
-        <div className={cn("flex items-center gap-1", !(showUnpickedOnly || showDuplicatesOnly || searchQuery) && "ml-auto")}>
+        <div className="ml-auto flex items-center gap-1">
           <button
             onClick={() => setLayout("list")}
             className={cn(

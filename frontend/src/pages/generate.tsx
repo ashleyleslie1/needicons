@@ -174,19 +174,6 @@ export function GeneratePage() {
         {/* Quality */}
         <QualityToggle model={effectiveModel} value={quality} onChange={setQuality} />
 
-        {/* AI Enhance */}
-        <div className="flex items-center justify-between rounded-lg border border-border/50 bg-card/40 backdrop-blur-sm px-3 py-2.5">
-          <div>
-            <p className="text-sm font-medium text-foreground">AI Enhance</p>
-            <p className="text-[10px] text-muted-foreground">Improve prompts with GPT</p>
-          </div>
-          <Switch
-            checked={aiEnhance}
-            onCheckedChange={setAiEnhance}
-            aria-label="AI Enhance"
-          />
-        </div>
-
         {/* Variations */}
         <div>
           <label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5 block font-medium">
@@ -198,16 +185,29 @@ export function GeneratePage() {
                 key={n}
                 onClick={() => setVariations(n)}
                 className={cn(
-                  "flex-1 rounded-lg py-1.5 text-xs font-medium transition-all",
+                  "flex-1 rounded-lg py-1.5 text-xs font-medium border transition-all",
                   variations === n
-                    ? "bg-accent/15 text-accent"
-                    : "bg-card/40 text-muted-foreground hover:text-foreground hover:bg-card/60",
+                    ? "bg-accent/20 text-accent border-accent/40 shadow-sm shadow-accent/10"
+                    : "bg-card/40 text-muted-foreground border-border/50 hover:text-foreground hover:bg-muted/30 hover:border-border",
                 )}
               >
                 {n}
               </button>
             ))}
           </div>
+        </div>
+
+        {/* AI Enhance */}
+        <div className="flex items-center justify-between rounded-lg border border-border/50 bg-card/40 backdrop-blur-sm px-3 py-2.5">
+          <div>
+            <p className="text-sm font-medium text-foreground">AI Enhance</p>
+            <p className="text-[10px] text-muted-foreground">Improve prompts with GPT</p>
+          </div>
+          <Switch
+            checked={aiEnhance}
+            onCheckedChange={setAiEnhance}
+            aria-label="AI Enhance"
+          />
         </div>
 
         {/* Generate button */}

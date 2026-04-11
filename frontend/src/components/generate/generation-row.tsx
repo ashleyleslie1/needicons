@@ -95,6 +95,7 @@ export const GenerationRow = memo(function GenerationRow({ record, layout, onReg
               onClick={() => handlePick(undefined, variation.index)}
               className={cn(
                 "group relative overflow-hidden rounded-lg transition-all cursor-pointer",
+                "checkerboard",
                 isGrid ? "aspect-square" : "aspect-square w-[100px] shrink-0",
                 variation.picked
                   ? "ring-2 ring-accent ring-offset-1 ring-offset-background shadow-md shadow-accent/10"
@@ -115,11 +116,11 @@ export const GenerationRow = memo(function GenerationRow({ record, layout, onReg
               )}
               {/* Refine button on hover */}
               <div
-                className="absolute left-1 bottom-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                className="absolute left-1.5 bottom-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
                 onClick={(e) => { e.stopPropagation(); setEditorVariation(variation.index); }}
               >
-                <div className="flex items-center gap-0.5 rounded-full bg-background/80 px-1.5 py-0.5 text-[8px] font-medium text-muted-foreground shadow transition-colors hover:bg-accent hover:text-white">
-                  <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <div className="flex items-center gap-1 rounded-full bg-background/80 px-2 py-1 text-[10px] font-medium text-muted-foreground shadow transition-colors hover:bg-accent hover:text-white">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
                   </svg>
                   Refine

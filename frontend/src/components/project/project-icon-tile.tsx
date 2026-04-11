@@ -65,7 +65,7 @@ export function ProjectIconTile({
   return (
     <>
       <div className="group relative text-center">
-        <div className="aspect-square overflow-hidden rounded-xl bg-card/40 backdrop-blur-sm border border-border/50 hover:border-border hover:shadow-md transition-all">
+        <div className="aspect-square overflow-hidden rounded-xl checkerboard border border-border/50 hover:border-border hover:shadow-md transition-all">
           <img
             src={src}
             alt={icon.name}
