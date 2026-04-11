@@ -162,7 +162,7 @@ class OpenAIProvider(ImageProvider):
 
         # For GPT Image models, use Responses API with image_generation tool
         stream = await self._client.responses.create(
-            model="gpt-4.1-mini",
+            model="gpt-5.4-nano",
             stream=True,
             input=[{
                 "role": "user",
@@ -217,7 +217,7 @@ class OpenAIProvider(ImageProvider):
         data_url = self._prepare_edit_input(image)
 
         stream = await self._client.responses.create(
-            model="gpt-4.1-mini",
+            model="gpt-5.4-nano",
             stream=True,
             input=[
                 {
