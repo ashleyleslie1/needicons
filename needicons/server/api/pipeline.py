@@ -330,9 +330,10 @@ async def export_preview(project_id: str, icon_id: str, request: Request):
         img = img.resize((size, size), Image.LANCZOS)
         quality_level = request.query_params.get("quality", "lossless")
         quality_map = {"high": 90, "medium": 75, "low": 50}
-        # Tag lossless exports with processing signature (needs >= 256px)
-        is_lossless = quality_level not in quality_map
-        if is_lossless and size >= 256:
+        # Tag exports with processing signature (needs >= 256px)
+        # PNG is always lossless; only skip for lossy WebP
+        can_sign = fmt == "png" or (fmt == "webp" and quality_level not in quality_map)
+        if can_sign and size >= 256:
             img = _sign(img)
         buf = io.BytesIO()
         if fmt == "webp":
