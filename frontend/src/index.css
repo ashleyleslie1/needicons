@@ -49,24 +49,30 @@
     font-family: system-ui, -apple-system, sans-serif;
   }
 
-  /* Slim styled scrollbars */
+  /* Styled scrollbars */
   * {
     scrollbar-width: thin;
-    scrollbar-color: rgba(128, 128, 128, 0.3) transparent;
+    scrollbar-color: rgba(128, 128, 128, 0.4) transparent;
   }
   *::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 8px;
+    height: 8px;
   }
   *::-webkit-scrollbar-track {
     background: transparent;
   }
   *::-webkit-scrollbar-thumb {
-    background: rgba(128, 128, 128, 0.3);
-    border-radius: 3px;
+    background: rgba(128, 128, 128, 0.4);
+    border-radius: 4px;
   }
   *::-webkit-scrollbar-thumb:hover {
-    background: rgba(128, 128, 128, 0.5);
+    background: rgba(128, 128, 128, 0.6);
+  }
+  .dark *::-webkit-scrollbar-thumb {
+    background: rgba(200, 200, 200, 0.25);
+  }
+  .dark *::-webkit-scrollbar-thumb:hover {
+    background: rgba(200, 200, 200, 0.45);
   }
 
   * {

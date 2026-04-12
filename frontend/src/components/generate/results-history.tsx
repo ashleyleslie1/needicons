@@ -59,13 +59,16 @@ export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpicke
     count: items.length + (pendingCard ? 1 : 0),
     getScrollElement: () => scrollRef.current,
     estimateSize: useCallback((index: number) => {
-      if (pendingCard && index === 0) return 180;
+      if (pendingCard && index === 0) return 200;
       const item = items[pendingCard ? index - 1 : index];
-      if (!item) return 130;
-      if (item.type === "header") return 40;
-      return layout === "list" ? 130 : 200;
+      if (!item) return 160;
+      if (item.type === "header") return 48;
+      return layout === "list" ? 160 : 220;
     }, [layout, items.length, !!pendingCard]),
     overscan: 5,
+    measureElement: useCallback((el: Element) => {
+      return el.getBoundingClientRect().height;
+    }, []),
   });
 
   if (records.length === 0 && !pendingCard && !showUnpickedOnly && !showDuplicatesOnly && !searchQuery) return null;
@@ -185,17 +188,22 @@ export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpicke
             {rowVirtualizer.getVirtualItems().map((virtualRow) => {
               const idx = virtualRow.index;
 
+              const measureRef = rowVirtualizer.measureElement;
+
               // Pending card is always first
               if (pendingCard && idx === 0) {
                 return (
                   <div
                     key="pending"
+                    ref={measureRef}
+                    data-index={idx}
                     style={{
                       position: "absolute",
                       top: 0,
                       left: 0,
                       width: "100%",
                       transform: `translateY(${virtualRow.start}px)`,
+                      paddingBottom: "16px",
                     }}
                   >
                     {pendingCard}
@@ -211,6 +219,8 @@ export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpicke
                 return (
                   <div
                     key={`header-${item.name}`}
+                    ref={measureRef}
+                    data-index={idx}
                     style={{
                       position: "absolute",
                       top: 0,
@@ -219,7 +229,7 @@ export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpicke
                       transform: `translateY(${virtualRow.start}px)`,
                     }}
                   >
-                    <div className="flex items-center gap-2 mb-2 mt-2">
+                    <div className="flex items-center gap-2 py-2">
                       <span className="text-sm font-bold text-accent">{item.name}</span>
                       <span className="text-xs text-muted-foreground font-medium">({item.count}x)</span>
                       {onDeleteGroupDuplicates && item.count > 1 && (
@@ -252,6 +262,8 @@ export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpicke
               return (
                 <div
                   key={item.record.id}
+                  ref={measureRef}
+                  data-index={idx}
                   style={{
                     position: "absolute",
                     top: 0,
