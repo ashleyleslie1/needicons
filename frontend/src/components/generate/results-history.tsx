@@ -30,8 +30,23 @@ type VirtualItem =
 function buildItems(records: GenerationRecord[], showDuplicatesOnly: boolean, isGrid: boolean, gridCols: number): VirtualItem[] {
   if (isGrid) {
     const items: VirtualItem[] = [];
-    for (let i = 0; i < records.length; i += gridCols) {
-      items.push({ type: "grid-row", records: records.slice(i, i + gridCols) });
+    if (showDuplicatesOnly) {
+      // Grid with duplicate grouping: header then grid-rows per group
+      let i = 0;
+      while (i < records.length) {
+        const name = records[i].name.toLowerCase();
+        const groupStart = i;
+        while (i < records.length && records[i].name.toLowerCase() === name) i++;
+        const group = records.slice(groupStart, i);
+        items.push({ type: "header", name: group[0].name, count: group.length });
+        for (let j = 0; j < group.length; j += gridCols) {
+          items.push({ type: "grid-row", records: group.slice(j, j + gridCols) });
+        }
+      }
+    } else {
+      for (let i = 0; i < records.length; i += gridCols) {
+        items.push({ type: "grid-row", records: records.slice(i, i + gridCols) });
+      }
     }
     return items;
   }
