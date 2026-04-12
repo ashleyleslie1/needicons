@@ -86,9 +86,7 @@ export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpicke
               <rect x="3" y="3" width="7" height="7" rx="1" />
               <rect x="14" y="3" width="7" height="7" rx="1" />
             </svg>
-            {showDuplicatesOnly
-              ? `Duplicates — ${duplicateNameCount ?? 0} names, ${records.length} entries`
-              : "Show duplicates"}
+            {showDuplicatesOnly ? "Duplicates" : "Show duplicates"}
           </button>
         )}
 
