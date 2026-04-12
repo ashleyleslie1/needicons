@@ -133,18 +133,6 @@ needicons-MyProject.zip
   manifest.json
 ```
 
-### Verify Exports
-
-Check if a PNG was exported through NeedIcons:
-
-```bash
-# Drop PNGs into the verify/ folder
-python -m needicons verify
-
-# Or check a specific file
-python -m needicons verify path/to/icon.png
-```
-
 ## Tech Stack
 
 | Layer | Technology |
