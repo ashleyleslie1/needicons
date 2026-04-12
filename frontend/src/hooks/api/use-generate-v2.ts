@@ -152,13 +152,12 @@ export function usePickVariation() {
     mutationFn: ({ generationId, variationIndex }: { generationId: string; variationIndex: number }) =>
       api.pickVariation(generationId, variationIndex),
     onSuccess: (updatedRecord) => {
-      // Update cache directly — no full refetch
       qc.setQueriesData<GenerationRecord[]>(
         { queryKey: ["generation-history"] },
         (old) => old?.map((r) => (r.id === updatedRecord.id ? updatedRecord : r)),
       );
-      // Projects needs refetch since picked icon was added
-      qc.invalidateQueries({ queryKey: ["projects"] });
+      // Mark projects as stale — refetched when user switches to project tab
+      qc.invalidateQueries({ queryKey: ["projects"], refetchType: "none" });
     },
   });
 }
@@ -172,7 +171,7 @@ export function useUnpickVariation() {
         { queryKey: ["generation-history"] },
         (old) => old?.map((r) => (r.id === updatedRecord.id ? updatedRecord : r)),
       );
-      qc.invalidateQueries({ queryKey: ["projects"] });
+      qc.invalidateQueries({ queryKey: ["projects"], refetchType: "none" });
     },
   });
 }
