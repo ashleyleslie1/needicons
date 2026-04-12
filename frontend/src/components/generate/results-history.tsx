@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { GenerationRecord } from "@/lib/types";
 import { GenerationRow } from "./generation-row";
@@ -27,12 +27,11 @@ type VirtualItem =
   | { type: "record"; record: GenerationRecord }
   | { type: "grid-row"; records: GenerationRecord[] };
 
-function buildItems(records: GenerationRecord[], showDuplicatesOnly: boolean, isGrid: boolean): VirtualItem[] {
+function buildItems(records: GenerationRecord[], showDuplicatesOnly: boolean, isGrid: boolean, gridCols: number): VirtualItem[] {
   if (isGrid) {
-    // Group into rows of 3 for grid layout
     const items: VirtualItem[] = [];
-    for (let i = 0; i < records.length; i += 3) {
-      items.push({ type: "grid-row", records: records.slice(i, i + 3) });
+    for (let i = 0; i < records.length; i += gridCols) {
+      items.push({ type: "grid-row", records: records.slice(i, i + gridCols) });
     }
     return items;
   }
@@ -58,7 +57,24 @@ export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpicke
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const isGrid = layout === "grid";
-  const items = buildItems(records, !!showDuplicatesOnly, isGrid);
+  const MIN_CARD_WIDTH = 480;
+
+  // Compute grid columns from container width
+  const [gridCols, setGridCols] = useState(2);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !isGrid) return;
+    const update = () => {
+      const w = el.clientWidth - 16; // account for padding
+      setGridCols(Math.max(1, Math.floor(w / MIN_CARD_WIDTH)));
+    };
+    update();
+    const obs = new ResizeObserver(update);
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [isGrid]);
+
+  const items = buildItems(records, !!showDuplicatesOnly, isGrid, gridCols);
 
   const rowVirtualizer = useVirtualizer({
     count: items.length + (pendingCard ? 1 : 0),
@@ -280,7 +296,7 @@ export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpicke
                       paddingBottom: "16px",
                     }}
                   >
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${gridCols}, 1fr)` }}>
                       {item.records.map((record) => (
                         <GenerationRow
                           key={record.id}
