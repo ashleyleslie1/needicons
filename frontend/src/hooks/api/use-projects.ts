@@ -52,6 +52,7 @@ export function useRemoveIcon() {
       api.removeIconFromProject(projectId, iconId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["projects"] });
+      qc.invalidateQueries({ queryKey: ["generation-history"] });
     },
   });
 }

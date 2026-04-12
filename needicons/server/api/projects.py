@@ -70,10 +70,18 @@ async def remove_icon_from_project(project_id: str, icon_id: str, request: Reque
     project = state.projects.get(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
-    before = len(project.icons)
-    project.icons = [i for i in project.icons if i.id != icon_id]
-    if len(project.icons) == before:
+    # Find the icon to get its source path before removing
+    removed_icon = next((i for i in project.icons if i.id == icon_id), None)
+    if not removed_icon:
         raise HTTPException(status_code=404, detail="Icon not found in project")
+    project.icons = [i for i in project.icons if i.id != icon_id]
+    # Unpick the corresponding variation in generation records
+    for record in state.generation_records.values():
+        if record.project_id != project_id:
+            continue
+        for v in record.variations:
+            if v.source_path == removed_icon.source_path and v.picked:
+                v.picked = False
     state.save_data()
     return {"status": "deleted"}
 
