@@ -75,23 +75,19 @@ export function ProjectIconTile({
           />
           {/* Hover actions — inside image container only */}
           <div className="absolute bottom-1.5 left-1.5 right-1.5 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            <Button
-              variant="secondary"
-              size="sm"
-              className="flex-1 h-6 text-[10px] gap-1"
+            <button
+              className="flex-1 flex items-center justify-center gap-1 h-6 rounded-md bg-card border border-border text-[10px] font-medium text-foreground shadow-md transition-colors hover:bg-accent hover:text-white hover:border-accent"
               onClick={() => setShowPreview(true)}
             >
               <Download className="h-3 w-3" /> Export
-            </Button>
-            <Button
-              variant="secondary"
-              size="icon"
-              className="h-6 w-6 shrink-0"
+            </button>
+            <button
+              className="flex items-center justify-center h-6 w-6 rounded-md bg-card border border-border text-foreground shadow-md transition-colors hover:bg-destructive hover:text-white hover:border-destructive"
               onClick={(e) => { e.stopPropagation(); onRemove(); }}
               title="Remove"
             >
               <X className="h-3 w-3" />
-            </Button>
+            </button>
           </div>
         </div>
         <span className="mt-1 block truncate text-[10px] text-muted-foreground">{icon.name}</span>
