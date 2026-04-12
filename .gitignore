@@ -37,6 +37,7 @@ node_modules/
 
 # Docs (specs, plans, checkpoints — internal only)
 docs/
+!docs/screenshots/
 
 # Claude / Superpowers / Playwright MCP
 .claude/
