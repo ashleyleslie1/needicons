@@ -68,16 +68,12 @@ export function ProjectPage() {
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       {/* Project header */}
-      <div className="border-b border-border/50 bg-card/30 backdrop-blur-sm px-6 py-3">
-        <div className="flex items-center gap-4">
-          {/* Title + stats */}
-          <div className="shrink-0">
-            <h2 className="text-base font-semibold text-foreground tracking-tight">{project.name}</h2>
-            <span className="text-[10px] text-muted-foreground">
-              {project.icons.length} {project.icons.length === 1 ? "icon" : "icons"}
-              {project.icons.length > 0 && ` · ${new Set(project.icons.map(i => i.style)).size} ${new Set(project.icons.map(i => i.style)).size === 1 ? "style" : "styles"}`}
-            </span>
-          </div>
+      <div className="border-b border-border/50 bg-card/30 backdrop-blur-sm px-6 py-2.5">
+        <div className="flex items-center gap-3">
+          {/* Icon count */}
+          <span className="text-[11px] text-muted-foreground shrink-0">
+            {searchQuery ? `${filteredIcons.length} of ${project.icons.length}` : `${project.icons.length} icons`}
+          </span>
 
           {/* Search */}
           {project.icons.length > 0 && (
@@ -90,19 +86,13 @@ export function ProjectPage() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search icons..."
-                className="h-7 w-44 rounded-lg border border-border/50 bg-input pl-7 pr-2 text-[11px] text-foreground placeholder:text-muted-foreground focus:border-accent/50 focus:outline-none focus:ring-1 focus:ring-accent/20 transition-all"
+                placeholder="Search..."
+                className="h-7 w-40 rounded-lg border border-border/50 bg-input pl-7 pr-2 text-[11px] text-foreground placeholder:text-muted-foreground focus:border-accent/50 focus:outline-none focus:ring-1 focus:ring-accent/20 transition-all"
               />
             </div>
           )}
 
-          {searchQuery && (
-            <span className="text-[10px] text-muted-foreground">
-              {filteredIcons.length} of {project.icons.length}
-            </span>
-          )}
-
-          {/* Actions */}
+          {/* Actions — right side */}
           <div className="flex items-center gap-2 ml-auto">
             {project.icons.length > 0 && (
               <Button

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import type { SavedIcon } from "@/lib/types";
-import { Download, Eye, X } from "lucide-react";
+import { Download, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import {
@@ -64,8 +64,8 @@ export function ProjectIconTile({
 
   return (
     <>
-      <div className="group relative text-center">
-        <div className="aspect-square overflow-hidden rounded-xl checkerboard border border-border/50 hover:border-border hover:shadow-md transition-all">
+      <div className="text-center">
+        <div className="group relative aspect-square overflow-hidden rounded-xl checkerboard border border-border/50 hover:border-border hover:shadow-md transition-all">
           <img
             src={src}
             alt={icon.name}
@@ -73,7 +73,7 @@ export function ProjectIconTile({
             loading="lazy"
             draggable={false}
           />
-          {/* Hover actions — bottom row */}
+          {/* Hover actions — inside image container only */}
           <div className="absolute bottom-1.5 left-1.5 right-1.5 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
             <Button
               variant="secondary"
@@ -81,7 +81,7 @@ export function ProjectIconTile({
               className="flex-1 h-6 text-[10px] gap-1"
               onClick={() => setShowPreview(true)}
             >
-              <Eye className="h-3 w-3" /> Preview
+              <Download className="h-3 w-3" /> Export
             </Button>
             <Button
               variant="secondary"
