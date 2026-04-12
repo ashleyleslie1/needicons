@@ -21,19 +21,23 @@ interface ResultsHistoryProps {
   totalCount?: number;
 }
 
-// Build a flat list of renderable items: group headers + records
-interface ListItem {
-  type: "header";
-  name: string;
-  count: number;
-}
-interface ListRecord {
-  type: "record";
-  record: GenerationRecord;
-}
-type VirtualItem = ListItem | ListRecord;
+// Virtual row types
+type VirtualItem =
+  | { type: "header"; name: string; count: number }
+  | { type: "record"; record: GenerationRecord }
+  | { type: "grid-row"; records: GenerationRecord[] };
 
-function buildItems(records: GenerationRecord[], showDuplicatesOnly: boolean): VirtualItem[] {
+function buildItems(records: GenerationRecord[], showDuplicatesOnly: boolean, isGrid: boolean): VirtualItem[] {
+  if (isGrid) {
+    // Group into rows of 3 for grid layout
+    const items: VirtualItem[] = [];
+    for (let i = 0; i < records.length; i += 3) {
+      items.push({ type: "grid-row", records: records.slice(i, i + 3) });
+    }
+    return items;
+  }
+
+  // List mode: headers + individual records
   const items: VirtualItem[] = [];
   for (let i = 0; i < records.length; i++) {
     const record = records[i];
@@ -53,7 +57,8 @@ export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpicke
   const [layout, setLayout] = useState<"list" | "grid">("list");
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const items = buildItems(records, !!showDuplicatesOnly);
+  const isGrid = layout === "grid";
+  const items = buildItems(records, !!showDuplicatesOnly, isGrid);
 
   const rowVirtualizer = useVirtualizer({
     count: items.length + (pendingCard ? 1 : 0),
@@ -63,8 +68,9 @@ export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpicke
       const item = items[pendingCard ? index - 1 : index];
       if (!item) return 160;
       if (item.type === "header") return 48;
-      return layout === "list" ? 160 : 220;
-    }, [layout, items.length, !!pendingCard]),
+      if (item.type === "grid-row") return 260;
+      return 160;
+    }, [items.length, !!pendingCard]),
     overscan: 5,
     measureElement: useCallback((el: Element) => {
       return el.getBoundingClientRect().height;
@@ -254,6 +260,35 @@ export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpicke
                         </button>
                       )}
                       <div className="flex-1 h-px bg-border/30" />
+                    </div>
+                  </div>
+                );
+              }
+
+              if (item.type === "grid-row") {
+                return (
+                  <div
+                    key={`grid-${item.records[0].id}`}
+                    ref={measureRef}
+                    data-index={idx}
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      width: "100%",
+                      transform: `translateY(${virtualRow.start}px)`,
+                      paddingBottom: "16px",
+                    }}
+                  >
+                    <div className="grid grid-cols-3 gap-4">
+                      {item.records.map((record) => (
+                        <GenerationRow
+                          key={record.id}
+                          record={record}
+                          layout="grid"
+                          onRegenerate={onRegenerate}
+                        />
+                      ))}
                     </div>
                   </div>
                 );
