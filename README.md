@@ -6,18 +6,22 @@ AI-powered icon pack generator. Create, refine, and export professional icon set
 
 ## Features
 
-- **AI Icon Generation** — Generate icons from text prompts using GPT Image 1.5, GPT Image Mini, or DALL-E models
-- **AI Prompt Enhancement** — Automatically expand simple prompts into detailed icon descriptions using GPT-5.4-nano
-- **AI Refine** — Edit generated icons with natural language instructions via OpenAI's Responses API with partial image streaming
-- **Batch Generation** — Generate up to 1000 icons at once with 10 concurrent API calls per batch
-- **Multiple Styles** — Solid, Outline, Colorful, Flat, Sticker styles with mood modifiers (Minimal, Cinematic, Energetic, Bold, Elegant, Soft)
-- **Project Management** — Organize icons into projects, pick favorites from variations
-- **Post-Processing** — Outline stroke, drop shadow, background fill with corner radius
-- **Multi-Format Export** — PNG, WebP, SVG in a single ZIP with folder structure (`png/1024/icon.png`)
-- **SVG Tracing** — Raster-to-vector conversion via vtracer with color quantization, smoothing, and scour optimization
-- **Per-Icon Preview** — Preview any icon in PNG/WebP/SVG with quality settings and file size before exporting
-- **React/React Native SVG** — Export SVGs as React JSX or React Native components
-- **Self-Hosted** — Runs locally, your API key, your data
+- **AI Icon Generation** -- Generate icons from text prompts using GPT Image 1.5, GPT Image Mini, or DALL-E models
+- **AI Prompt Enhancement** -- Automatically expand simple prompts into detailed icon descriptions using GPT-5.4-nano
+- **AI Refine** -- Edit generated icons with natural language instructions via OpenAI's Responses API with partial image streaming
+- **Batch Generation** -- Generate hundreds of icons at once with 10 concurrent API calls per batch and progress tracking
+- **Generation Queue** -- Persistent SQLite-backed queue tracks per-icon status; failed items can be retried manually
+- **Duplicate Detection** -- Warns before generating icons with names that already exist; filter and clean up duplicates
+- **Multiple Styles** -- Solid, Outline, Colorful, Flat, Sticker styles with mood modifiers (Minimal, Cinematic, Energetic, Bold, Elegant, Soft)
+- **Variation Control** -- Choose 1-4 variations per icon; click to pick favorites, hover to refine
+- **Project Management** -- Organize icons into projects, pick favorites from variations, filter unpicked
+- **Post-Processing** -- Outline stroke, drop shadow, background fill with corner radius
+- **Multi-Format Export** -- PNG, WebP, SVG in a single ZIP with folder structure (`png/1024/icon.png`)
+- **SVG Tracing** -- Raster-to-vector conversion via vtracer with color quantization, smoothing, and scour optimization
+- **Per-Icon Preview** -- Preview any icon in PNG/WebP/SVG with quality settings and file size before exporting
+- **React/React Native SVG** -- Export SVGs as React JSX or React Native components
+- **Search & Filter** -- Search generation history by name/prompt, filter by unpicked or duplicate entries
+- **Self-Hosted** -- Runs locally, your API key, your data
 
 ![AI Refine Modal](docs/screenshots/refine-modal.png)
 
@@ -26,7 +30,7 @@ AI-powered icon pack generator. Create, refine, and export professional icon set
 ### Prerequisites
 
 - **Python 3.11+**
-- **Node.js 18+**
+- **Node.js 18+** (for development with hot reload)
 - **OpenAI API key** with access to image generation models
 
 ### Installation
@@ -38,20 +42,19 @@ cd needicons
 
 # Install Python dependencies
 pip install -e ".[dev]"
-
-# Install frontend dependencies
-cd frontend
-npm install
-cd ..
 ```
 
-### Running Locally
+### Running
 
 ```bash
+# Production mode (serves pre-built frontend)
+python -m needicons
+
+# Development mode (hot reload for frontend + backend)
 python -m needicons --dev
 ```
 
-This starts both the backend API (port 8420) and the frontend dev server (port 5173) with hot reload. Open [http://localhost:5173](http://localhost:5173) in your browser.
+Open [http://localhost:5173](http://localhost:5173) (dev) or [http://localhost:8420](http://localhost:8420) (production) in your browser.
 
 ### First-Time Setup
 
@@ -85,11 +88,21 @@ house: a cozy cottage with chimney; tree: tall oak tree with leaves
 | **Style** | Solid, Outline, Colorful, Flat, Sticker |
 | **Mood** | Minimal, Cinematic, Energetic, Bold, Elegant, Soft |
 | **Quality** | Auto, High, Low (maps to OpenAI API quality parameter) |
+| **Variations** | 1-4 variations generated per icon |
 | **AI Enhance** | Rewrites your prompt into a detailed icon description for better results |
+
+### Picking & Filtering
+
+- **Click** any variation image to pick it as your favorite
+- **Hover** to reveal the **Refine** button for AI editing
+- Use **Show unpicked** to find icons you haven't picked yet
+- Use **Show duplicates** to see icons generated multiple times (grouped by name)
+- **Search** by icon name or prompt text
+- **Delete duplicates** per group or all at once
 
 ### AI Refine
 
-Click any generated variation to open the **Refine** modal. Type natural language instructions:
+Hover over a variation and click **Refine** to open the editor. Type natural language instructions:
 
 - *"Remove all background, keep only the icon"*
 - *"Clean up edges, make it crisp"*
@@ -99,7 +112,7 @@ The AI edits your icon in real-time with partial image streaming. Use quick acti
 
 ### Project & Export
 
-1. **Pick** variations you like (click the `+` button on each variation)
+1. **Pick** variations you like (click the image)
 2. Switch to the **Project** tab to see all picked icons
 3. Apply **post-processing**: outline stroke, drop shadow, background fill with corner radius
 4. Click **Export Pack** to download a ZIP with all icons
@@ -111,7 +124,6 @@ The AI edits your icon in real-time with partial image streaming. Use quick acti
 | **Formats** | PNG, WebP, SVG (all selectable together) |
 | **SVG Smoothing** | 1-5 (pre-blur before vector tracing) |
 | **SVG Optimize** | Scour minification (coordinate shortening, single-line output) |
-| **Quality** | Lossless, High (90%), Medium (75%), Low (50%) for PNG/WebP |
 
 **ZIP structure:**
 ```
@@ -123,8 +135,6 @@ needicons-MyProject.zip
   manifest.json
 ```
 
-Duplicate names are handled automatically: `house`, `house_colorful`, `house_solid_2`.
-
 ### Per-Icon Preview
 
 In the **Project** tab, hover over any icon and click **Preview** to inspect it in any format:
@@ -135,6 +145,18 @@ In the **Project** tab, hover over any icon and click **Preview** to inspect it 
 - Live file size display
 - Direct download button
 
+### Verify Exports
+
+Check if a PNG was exported through NeedIcons:
+
+```bash
+# Drop PNGs into the verify/ folder, then:
+python -m needicons verify
+
+# Or specify a file directly:
+python -m needicons verify path/to/icon.png
+```
+
 ## Tech Stack
 
 | Layer | Technology |
@@ -143,8 +165,9 @@ In the **Project** tab, hover over any icon and click **Preview** to inspect it 
 | **AI** | OpenAI Images API + Responses API (editing) |
 | **Image Processing** | Pillow, NumPy, OpenCV |
 | **SVG** | vtracer (raster-to-vector), scour (optimization) |
+| **Storage** | SQLite with WAL mode (auto-migrated from YAML) |
 | **Frontend** | React 18, TypeScript, Vite |
-| **Styling** | Tailwind CSS, glassmorphism dark theme |
+| **Styling** | Tailwind CSS, glassmorphism dark/light theme |
 | **Components** | shadcn/ui, lucide-react icons |
 | **Data Fetching** | TanStack Query |
 
@@ -155,8 +178,7 @@ All data is stored locally in `~/.needicons/`:
 | File | Purpose |
 |------|---------|
 | `config.yaml` | API keys (encrypted at rest), provider settings |
-| `projects.yaml` | Project data, icon lists, post-processing settings |
-| `generations.yaml` | Generation history with all variations |
+| `needicons.db` | SQLite database (projects, generations, queue) |
 | `images/` | Generated and processed icon images |
 
 ## Development
@@ -166,19 +188,16 @@ All data is stored locally in `~/.needicons/`:
 pip install -e ".[dev]"
 cd frontend && npm install && cd ..
 
+# Run with hot reload
+python -m needicons --dev
+
 # Run tests
 python -m pytest
 
-# Run specific tests
-python -m pytest tests/core/export/test_packager.py -v
-
 # TypeScript check
 cd frontend && npx tsc --noEmit
-
-# Frontend dev server with hot reload
-cd frontend && npm run dev
 ```
 
 ## License
 
-AGPL-3.0 — see [LICENSE](LICENSE)
+AGPL-3.0 -- see [LICENSE](LICENSE)
