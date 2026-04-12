@@ -1,4 +1,5 @@
-import { useModelCapabilities, useSettings } from "@/hooks/api/use-settings";
+import { useEffect } from "react";
+import { useModelCapabilities } from "@/hooks/api/use-settings";
 import { cn } from "@/lib/utils";
 
 interface ModelDropdownProps {
@@ -7,11 +8,19 @@ interface ModelDropdownProps {
 }
 
 export function ModelDropdown({ value, onChange }: ModelDropdownProps) {
-  const { data: settings } = useSettings();
   const { data: capabilities } = useModelCapabilities();
 
-  const currentModel = value || settings?.provider?.default_model || "gpt-image-1.5";
-  const availableModels = capabilities ? Object.keys(capabilities) : [currentModel];
+  const availableModels = capabilities ? Object.keys(capabilities) : [];
+  const currentModel = value && availableModels.includes(value)
+    ? value
+    : availableModels[0] || "gpt-image-1.5";
+
+  // Auto-select first available model when current selection is invalid
+  useEffect(() => {
+    if (availableModels.length > 0 && (!value || !availableModels.includes(value))) {
+      onChange(availableModels[0]);
+    }
+  }, [availableModels.join(","), value]);
 
   return (
     <div>

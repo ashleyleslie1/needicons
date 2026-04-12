@@ -92,6 +92,15 @@ export const api = {
     });
   },
 
+  updateStabilitySettings(
+    data: { api_key?: string },
+  ): Promise<{ status: string }> {
+    return request<{ status: string }>("/settings/stability", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
+
   getGpuStatus(): Promise<GpuResponse> {
     return request<GpuResponse>("/settings/gpu");
   },

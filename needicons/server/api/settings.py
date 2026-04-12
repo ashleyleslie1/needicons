@@ -67,8 +67,14 @@ def _get_plaintext_key(stored: str) -> str:
 
 
 def get_api_key(state) -> str:
-    """Public helper: get the decrypted API key from config."""
+    """Public helper: get the decrypted OpenAI API key from config."""
     raw = state.config.get("provider", {}).get("api_key", "")
+    return _get_plaintext_key(raw)
+
+
+def get_stability_key(state) -> str:
+    """Public helper: get the decrypted Stability AI API key from config."""
+    raw = state.config.get("stability", {}).get("api_key", "")
     return _get_plaintext_key(raw)
 
 
@@ -80,12 +86,20 @@ async def get_settings(request: Request):
     api_key = _get_plaintext_key(raw_key)
     from needicons.core.pipeline.runner import select_backend
     backend = select_backend(state.config)
+    stability = state.config.get("stability", {})
+    raw_stability_key = stability.get("api_key", "")
+    stability_key = _get_plaintext_key(raw_stability_key)
+
     return {
         "edition": state.edition,
         "provider": {
             "api_key": (api_key[:8] + "..." if len(api_key) > 8 else "***") if api_key else "",
             "api_key_set": bool(api_key),
             "default_model": provider.get("default_model", "dall-e-3"),
+        },
+        "stability": {
+            "api_key": (stability_key[:8] + "..." if len(stability_key) > 8 else "***") if stability_key else "",
+            "api_key_set": bool(stability_key),
         },
         "processing": {
             "active_backend": backend.value,
@@ -97,10 +111,25 @@ async def get_settings(request: Request):
 async def update_provider(request: Request):
     body = await request.json()
     state = request.app.state.app_state
-    # Encrypt API key before storing
-    if "api_key" in body and body["api_key"]:
-        body["api_key"] = encrypt_value(body["api_key"])
+    if "api_key" in body:
+        if body["api_key"]:
+            body["api_key"] = encrypt_value(body["api_key"])
+        else:
+            body["api_key"] = ""  # Clear key
     state.update_config("provider", body)
+    return {"status": "ok"}
+
+
+@router.put("/stability")
+async def update_stability(request: Request):
+    body = await request.json()
+    state = request.app.state.app_state
+    if "api_key" in body:
+        if body["api_key"]:
+            body["api_key"] = encrypt_value(body["api_key"])
+        else:
+            body["api_key"] = ""  # Clear key
+    state.update_config("stability", body)
     return {"status": "ok"}
 
 
@@ -156,9 +185,75 @@ _MODEL_CAPABILITIES = {
 }
 
 
+_STABILITY_MODEL_CAPABILITIES = {
+    "sd3.5-flash": {
+        "label": "SD 3.5 Flash",
+        "description": "Fast & cheap (2.5 credits)",
+        "supports_n": False,
+        "max_n": 1,
+        "supports_transparent_bg": False,
+        "sizes": ["1024x1024"],
+        "qualities": [],
+        "economy_mode": "1 image per call",
+        "precision_mode": "1 image per call",
+        "legacy": False,
+        "provider": "stability",
+    },
+    "sd3.5-medium": {
+        "label": "SD 3.5 Medium",
+        "description": "Balanced quality & speed (3.5 credits)",
+        "supports_n": False,
+        "max_n": 1,
+        "supports_transparent_bg": False,
+        "sizes": ["1024x1024"],
+        "qualities": [],
+        "economy_mode": "1 image per call",
+        "precision_mode": "1 image per call",
+        "legacy": False,
+        "provider": "stability",
+    },
+    "sd3.5-large-turbo": {
+        "label": "SD 3.5 Large Turbo",
+        "description": "High quality, fast (4 credits)",
+        "supports_n": False,
+        "max_n": 1,
+        "supports_transparent_bg": False,
+        "sizes": ["1024x1024"],
+        "qualities": [],
+        "economy_mode": "1 image per call",
+        "precision_mode": "1 image per call",
+        "legacy": False,
+        "provider": "stability",
+    },
+    "sd3.5-large": {
+        "label": "SD 3.5 Large",
+        "description": "Best quality (6.5 credits)",
+        "supports_n": False,
+        "max_n": 1,
+        "supports_transparent_bg": False,
+        "sizes": ["1024x1024"],
+        "qualities": [],
+        "economy_mode": "1 image per call",
+        "precision_mode": "1 image per call",
+        "legacy": False,
+        "provider": "stability",
+    },
+}
+
+
 @router.get("/models")
-async def get_model_capabilities():
-    return _MODEL_CAPABILITIES
+async def get_model_capabilities(request: Request):
+    state = request.app.state.app_state
+    models = {}
+    # Only include OpenAI models if key is set
+    openai_key = get_api_key(state)
+    if openai_key:
+        models.update(_MODEL_CAPABILITIES)
+    # Only include Stability models if key is set
+    stability_key = get_stability_key(state)
+    if stability_key:
+        models.update(_STABILITY_MODEL_CAPABILITIES)
+    return models
 
 
 @router.put("/gpu")

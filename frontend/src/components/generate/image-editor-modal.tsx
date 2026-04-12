@@ -105,7 +105,7 @@ export function ImageEditorModal({ record, variationIndex, open, onOpenChange, o
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl p-0 gap-0 overflow-hidden border-border/50 bg-background">
-        <div className="flex" style={{ height: "540px" }}>
+        <div className="flex" style={{ height: "650px" }}>
           {/* Left: Image preview with checkerboard */}
           <div className="flex-1 flex flex-col relative">
             {/* Processing overlay */}
@@ -161,7 +161,7 @@ export function ImageEditorModal({ record, variationIndex, open, onOpenChange, o
                 src={partialImage || `/api/images/${variation.preview_path}?t=${cacheBust(record, refineVersion)}`}
                 alt={`${record.name} v${variationIndex + 1}`}
                 draggable={false}
-                className="max-h-[420px] max-w-full object-contain drop-shadow-lg transition-transform duration-100 select-none"
+                className="max-h-[520px] max-w-full object-contain drop-shadow-lg transition-transform duration-100 select-none"
                 style={{ transform: `scale(${zoom}) translate(${panX}px, ${panY}px)` }}
               />
             </div>
@@ -210,19 +210,36 @@ export function ImageEditorModal({ record, variationIndex, open, onOpenChange, o
           <div className="w-[260px] shrink-0 border-l border-border/50/50 flex flex-col bg-background">
             {/* Header */}
             <div className="px-4 py-3 border-b border-border/50/50">
-              <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
-                </svg>
-                Refine
-              </h3>
-              <p className="text-[10px] text-muted-foreground mt-0.5">
-                AI-powered editing via OpenAI
-              </p>
+              {record.model?.startsWith("sd3") ? (
+                <>
+                  <h3 className="text-sm font-semibold text-foreground">Details</h3>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                    Generated with <span className="text-foreground font-medium">{record.model}</span> via Stability AI
+                  </p>
+                </>
+              ) : (
+                <>
+                  <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                    </svg>
+                    Refine
+                  </h3>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                    Using <span className="text-foreground font-medium">gpt-5.4-nano</span> via OpenAI Responses API
+                  </p>
+                </>
+              )}
             </div>
 
             {/* Refine prompt */}
             <div className="flex-1 px-3 py-3 flex flex-col gap-3 overflow-y-auto">
+              {record.model?.startsWith("sd3") ? (
+                <div className="flex-1 flex flex-col items-center justify-center text-center px-4">
+                  <p className="text-sm text-muted-foreground">AI refine is not available for Stability AI models.</p>
+                  <p className="text-[10px] text-muted-foreground mt-2">You can pick this variation or navigate between variations using the arrows below.</p>
+                </div>
+              ) : <>
               <div>
                 <label className="text-[11px] text-muted-foreground mb-1.5 block">What should the AI change?</label>
                 <textarea
@@ -276,6 +293,7 @@ export function ImageEditorModal({ record, variationIndex, open, onOpenChange, o
                   {refineVariation.error?.message || "Refinement failed"}
                 </div>
               )}
+              </>}
             </div>
 
             {/* Info footer */}

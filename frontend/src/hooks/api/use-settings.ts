@@ -16,6 +16,18 @@ export function useUpdateProviderSettings() {
       api.updateProviderSettings(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["settings"] });
+      queryClient.invalidateQueries({ queryKey: ["model-capabilities"] });
+    },
+  });
+}
+
+export function useUpdateStabilitySettings() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { api_key?: string }) => api.updateStabilitySettings(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["settings"] });
+      queryClient.invalidateQueries({ queryKey: ["model-capabilities"] });
     },
   });
 }
@@ -41,7 +53,6 @@ export function useModelCapabilities() {
   return useQuery({
     queryKey: ["model-capabilities"],
     queryFn: () => api.getModelCapabilities(),
-    staleTime: 60 * 60 * 1000,
   });
 }
 

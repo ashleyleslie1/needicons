@@ -107,6 +107,10 @@ export interface SettingsResponse {
     default_model: string;
     api_key_set: boolean;
   };
+  stability?: {
+    api_key: string;
+    api_key_set: boolean;
+  };
   processing?: {
     active_backend: string;
   };

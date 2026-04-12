@@ -49,7 +49,7 @@ export function GeneratePage() {
   const [quality, setQuality] = useState("");
   const [mood, setMood] = useState("none");
   const [aiEnhance, setAiEnhance] = useState(false);
-  const [variations, setVariations] = useState(4);
+  const [variations, setVariations] = useState(1);
   const [showUnpickedOnly, setShowUnpickedOnly] = useState(false);
   const [showDuplicatesOnly, setShowDuplicatesOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -63,7 +63,9 @@ export function GeneratePage() {
   const parsedPrompts = parsePrompts(promptText);
   const iconCount = parsedPrompts.length;
 
-  const effectiveModel = model || settings?.provider?.default_model || "gpt-image-1.5";
+  const effectiveModel = model || "";
+  const isStabilityModel = effectiveModel.startsWith("sd3");
+  const hasOpenAI = !!settings?.provider?.api_key_set;
 
   const existingNames = useMemo(() => {
     if (!history) return new Set<string>();
@@ -225,7 +227,9 @@ export function GeneratePage() {
         <MoodDropdown value={mood} onChange={setMood} />
 
         {/* Quality */}
-        <QualityToggle model={effectiveModel} value={quality} onChange={setQuality} />
+        {!isStabilityModel && (
+          <QualityToggle model={effectiveModel} value={quality} onChange={setQuality} />
+        )}
 
         {/* Variations */}
         <div>
@@ -238,10 +242,10 @@ export function GeneratePage() {
                 key={n}
                 onClick={() => setVariations(n)}
                 className={cn(
-                  "flex-1 rounded-lg py-1.5 text-xs font-medium border transition-all",
+                  "flex-1 rounded-lg py-2 text-xs font-semibold border transition-all",
                   variations === n
-                    ? "bg-accent/20 text-accent border-accent/40 shadow-sm shadow-accent/10"
-                    : "bg-card/40 text-muted-foreground border-border/50 hover:text-foreground hover:bg-muted/30 hover:border-border",
+                    ? "bg-accent text-white border-accent shadow-md shadow-accent/20"
+                    : "bg-card/40 text-muted-foreground border-border/50 hover:text-foreground hover:bg-muted/30 hover:border-border active:scale-95",
                 )}
               >
                 {n}
@@ -250,15 +254,19 @@ export function GeneratePage() {
           </div>
         </div>
 
-        {/* AI Enhance */}
-        <div className="flex items-center justify-between rounded-lg border border-border/50 bg-card/40 backdrop-blur-sm px-3 py-2.5">
+        {/* AI Enhance — requires OpenAI API key */}
+        <div className={cn(
+          "flex items-center justify-between rounded-lg border border-border/50 bg-card/40 backdrop-blur-sm px-3 py-2.5",
+          !hasOpenAI && "opacity-40 pointer-events-none",
+        )}>
           <div>
             <p className="text-sm font-medium text-foreground">AI Enhance</p>
-            <p className="text-[10px] text-muted-foreground">Improve prompts with GPT</p>
+            <p className="text-[10px] text-muted-foreground">{!hasOpenAI ? "Requires OpenAI API key" : "Improve prompts with GPT"}</p>
           </div>
           <Switch
-            checked={aiEnhance}
+            checked={hasOpenAI ? aiEnhance : false}
             onCheckedChange={setAiEnhance}
+            disabled={!hasOpenAI}
             aria-label="AI Enhance"
           />
         </div>
@@ -447,18 +455,20 @@ export function GeneratePage() {
           )}
           <DialogFooter className="gap-2 sm:gap-0">
             <Button variant="ghost" onClick={() => setDuplicateWarning(null)}>Cancel</Button>
-            <Button
-              variant="outline"
-              onClick={() => {
-                if (!duplicateWarning) return;
-                const dupeSet = new Set(duplicateWarning.duplicates.map((d) => d.toLowerCase()));
-                const filtered = duplicateWarning.prompts.filter((p) => !dupeSet.has(p.name.toLowerCase()));
-                setDuplicateWarning(null);
-                if (filtered.length > 0) doGenerate(filtered);
-              }}
-            >
-              Skip duplicates ({duplicateWarning ? duplicateWarning.prompts.length - duplicateWarning.duplicates.length : 0} new)
-            </Button>
+            {duplicateWarning && duplicateWarning.prompts.length > duplicateWarning.duplicates.length && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  if (!duplicateWarning) return;
+                  const dupeSet = new Set(duplicateWarning.duplicates.map((d) => d.toLowerCase()));
+                  const filtered = duplicateWarning.prompts.filter((p) => !dupeSet.has(p.name.toLowerCase()));
+                  setDuplicateWarning(null);
+                  if (filtered.length > 0) doGenerate(filtered);
+                }}
+              >
+                Skip duplicates ({duplicateWarning.prompts.length - duplicateWarning.duplicates.length} new)
+              </Button>
+            )}
             <Button
               onClick={() => {
                 if (!duplicateWarning) return;
@@ -467,7 +477,7 @@ export function GeneratePage() {
                 doGenerate(prompts);
               }}
             >
-              Regenerate all
+              Generate anyway
             </Button>
           </DialogFooter>
         </DialogContent>

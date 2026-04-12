@@ -37,10 +37,15 @@ def _save_image(state, image: Image.Image, path: str) -> None:
 
 
 _GPT_IMAGE_MODELS = {"gpt-image-1", "gpt-image-1.5", "gpt-image-1-mini"}
+_STABILITY_MODELS = {"sd3.5-flash", "sd3.5-medium", "sd3.5-large-turbo", "sd3.5-large"}
 
 
 def _is_gpt_image_model(model: str) -> bool:
     return model in _GPT_IMAGE_MODELS or model.startswith("gpt-image")
+
+
+def _is_stability_model(model: str) -> bool:
+    return model in _STABILITY_MODELS or model.startswith("sd3")
 
 
 def _make_preview(image: Image.Image, gpu_provider: str = "auto", model: str = "") -> Image.Image:
@@ -249,16 +254,30 @@ async def _run_generation(state, job: dict):
     style_prompt = ""
     gpu_provider = state.config.get("gpu", {}).get("provider", "auto")
 
-    api_key = get_api_key(state)
-    if not api_key:
-        _emit(job, "error", {"message": "No API key configured"})
-        job["status"] = "failed"
-        await asyncio.sleep(5)
-        state.jobs.pop(job["id"], None)
-        state.save_jobs()
-        return
-
-    provider = OpenAIProvider(api_key=api_key, default_model=default_model)
+    if _is_stability_model(default_model):
+        from needicons.server.api.settings import get_stability_key
+        from needicons.core.providers.stability import StabilityProvider
+        api_key = get_stability_key(state)
+        if not api_key:
+            _emit(job, "error", {"message": "No Stability AI API key configured"})
+            job["status"] = "failed"
+            await asyncio.sleep(5)
+            state.jobs.pop(job["id"], None)
+            state.save_jobs()
+            return
+        provider = StabilityProvider(api_key=api_key, default_model=default_model)
+        # Stability doesn't support AI enhance
+        ai_enhance = False
+    else:
+        api_key = get_api_key(state)
+        if not api_key:
+            _emit(job, "error", {"message": "No OpenAI API key configured"})
+            job["status"] = "failed"
+            await asyncio.sleep(5)
+            state.jobs.pop(job["id"], None)
+            state.save_jobs()
+            return
+        provider = OpenAIProvider(api_key=api_key, default_model=default_model)
 
     # Load pending items from queue (supports resume after crash)
     remaining = state._db.get_pending_queue_items(job["id"])
@@ -418,12 +437,19 @@ async def generate_icons(request: Request):
     ai_enhance = body.get("ai_enhance", False)
     variations = max(1, min(4, body.get("variations", 4)))
 
-    api_key = get_api_key(state)
-    if not api_key:
-        raise HTTPException(status_code=400, detail="No API key configured")
-
     provider_config = state.config.get("provider", {})
-    default_model = body.get("model") or provider_config.get("default_model", "gpt-image-1-mini")
+    default_model = body.get("model", "")
+    if not default_model:
+        default_model = provider_config.get("default_model", "gpt-image-1-mini")
+
+    # Validate API key based on selected model
+    if _is_stability_model(default_model):
+        from needicons.server.api.settings import get_stability_key
+        if not get_stability_key(state):
+            raise HTTPException(status_code=400, detail="No Stability AI API key configured")
+    else:
+        if not get_api_key(state):
+            raise HTTPException(status_code=400, detail="No OpenAI API key configured")
 
     if project_id:
         project = state.projects[project_id]
@@ -1206,3 +1232,80 @@ async def refine_variation(gen_id: str, request: Request):
             yield f"event: error\ndata: {json.dumps({'detail': str(e)})}\n\n"
 
     return StreamingResponse(stream_refine(), media_type="text/event-stream")
+
+
+@router.post("/api/generations/{gen_id}/remove-bg-stability")
+async def remove_bg_stability(gen_id: str, request: Request):
+    """Remove background using Stability AI API for all variations of a generation."""
+    state = request.app.state.app_state
+    record = state.generation_records.get(gen_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Generation record not found")
+
+    from needicons.server.api.settings import get_stability_key
+    from needicons.core.providers.stability import StabilityProvider
+
+    api_key = get_stability_key(state)
+    if not api_key:
+        raise HTTPException(status_code=400, detail="No Stability AI API key configured")
+
+    provider = StabilityProvider(api_key=api_key)
+
+    for variation in record.variations:
+        source_path = state.data_dir / variation.source_path
+        if not source_path.exists():
+            continue
+        img = Image.open(source_path).convert("RGBA")
+        processed = await provider.remove_background(img)
+        _save_image(state, processed, variation.source_path)
+        # Update preview
+        from needicons.core.pipeline.normalize import WeightNormalizationStep, CenteringStep
+        wn = WeightNormalizationStep()
+        preview = wn.process(processed, {"enabled": True, "target_fill": 0.90})
+        centering = CenteringStep()
+        preview = centering.process(preview, {})
+        preview = preview.resize((256, 256), Image.LANCZOS)
+        _save_image(state, preview, variation.preview_path)
+
+    asyncio.create_task(asyncio.to_thread(state.save_data))
+    return record.model_dump()
+
+
+@router.post("/api/projects/{project_id}/remove-bg-stability")
+async def remove_bg_stability_bulk(project_id: str, request: Request):
+    """Remove backgrounds for all icons in a project using Stability AI API."""
+    state = request.app.state.app_state
+    project = state.projects.get(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    from needicons.server.api.settings import get_stability_key
+    from needicons.core.providers.stability import StabilityProvider
+
+    api_key = get_stability_key(state)
+    if not api_key:
+        raise HTTPException(status_code=400, detail="No Stability AI API key configured")
+
+    provider = StabilityProvider(api_key=api_key)
+    processed_count = 0
+
+    for icon in project.icons:
+        source_path = state.data_dir / icon.source_path
+        if not source_path.exists():
+            continue
+        img = Image.open(source_path).convert("RGBA")
+        processed = await provider.remove_background(img)
+        _save_image(state, processed, icon.source_path)
+        # Update preview
+        preview_path = icon.preview_path
+        from needicons.core.pipeline.normalize import WeightNormalizationStep, CenteringStep
+        wn = WeightNormalizationStep()
+        preview = wn.process(processed, {"enabled": True, "target_fill": 0.90})
+        centering = CenteringStep()
+        preview = centering.process(preview, {})
+        preview = preview.resize((256, 256), Image.LANCZOS)
+        _save_image(state, preview, preview_path)
+        processed_count += 1
+
+    asyncio.create_task(asyncio.to_thread(state.save_data))
+    return {"status": "ok", "processed": processed_count, "total": len(project.icons)}

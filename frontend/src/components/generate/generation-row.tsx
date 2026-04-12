@@ -117,16 +117,16 @@ export const GenerationRow = memo(function GenerationRow({ record, layout, onReg
                   {"\u2713"}
                 </div>
               )}
-              {/* Refine button on hover */}
+              {/* Open detail/refine modal on hover */}
               <div
                 className="absolute left-1.5 bottom-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
                 onClick={(e) => { e.stopPropagation(); setEditorVariation(variation.index); }}
               >
-                <div className="flex items-center gap-1 rounded-full bg-background/80 px-2 py-1 text-[10px] font-medium text-muted-foreground shadow transition-colors hover:bg-accent hover:text-white">
+                <div className="flex items-center gap-1 rounded-full bg-card border border-border/50 px-2 py-1 text-[10px] font-medium text-foreground shadow-md transition-colors hover:bg-accent hover:text-white hover:border-accent">
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
                   </svg>
-                  Refine
+                  View
                 </div>
               </div>
             </button>
