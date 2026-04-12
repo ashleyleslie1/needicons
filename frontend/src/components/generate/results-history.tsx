@@ -95,12 +95,12 @@ export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpicke
     count: items.length + (pendingCard ? 1 : 0),
     getScrollElement: () => scrollRef.current,
     estimateSize: useCallback((index: number) => {
-      if (pendingCard && index === 0) return 200;
+      if (pendingCard && index === 0) return 220;
       const item = items[pendingCard ? index - 1 : index];
-      if (!item) return 160;
-      if (item.type === "header") return 48;
-      if (item.type === "grid-row") return 260;
-      return 160;
+      if (!item) return 190;
+      if (item.type === "header") return 52;
+      if (item.type === "grid-row") return 280;
+      return 190;
     }, [items.length, !!pendingCard]),
     overscan: 5,
   });
