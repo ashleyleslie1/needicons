@@ -151,9 +151,14 @@ export function usePickVariation() {
   return useMutation({
     mutationFn: ({ generationId, variationIndex }: { generationId: string; variationIndex: number }) =>
       api.pickVariation(generationId, variationIndex),
-    onSuccess: () => {
+    onSuccess: (updatedRecord) => {
+      // Update cache directly — no full refetch
+      qc.setQueriesData<GenerationRecord[]>(
+        { queryKey: ["generation-history"] },
+        (old) => old?.map((r) => (r.id === updatedRecord.id ? updatedRecord : r)),
+      );
+      // Projects needs refetch since picked icon was added
       qc.invalidateQueries({ queryKey: ["projects"] });
-      qc.invalidateQueries({ queryKey: ["generation-history"] });
     },
   });
 }
@@ -162,9 +167,12 @@ export function useUnpickVariation() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (generationId: string) => api.unpickVariation(generationId),
-    onSuccess: () => {
+    onSuccess: (updatedRecord) => {
+      qc.setQueriesData<GenerationRecord[]>(
+        { queryKey: ["generation-history"] },
+        (old) => old?.map((r) => (r.id === updatedRecord.id ? updatedRecord : r)),
+      );
       qc.invalidateQueries({ queryKey: ["projects"] });
-      qc.invalidateQueries({ queryKey: ["generation-history"] });
     },
   });
 }
