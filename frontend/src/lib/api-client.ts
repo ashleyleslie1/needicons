@@ -443,7 +443,14 @@ export const api = {
     });
   },
 
-  updateIconCrop(projectId: string, iconId: string, crop: { crop_x: number; crop_y: number; crop_zoom: number }): Promise<SavedIcon> {
+  autoFitIcon(projectId: string, iconId: string, rotate?: number): Promise<{ crop_x: number; crop_y: number; crop_zoom: number; crop_rotate: number }> {
+    return request(`/projects/${projectId}/icons/${iconId}/auto-fit`, {
+      method: "POST",
+      body: rotate !== undefined ? JSON.stringify({ rotate }) : undefined,
+    });
+  },
+
+  updateIconCrop(projectId: string, iconId: string, crop: { crop_x: number; crop_y: number; crop_zoom: number; crop_rotate: number }): Promise<SavedIcon> {
     return request<SavedIcon>(`/projects/${projectId}/icons/${iconId}/crop`, {
       method: "PUT",
       body: JSON.stringify(crop),

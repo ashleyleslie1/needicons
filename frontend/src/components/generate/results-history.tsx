@@ -58,99 +58,81 @@ export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpicke
 
   return (
     <div className="flex flex-col h-full">
-      {/* Filter bar */}
-      <div className="mb-4 flex items-center gap-2 shrink-0">
-        <span className="text-[11px] text-muted-foreground shrink-0">
-          {records.length} of {totalCount ?? records.length}
-        </span>
+      {/* Toolbar */}
+      <div className="mb-3 shrink-0 space-y-1.5">
+        <div className="flex items-center gap-2">
+          {/* Search */}
+          {onSearchChange && (
+            <div className="relative">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground">
+                <circle cx="11" cy="11" r="8" />
+                <path d="M21 21l-4.3-4.3" />
+              </svg>
+              <input
+                type="text"
+                value={searchQuery ?? ""}
+                onChange={(e) => onSearchChange(e.target.value)}
+                placeholder="Search icons..."
+                className="h-8 w-48 rounded-lg border border-border bg-surface pl-8 pr-3 text-xs text-foreground placeholder:text-muted-foreground focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/15 transition-all"
+              />
+            </div>
+          )}
 
-        {onSearchChange && (
-          <div className="relative">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground">
-              <circle cx="11" cy="11" r="8" />
-              <path d="M21 21l-4.3-4.3" />
-            </svg>
-            <input
-              type="text"
-              value={searchQuery ?? ""}
-              onChange={(e) => onSearchChange(e.target.value)}
-              placeholder="Search..."
-              className="h-7 w-40 rounded-lg border border-border/50 bg-input pl-7 pr-2 text-[11px] text-foreground placeholder:text-muted-foreground focus:border-accent/50 focus:outline-none focus:ring-1 focus:ring-accent/20 transition-all"
-            />
-          </div>
-        )}
+          {/* Filter pills */}
+          <div className="flex items-center gap-1">
+          {onToggleUnpicked && (
+            <button
+              onClick={onToggleUnpicked}
+              className={cn("pill", showUnpickedOnly ? "pill-active" : "pill-inactive")}
+            >
+              Unpicked
+            </button>
+          )}
 
-        {onToggleUnpicked && (
-          <button
-            onClick={onToggleUnpicked}
-            className={cn(
-              "flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-medium transition-all",
-              showUnpickedOnly
-                ? "bg-accent/15 text-accent"
-                : "text-muted-foreground hover:text-foreground hover:bg-card/60",
-            )}
-          >
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-              <circle cx="12" cy="12" r="10" />
-              {!showUnpickedOnly && <path d="M8 12l3 3 5-5" />}
-            </svg>
-            {showUnpickedOnly ? `Unpicked (${records.length})` : "Show unpicked"}
-          </button>
-        )}
+          {onToggleDuplicates && (
+            <button
+              onClick={onToggleDuplicates}
+              className={cn("pill", showDuplicatesOnly ? "pill-active" : "pill-inactive")}
+            >
+              Duplicates
+            </button>
+          )}
 
-        {onToggleDuplicates && (
-          <button
-            onClick={onToggleDuplicates}
-            className={cn(
-              "flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-medium transition-all",
-              showDuplicatesOnly
-                ? "bg-accent/15 text-accent"
-                : "text-muted-foreground hover:text-foreground hover:bg-card/60",
-            )}
-          >
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-              <rect x="3" y="3" width="7" height="7" rx="1" />
-              <rect x="14" y="3" width="7" height="7" rx="1" />
-            </svg>
-            {showDuplicatesOnly ? "Duplicates" : "Show duplicates"}
-          </button>
-        )}
-
-        {showDuplicatesOnly && onDeleteDuplicates && records.length > 0 && (
-          <button
-            onClick={onDeleteDuplicates}
-            disabled={isDeleting}
-            className="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-medium text-destructive hover:bg-destructive/10 transition-all disabled:opacity-50"
-          >
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-              <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
-            </svg>
-            {isDeleting ? "Deleting..." : "Delete all duplicates"}
-          </button>
-        )}
-
-        <div className="ml-auto flex items-center gap-1">
-          <button
-            onClick={() => setLayout("list")}
-            className={cn(
-              "rounded-md p-1.5 transition-colors",
-              layout === "list" ? "bg-accent/15 text-accent" : "text-muted-foreground hover:text-foreground",
-            )}
-            title="List view"
-          >
-            <List className="h-4 w-4" />
-          </button>
-          <button
-            onClick={() => setLayout("grid")}
-            className={cn(
-              "rounded-md p-1.5 transition-colors",
-              layout === "grid" ? "bg-accent/15 text-accent" : "text-muted-foreground hover:text-foreground",
-            )}
-            title="Grid view"
-          >
-            <LayoutGrid className="h-4 w-4" />
-          </button>
+          {showDuplicatesOnly && onDeleteDuplicates && records.length > 0 && (
+            <button
+              onClick={onDeleteDuplicates}
+              disabled={isDeleting}
+              className="pill bg-destructive/10 text-destructive border border-destructive/20 hover:bg-destructive hover:text-white hover:border-destructive transition-all disabled:opacity-50"
+            >
+              {isDeleting ? "Deleting..." : "Clean up"}
+            </button>
+          )}
         </div>
+
+          {/* Layout toggle */}
+          <div className="ml-auto segment">
+            <button
+              onClick={() => setLayout("list")}
+              className={cn("segment-item", layout === "list" && "segment-item-active")}
+              title="List view"
+            >
+              <List className="h-3.5 w-3.5" />
+            </button>
+            <button
+              onClick={() => setLayout("grid")}
+              className={cn("segment-item", layout === "grid" && "segment-item-active")}
+              title="Grid view"
+            >
+              <LayoutGrid className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Count */}
+        <span className="text-[10px] text-muted-foreground tabular-nums">
+          {records.length} {records.length === 1 ? "result" : "results"}
+          {totalCount && totalCount !== records.length ? ` of ${totalCount}` : ""}
+        </span>
       </div>
 
       {/* Scrollable content */}

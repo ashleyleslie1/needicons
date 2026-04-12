@@ -8,6 +8,7 @@ import { ExportDialog } from "@/components/project/export-dialog";
 import { Button } from "@/components/ui/button";
 import type { PostProcessingSettings } from "@/lib/types";
 import { api } from "@/lib/api-client";
+import { Search, Trash2, Download } from "lucide-react";
 
 export function ProjectPage() {
   const { activeProjectId } = useSidebar();
@@ -17,6 +18,8 @@ export function ProjectPage() {
   const [showExport, setShowExport] = useState(false);
   const [previewVersion, setPreviewVersion] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isBulkProcessing, setIsBulkProcessing] = useState(false);
   const qc = useQueryClient();
 
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
@@ -68,62 +71,72 @@ export function ProjectPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden">
-      {/* Project header */}
-      <div className="border-b border-border/50 bg-card/30 backdrop-blur-sm px-6 py-2.5">
-        <div className="flex items-center gap-3">
-          {/* Icon count */}
-          <span className="text-[11px] text-muted-foreground shrink-0">
-            {searchQuery ? `${filteredIcons.length} of ${project.icons.length}` : `${project.icons.length} icons`}
-          </span>
+    <div className="relative flex flex-1 flex-col overflow-hidden">
+      {/* Toolbar */}
+      <div className="flex items-center gap-3 border-b border-border bg-card/50 px-5 py-2.5">
+        {/* Count */}
+        <span className="text-[12px] text-muted-foreground tabular-nums shrink-0">
+          {searchQuery ? `${filteredIcons.length} / ${project.icons.length}` : `${project.icons.length} icons`}
+        </span>
 
-          {/* Search */}
-          {project.icons.length > 0 && (
-            <div className="relative">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground">
-                <circle cx="11" cy="11" r="8" />
-                <path d="M21 21l-4.3-4.3" />
-              </svg>
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search..."
-                className="h-7 w-40 rounded-lg border border-border/50 bg-input pl-7 pr-2 text-[11px] text-foreground placeholder:text-muted-foreground focus:border-accent/50 focus:outline-none focus:ring-1 focus:ring-accent/20 transition-all"
-              />
-            </div>
-          )}
-
-          {/* Actions — right side */}
-          <div className="flex items-center gap-2 ml-auto">
-            {project.icons.length > 0 && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  if (confirm(`Remove all ${project.icons.length} icons from this project?`)) {
-                    for (const icon of project.icons) handleRemoveIcon(icon.id);
-                  }
-                }}
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
-                </svg>
-                Clear All
-              </Button>
-            )}
-            <Button
-              onClick={() => setShowExport(true)}
-              disabled={project.icons.length === 0}
-              size="sm"
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-              </svg>
-              Export Pack
-            </Button>
+        {/* Search */}
+        {project.icons.length > 0 && (
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground h-3.5 w-3.5" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search..."
+              className="h-8 w-44 rounded-lg border border-border bg-surface pl-8 pr-3 text-xs text-foreground placeholder:text-muted-foreground focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/15 transition-all"
+            />
           </div>
-        </div>
+        )}
+
+        {/* Selection */}
+        {project.icons.length > 0 && (
+          <button
+            onClick={() => {
+              if (selectedIds.size === filteredIcons.length) setSelectedIds(new Set());
+              else setSelectedIds(new Set(filteredIcons.map((i) => i.id)));
+            }}
+            className="pill pill-inactive"
+          >
+            {selectedIds.size === filteredIcons.length && filteredIcons.length > 0 ? "Deselect all" : "Select all"}
+          </button>
+        )}
+
+        <span className={`text-[11px] font-medium transition-opacity ${selectedIds.size > 0 ? "text-accent opacity-100" : "opacity-0"}`}>
+          {selectedIds.size} selected
+        </span>
+
+        {/* Spacer */}
+        <div className="flex-1" />
+
+        {/* Actions */}
+        {project.icons.length > 0 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground hover:text-destructive"
+            onClick={() => {
+              if (confirm(`Remove all ${project.icons.length} icons?`)) {
+                for (const icon of project.icons) handleRemoveIcon(icon.id);
+              }
+            }}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            Clear
+          </Button>
+        )}
+        <Button
+          onClick={() => setShowExport(true)}
+          disabled={project.icons.length === 0}
+          size="sm"
+        >
+          <Download className="h-3.5 w-3.5" />
+          Export
+        </Button>
       </div>
 
       {/* Post-processing controls */}
@@ -132,11 +145,50 @@ export function ProjectPage() {
         onChange={handleSettingsChange}
         onExport={() => setShowExport(true)}
         iconCount={project.icons.length}
+        selectedCount={selectedIds.size}
+        isBulkProcessing={isBulkProcessing}
+        onAutoFitSelected={async () => {
+          if (selectedIds.size === 0) return;
+          setIsBulkProcessing(true);
+          try {
+            for (const iconId of selectedIds) {
+              await api.autoFitIcon(project.id, iconId);
+            }
+            qc.invalidateQueries({ queryKey: ["projects"] });
+          } catch { /* ignore */ }
+          setIsBulkProcessing(false);
+        }}
+        onRotateSelected={async (degrees) => {
+          if (selectedIds.size === 0) return;
+          setIsBulkProcessing(true);
+          try {
+            for (const iconId of selectedIds) {
+              const icon = project.icons.find((i) => i.id === iconId);
+              if (!icon) continue;
+              const newRotate = ((icon.crop_rotate || 0) + degrees + 360) % 360;
+              await api.autoFitIcon(project.id, iconId, newRotate);
+            }
+            qc.invalidateQueries({ queryKey: ["projects"] });
+          } catch { /* ignore */ }
+          setIsBulkProcessing(false);
+        }}
       />
+
+      {/* Bulk processing overlay */}
+      {isBulkProcessing && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/60 backdrop-blur-sm">
+          <div className="flex items-center gap-3 rounded-xl bg-card border border-border px-5 py-3 shadow-xl">
+            <svg className="h-5 w-5 animate-spin text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10" strokeDasharray="60" strokeDashoffset="20" strokeLinecap="round" />
+            </svg>
+            <span className="text-sm font-medium text-foreground">Applying adjustments...</span>
+          </div>
+        </div>
+      )}
 
       {/* Icon grid */}
       <div className="flex-1 overflow-auto">
-        <div className="p-6">
+        <div className="p-5">
           <ProjectIconGrid
             icons={filteredIcons}
             projectId={project.id}
@@ -145,6 +197,15 @@ export function ProjectPage() {
             onCropSave={async (iconId, crop) => {
               await api.updateIconCrop(project.id, iconId, crop);
               qc.invalidateQueries({ queryKey: ["projects"] });
+            }}
+            selectedIds={selectedIds}
+            onToggleSelect={(iconId) => {
+              setSelectedIds((prev) => {
+                const next = new Set(prev);
+                if (next.has(iconId)) next.delete(iconId);
+                else next.add(iconId);
+                return next;
+              });
             }}
           />
         </div>

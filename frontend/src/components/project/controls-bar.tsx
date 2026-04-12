@@ -7,9 +7,13 @@ interface ControlsBarProps {
   onChange: (settings: PostProcessingSettings) => void;
   onExport: () => void;
   iconCount: number;
+  selectedCount?: number;
+  onAutoFitSelected?: () => void;
+  onRotateSelected?: (degrees: number) => void;
+  isBulkProcessing?: boolean;
 }
 
-export function ControlsBar({ settings, onChange }: ControlsBarProps) {
+export function ControlsBar({ settings, onChange, selectedCount, onAutoFitSelected, onRotateSelected, isBulkProcessing }: ControlsBarProps) {
   function updateStroke(updates: Partial<typeof settings.stroke>) {
     onChange({ ...settings, stroke: { ...settings.stroke, ...updates } });
   }
@@ -115,6 +119,46 @@ export function ControlsBar({ settings, onChange }: ControlsBarProps) {
               <span className="text-[10px] text-muted-foreground tabular-nums w-5">{settings.mask.corner_radius}</span>
             </div>
           )}
+        </div>
+
+        {/* Bulk adjust */}
+        <div className={`flex items-center gap-2 transition-opacity ${(selectedCount ?? 0) > 0 ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
+          <div className="h-4 w-px bg-border/50" />
+          <div className="flex items-center gap-2">
+              {onAutoFitSelected && (
+                <button
+                  onClick={onAutoFitSelected}
+                  disabled={isBulkProcessing}
+                  className="flex items-center gap-1.5 rounded-md border border-border/50 bg-background px-2.5 py-1 text-[11px] font-medium text-foreground transition-all hover:bg-accent hover:text-white hover:border-accent disabled:opacity-50 disabled:pointer-events-none"
+                >
+                  {isBulkProcessing ? "Fitting..." : "Auto fit"}
+                </button>
+              )}
+              {onRotateSelected && (
+                <>
+                  <button
+                    onClick={() => onRotateSelected(-15)}
+                    disabled={isBulkProcessing}
+                    className="flex items-center justify-center h-6 w-6 rounded-md border border-border/50 bg-background text-[11px] font-bold text-foreground transition-all hover:bg-accent hover:text-white hover:border-accent disabled:opacity-50"
+                    title="Rotate selected -15°"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => onRotateSelected(15)}
+                    disabled={isBulkProcessing}
+                    className="flex items-center justify-center h-6 w-6 rounded-md border border-border/50 bg-background text-[11px] font-bold text-foreground transition-all hover:bg-accent hover:text-white hover:border-accent disabled:opacity-50"
+                    title="Rotate selected +15°"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+                    </svg>
+                  </button>
+                </>
+              )}
+          </div>
         </div>
       </div>
     </div>

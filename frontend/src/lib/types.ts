@@ -174,6 +174,7 @@ export interface SavedIcon {
   crop_x: number;
   crop_y: number;
   crop_zoom: number;
+  crop_rotate: number;
 }
 
 export interface GenerationVariation {
@@ -280,6 +281,7 @@ export interface QueueStatus {
 }
 
 export interface ModelCapabilities {
+  provider?: string;
   label: string;
   description: string;
   supports_n: boolean;

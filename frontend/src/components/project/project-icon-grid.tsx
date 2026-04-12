@@ -6,10 +6,12 @@ interface ProjectIconGridProps {
   projectId: string;
   previewVersion: number;
   onRemoveIcon: (iconId: string) => void;
-  onCropSave?: (iconId: string, crop: { crop_x: number; crop_y: number; crop_zoom: number }) => void;
+  onCropSave?: (iconId: string, crop: { crop_x: number; crop_y: number; crop_zoom: number; crop_rotate: number }) => void;
+  selectedIds?: Set<string>;
+  onToggleSelect?: (iconId: string) => void;
 }
 
-export function ProjectIconGrid({ icons, projectId, previewVersion, onRemoveIcon, onCropSave }: ProjectIconGridProps) {
+export function ProjectIconGrid({ icons, projectId, previewVersion, onRemoveIcon, onCropSave, selectedIds, onToggleSelect }: ProjectIconGridProps) {
 
   if (icons.length === 0) {
     return (
@@ -29,7 +31,7 @@ export function ProjectIconGrid({ icons, projectId, previewVersion, onRemoveIcon
   }
 
   return (
-    <div className="grid grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-3">
+    <div className="grid grid-cols-[repeat(auto-fill,minmax(155px,1fr))] gap-3">
       {icons.map((icon) => (
         <ProjectIconTile
           key={icon.id}
@@ -40,6 +42,8 @@ export function ProjectIconGrid({ icons, projectId, previewVersion, onRemoveIcon
           onRemove={() => onRemoveIcon(icon.id)}
           onSetPreview={() => {}}
           onCropSave={(crop) => onCropSave?.(icon.id, crop)}
+          selected={selectedIds?.has(icon.id)}
+          onToggleSelect={() => onToggleSelect?.(icon.id)}
         />
       ))}
     </div>

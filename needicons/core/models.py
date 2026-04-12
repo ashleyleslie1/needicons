@@ -169,6 +169,7 @@ class SavedIcon(BaseModel):
     crop_x: float = 0.0
     crop_y: float = 0.0
     crop_zoom: float = 1.0
+    crop_rotate: float = 0.0  # degrees
 
 
 class GenerationVariation(BaseModel):

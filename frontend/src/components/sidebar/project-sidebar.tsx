@@ -10,15 +10,14 @@ export function ProjectSidebar() {
 
   useEffect(() => {
     if (!projects || projects.length === 0) return;
-    // If no active project or stored ID doesn't match any project, select first
     if (!activeProjectId || !projects.some((p) => p.id === activeProjectId)) {
       setActiveProjectId(projects[0].id);
     }
   }, [activeProjectId, projects, setActiveProjectId]);
 
   return (
-    <div className="flex flex-col gap-1">
-      <div className="px-3 py-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+    <div className="flex flex-col gap-0.5">
+      <div className="px-3 py-2 text-[11px] font-medium uppercase tracking-widest text-muted-foreground">
         Projects
       </div>
       {projects?.map((project) => (
@@ -29,7 +28,9 @@ export function ProjectSidebar() {
           onClick={() => setActiveProjectId(project.id)}
         />
       ))}
-      <CreateProjectDialog />
+      <div className="mt-1">
+        <CreateProjectDialog />
+      </div>
     </div>
   );
 }

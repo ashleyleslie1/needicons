@@ -1,6 +1,4 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { Panel } from "@/components/layout/panel";
-import { Canvas } from "@/components/layout/canvas";
 import { AiProviderSettings } from "@/components/settings/ai-provider";
 import { AppearanceSettings } from "@/components/settings/appearance";
 import { AboutSettings } from "@/components/settings/about";
@@ -32,8 +30,9 @@ export function SettingsPage() {
 
   return (
     <div className="flex flex-1 overflow-hidden">
-      <Panel>
-        <h2 className="text-base font-semibold text-foreground mb-4 tracking-tight">Settings</h2>
+      {/* Nav */}
+      <div className="w-48 shrink-0 border-r border-border bg-card/50 p-4">
+        <h2 className="text-sm font-semibold text-foreground mb-4 px-2">Settings</h2>
         <nav className="flex flex-col gap-0.5">
           {ALL_SETTINGS_TABS.map((t) => (
             <button
@@ -41,21 +40,22 @@ export function SettingsPage() {
               type="button"
               onClick={() => navigate(`/settings/${t.id}`)}
               className={cn(
-                "flex items-center gap-2.5 text-sm text-left px-3 py-2 rounded-lg transition-all",
+                "flex items-center gap-2.5 text-[13px] text-left px-3 py-2 rounded-lg transition-all",
                 t.id === tab
-                  ? "font-medium bg-accent/10 text-accent"
-                  : "text-muted-foreground hover:text-foreground hover:bg-card/60"
+                  ? "font-medium bg-accent/8 text-accent"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
               )}
             >
-              <t.Icon className="h-3.5 w-3.5" />
+              <t.Icon className="h-4 w-4" />
               {t.label}
             </button>
           ))}
         </nav>
-      </Panel>
-      <Canvas>
+      </div>
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto p-8 max-w-2xl">
         <SettingsContent tab={tab} />
-      </Canvas>
+      </div>
     </div>
   );
 }

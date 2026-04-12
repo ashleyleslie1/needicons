@@ -9,15 +9,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
 import { Slider } from "@/components/ui/slider";
 
 const SIZES = [1024, 512, 256, 128, 64, 32, 16];
-const FORMATS = [
-  { value: "png", label: "PNG", disabled: false },
-  { value: "webp", label: "WebP", disabled: false },
-  { value: "svg", label: "SVG", disabled: false },
-];
 
 interface ExportDialogProps {
   project: Project;
@@ -49,12 +45,10 @@ export function ExportDialog({ project, onClose }: ExportDialogProps) {
 
   useEffect(() => {
     if (!jobId) return;
-
     pollRef.current = setInterval(async () => {
       try {
         const status = await api.getExportStatus(project.id, jobId);
         setProgress({ completed: status.completed, total: status.total, current_icon: status.current_icon });
-
         if (status.status === "completed") {
           clearInterval(pollRef.current);
           const blob = await api.downloadExport(project.id, jobId);
@@ -81,7 +75,6 @@ export function ExportDialog({ project, onClose }: ExportDialogProps) {
         setJobId(null);
       }
     }, 500);
-
     return () => clearInterval(pollRef.current);
   }, [jobId, project.id, project.name, onClose]);
 
@@ -107,24 +100,64 @@ export function ExportDialog({ project, onClose }: ExportDialogProps) {
   const hasSvg = selectedFormats.includes("svg");
   const totalFiles = project.icons.length * selectedSizes.length * rasterFormats.length
     + (hasSvg ? project.icons.length : 0);
+  const styles = [...new Set(project.icons.map((i) => i.style))];
 
   return (
     <Dialog open onOpenChange={() => !exporting && onClose()}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-accent">
-              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-            </svg>
-            Export {project.name}
-          </DialogTitle>
-          <p className="text-xs text-muted-foreground">
-            {project.icons.length} {project.icons.length === 1 ? "icon" : "icons"}
-          </p>
+          <DialogTitle>Export Pack</DialogTitle>
         </DialogHeader>
 
+        {/* Pack summary */}
+        <div className="flex items-center gap-3 rounded-xl border border-border/50 bg-card/40 px-4 py-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent/10">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-accent">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-foreground truncate">{project.name}</p>
+            <p className="text-[10px] text-muted-foreground">
+              {project.icons.length} icons · {styles.length} {styles.length === 1 ? "style" : "styles"} · {styles.join(", ")}
+            </p>
+          </div>
+        </div>
+
+        {/* Formats */}
         <div>
-          <div className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Sizes</div>
+          <div className="mb-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Formats</div>
+          <div className="grid grid-cols-3 gap-2">
+            {([
+              { value: "png", label: "PNG", desc: "Lossless raster" },
+              { value: "webp", label: "WebP", desc: "Smaller file size" },
+              { value: "svg", label: "SVG", desc: "Scalable vector" },
+            ] as const).map((f) => (
+              <button
+                key={f.value}
+                onClick={() => toggleFormat(f.value)}
+                disabled={exporting}
+                className={cn(
+                  "rounded-xl border px-3 py-2.5 text-left transition-all",
+                  selectedFormats.includes(f.value)
+                    ? "border-accent bg-accent/10 shadow-sm"
+                    : "border-border/50 bg-card/40 hover:border-border",
+                  exporting && "opacity-50 pointer-events-none",
+                )}
+              >
+                <span className={cn("text-xs font-semibold block", selectedFormats.includes(f.value) ? "text-accent" : "text-foreground")}>{f.label}</span>
+                <span className="text-[9px] text-muted-foreground">{f.desc}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Sizes */}
+        <div>
+          <div className="mb-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+            Sizes
+            {rasterFormats.length === 0 && hasSvg && <span className="ml-1 normal-case tracking-normal font-normal">(SVG is scalable)</span>}
+          </div>
           <div className="flex flex-wrap gap-1.5">
             {SIZES.map((size) => (
               <button
@@ -132,127 +165,90 @@ export function ExportDialog({ project, onClose }: ExportDialogProps) {
                 onClick={() => toggleSize(size)}
                 disabled={exporting}
                 className={cn(
-                  "rounded-lg px-3.5 py-1.5 text-xs font-medium transition-all",
+                  "rounded-lg border px-3 py-1.5 text-xs font-medium transition-all",
                   selectedSizes.includes(size)
-                    ? "bg-accent/15 text-accent shadow-sm"
-                    : "bg-card/60 backdrop-blur-sm text-muted-foreground hover:text-foreground hover:bg-card",
-                  exporting && "opacity-50 cursor-not-allowed",
+                    ? "border-accent bg-accent/10 text-accent"
+                    : "border-border/50 bg-card/40 text-muted-foreground hover:text-foreground hover:border-border",
+                  exporting && "opacity-50 pointer-events-none",
                 )}
               >
-                {size}
+                {size}px
               </button>
             ))}
           </div>
         </div>
 
-        <div>
-          <div className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Format</div>
-          <div className="flex gap-1.5">
-            {FORMATS.map((f) => (
-              <button
-                key={f.value}
-                onClick={() => !f.disabled && toggleFormat(f.value)}
-                disabled={f.disabled || exporting}
-                className={cn(
-                  "rounded-lg px-4 py-1.5 text-xs font-medium transition-all",
-                  (f.disabled || exporting) && "cursor-not-allowed opacity-30",
-                  selectedFormats.includes(f.value) && !f.disabled
-                    ? "bg-accent/15 text-accent shadow-sm"
-                    : "bg-card/60 backdrop-blur-sm text-muted-foreground hover:text-foreground hover:bg-card",
-                )}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* SVG settings — shown when SVG format selected */}
+        {/* SVG settings */}
         {hasSvg && (
-          <div>
-            <div className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">SVG Settings</div>
-            <div className="space-y-3 rounded-xl bg-card/40 backdrop-blur-sm border border-border/50 p-3">
+          <div className="rounded-xl border border-border/50 bg-card/40 p-4 space-y-3">
+            <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">SVG Settings</div>
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs text-foreground">Smoothing</span>
+                <span className="text-xs text-muted-foreground tabular-nums">{svgSmoothing}/5</span>
+              </div>
+              <Slider
+                value={[svgSmoothing]}
+                onValueChange={([v]) => setSvgSmoothing(v)}
+                min={1} max={5} step={1}
+                disabled={exporting}
+              />
+            </div>
+            <div className="flex items-center justify-between">
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs text-muted-foreground">Smoothing</span>
-                  <span className="text-xs text-muted-foreground tabular-nums">{svgSmoothing}/5</span>
-                </div>
-                <Slider
-                  value={[svgSmoothing]}
-                  onValueChange={([v]) => setSvgSmoothing(v)}
-                  min={1}
-                  max={5}
-                  step={1}
-                  disabled={exporting}
-                />
+                <span className="text-xs text-foreground block">Optimize</span>
+                <span className="text-[9px] text-muted-foreground">Minify paths and coordinates</span>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">Optimize</span>
-                <button
-                  onClick={() => setSvgOptimize(!svgOptimize)}
-                  disabled={exporting}
-                  className={cn(
-                    "text-xs px-2.5 py-0.5 rounded-full transition-all",
-                    svgOptimize ? "bg-accent/15 text-accent" : "bg-card/60 text-muted-foreground",
-                    exporting && "opacity-50 cursor-not-allowed",
-                  )}
-                >
-                  {svgOptimize ? "On" : "Off"}
-                </button>
-              </div>
+              <Switch
+                checked={svgOptimize}
+                onCheckedChange={setSvgOptimize}
+                disabled={exporting}
+              />
             </div>
           </div>
         )}
 
-        <div className="rounded-xl bg-card/40 backdrop-blur-sm border border-border/50 p-4">
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Icons</span>
-            <span className="text-foreground">{project.icons.length}</span>
-          </div>
-          {rasterFormats.length > 0 && (
-            <div className="mt-1.5 flex justify-between text-sm">
-              <span className="text-muted-foreground">Sizes</span>
-              <span className="text-foreground">{selectedSizes.sort((a, b) => b - a).join(", ")}</span>
-            </div>
-          )}
-          <div className="mt-1.5 flex justify-between text-sm">
-            <span className="text-muted-foreground">Formats</span>
-            <span className="text-foreground">
-              {selectedFormats.map((f) => f.toUpperCase()).join(", ")}
-              {hasSvg && rasterFormats.length > 0 && <span className="text-muted-foreground text-xs ml-1">(SVG is scalable)</span>}
-            </span>
-          </div>
-          <div className="mt-2 border-t border-border/50 pt-2">
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Total files</span>
-              <span className="font-semibold text-foreground">{totalFiles}</span>
-            </div>
-          </div>
+        {/* Summary */}
+        <div className="flex items-center justify-between rounded-xl border border-border/50 bg-card/40 px-4 py-3 text-sm">
+          <span className="text-muted-foreground">Total files</span>
+          <span className="font-semibold text-foreground">{totalFiles.toLocaleString()}</span>
         </div>
 
+        {/* Progress */}
         {exporting && progress && (
           <div className="space-y-2">
             <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <span>Processing{progress.current_icon ? `: ${progress.current_icon}` : "..."}</span>
-              <span>{progress.completed}/{progress.total}</span>
+              <span className="truncate flex-1">
+                {progress.current_icon ? `Processing: ${progress.current_icon}` : "Starting..."}
+              </span>
+              <span className="shrink-0 ml-2">{progress.completed}/{progress.total}</span>
             </div>
             <Progress value={(progress.completed / progress.total) * 100} />
           </div>
         )}
 
         {error && (
-          <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-xs text-destructive">
+          <div className="rounded-xl border border-destructive/20 bg-destructive/5 px-4 py-3 text-xs text-destructive">
             {error}
           </div>
         )}
 
-        <Button
-          onClick={handleExport}
-          disabled={exporting || selectedSizes.length === 0 || selectedFormats.length === 0 || project.icons.length === 0}
-          className="w-full shadow-lg shadow-accent/20"
-        >
-          {exporting ? "Exporting..." : "Download ZIP"}
-        </Button>
+        {/* Actions */}
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={onClose} disabled={exporting} className="flex-1">
+            Cancel
+          </Button>
+          <Button
+            onClick={handleExport}
+            disabled={exporting || selectedSizes.length === 0 || selectedFormats.length === 0 || project.icons.length === 0}
+            className="flex-1"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            {exporting ? "Exporting..." : "Download ZIP"}
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );

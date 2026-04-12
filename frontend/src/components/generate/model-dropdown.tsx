@@ -1,6 +1,7 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useModelCapabilities } from "@/hooks/api/use-settings";
-import { cn } from "@/lib/utils";
+import { FancySelect } from "@/components/ui/fancy-select";
+import { Cpu, Zap } from "lucide-react";
 
 interface ModelDropdownProps {
   value: string;
@@ -11,56 +12,29 @@ export function ModelDropdown({ value, onChange }: ModelDropdownProps) {
   const { data: capabilities } = useModelCapabilities();
 
   const availableModels = capabilities ? Object.keys(capabilities) : [];
-  const currentModel = value && availableModels.includes(value)
-    ? value
-    : availableModels[0] || "gpt-image-1.5";
 
-  // Auto-select first available model when current selection is invalid
   useEffect(() => {
     if (availableModels.length > 0 && (!value || !availableModels.includes(value))) {
       onChange(availableModels[0]);
     }
   }, [availableModels.join(","), value]);
 
-  return (
-    <div>
-      <label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1 block font-medium">
-        Model
-      </label>
-      <div className="relative">
-        <select
-          value={currentModel}
-          onChange={(e) => onChange(e.target.value)}
-          className={cn(
-            "w-full appearance-none rounded-lg border border-border/50 bg-input text-foreground",
-            "px-3 pr-8 py-2 text-sm",
-            "cursor-pointer transition-colors",
-            "hover:border-accent/40 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30",
-          )}
-        >
-          {availableModels.map((modelId) => {
-            const caps = capabilities?.[modelId];
-            const label = caps?.label ?? modelId;
-            const isLegacy = caps?.legacy ?? false;
-            return (
-              <option key={modelId} value={modelId}>
-                {label}{isLegacy ? " (Legacy)" : ""}
-              </option>
-            );
-          })}
-        </select>
-        <svg
-          className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-muted-foreground"
-          width="12"
-          height="12"
-          viewBox="0 0 12 12"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-        >
-          <path d="M3 4.5l3 3 3-3" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </div>
-    </div>
-  );
+  const options = useMemo(() => {
+    return availableModels.map((modelId) => {
+      const caps = capabilities?.[modelId];
+      const label = caps?.label ?? modelId;
+      const isStability = caps?.provider === "stability";
+      const desc = isStability ? "Stability AI" : "OpenAI";
+      return {
+        value: modelId,
+        label: label + (caps?.legacy ? " (Legacy)" : ""),
+        desc,
+        icon: isStability
+          ? <Zap className="h-3.5 w-3.5" />
+          : <Cpu className="h-3.5 w-3.5" />,
+      };
+    });
+  }, [availableModels, capabilities]);
+
+  return <FancySelect label="Model" options={options} value={value || availableModels[0] || ""} onChange={onChange} />;
 }

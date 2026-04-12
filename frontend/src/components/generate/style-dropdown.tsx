@@ -1,17 +1,13 @@
 import type { IconStyle } from "@/lib/types";
-import { Square, PenTool, Sparkles, Layers, Sticker } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { FancySelect } from "@/components/ui/fancy-select";
+import { Square, PenTool, Palette, Layers, Sticker } from "lucide-react";
 
-const STYLES: {
-  value: IconStyle;
-  label: string;
-  Icon: React.ComponentType<{ className?: string }>;
-}[] = [
-  { value: "solid", label: "Solid", Icon: Square },
-  { value: "outline", label: "Outline", Icon: PenTool },
-  { value: "colorful", label: "Colorful", Icon: Sparkles },
-  { value: "flat", label: "Flat", Icon: Layers },
-  { value: "sticker", label: "Sticker", Icon: Sticker },
+const STYLES = [
+  { value: "solid", label: "Solid", desc: "Bold filled shapes", icon: <Square className="h-3.5 w-3.5" /> },
+  { value: "outline", label: "Outline", desc: "Clean line strokes", icon: <PenTool className="h-3.5 w-3.5" /> },
+  { value: "colorful", label: "Colorful", desc: "Rich detailed colors", icon: <Palette className="h-3.5 w-3.5" /> },
+  { value: "flat", label: "Flat", desc: "Minimal flat design", icon: <Layers className="h-3.5 w-3.5" /> },
+  { value: "sticker", label: "Sticker", desc: "Playful 3D look", icon: <Sticker className="h-3.5 w-3.5" /> },
 ];
 
 interface StyleDropdownProps {
@@ -20,29 +16,5 @@ interface StyleDropdownProps {
 }
 
 export function StyleDropdown({ value, onChange }: StyleDropdownProps) {
-  return (
-    <div>
-      <label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5 block font-medium">
-        Style
-      </label>
-      <div className="grid grid-cols-5 gap-1">
-        {STYLES.map((s) => (
-          <button
-            key={s.value}
-            onClick={() => onChange(s.value)}
-            title={s.label}
-            className={cn(
-              "flex flex-col items-center gap-1 rounded-lg py-2 px-1 transition-all text-center",
-              value === s.value
-                ? "bg-accent/15 ring-1 ring-accent/30 text-accent"
-                : "bg-input hover:bg-card/80 text-muted-foreground hover:text-foreground",
-            )}
-          >
-            <s.Icon className="h-4 w-4" />
-            <span className="text-[9px] font-medium leading-none">{s.label}</span>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
+  return <FancySelect label="Style" options={STYLES} value={value} onChange={(v) => onChange(v as IconStyle)} />;
 }

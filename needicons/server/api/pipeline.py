@@ -15,10 +15,18 @@ from needicons.core.models import ProcessingProfile
 router = APIRouter(tags=["pipeline"])
 
 
-def _apply_crop(img: Image.Image, crop_x: float, crop_y: float, crop_zoom: float) -> Image.Image:
-    """Apply non-destructive crop/zoom. Zooms into image center offset by crop_x/crop_y."""
+def _apply_crop(img: Image.Image, crop_x: float, crop_y: float, crop_zoom: float, crop_rotate: float = 0.0) -> Image.Image:
+    """Apply non-destructive crop/zoom/rotate."""
     w, h = img.size
-    # Compute the visible region after zoom
+    # Rotate first (expand=True to avoid clipping, then crop back)
+    if crop_rotate != 0:
+        img = img.rotate(-crop_rotate, resample=Image.BICUBIC, expand=True)
+        # Crop back to original aspect ratio from center
+        rw, rh = img.size
+        left = (rw - w) // 2
+        top = (rh - h) // 2
+        img = img.crop((left, top, left + w, top + h))
+    # Zoom
     new_w = int(w / crop_zoom)
     new_h = int(h / crop_zoom)
     # Offset from center
@@ -29,7 +37,6 @@ def _apply_crop(img: Image.Image, crop_x: float, crop_y: float, crop_zoom: float
     top = max(0, cy - new_h // 2)
     right = min(w, left + new_w)
     bottom = min(h, top + new_h)
-    # Adjust if we hit edges
     if right - left < new_w:
         left = max(0, right - new_w)
     if bottom - top < new_h:
@@ -320,8 +327,8 @@ async def export_preview(project_id: str, icon_id: str, request: Request):
     img = wn.process(img, {"enabled": True, "target_fill": 0.95})
     centering = CenteringStep()
     img = centering.process(img, {})
-    if icon.crop_zoom != 1.0 or icon.crop_x != 0.0 or icon.crop_y != 0.0:
-        img = _apply_crop(img, icon.crop_x, icon.crop_y, icon.crop_zoom)
+    if icon.crop_zoom != 1.0 or icon.crop_x != 0.0 or icon.crop_y != 0.0 or icon.crop_rotate != 0.0:
+        img = _apply_crop(img, icon.crop_x, icon.crop_y, icon.crop_zoom, icon.crop_rotate)
 
     if fmt == "svg":
         from needicons.core.export.packager import optimize_svg, svg_to_react, svg_to_react_native

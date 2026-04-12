@@ -4,26 +4,26 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-offset-1 disabled:pointer-events-none disabled:opacity-50",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:ring-offset-1 disabled:pointer-events-none disabled:opacity-50",
   {
     variants: {
       variant: {
         default:
-          "bg-accent text-accent-foreground shadow-md shadow-accent/20 hover:bg-accent-hover hover:shadow-accent/30 active:scale-[0.98]",
+          "bg-accent text-white shadow-sm hover:bg-accent-hover active:scale-[0.98]",
         secondary:
-          "bg-card text-foreground border border-border/50 hover:bg-muted/40 hover:border-border hover:text-accent active:scale-[0.98]",
+          "bg-surface text-foreground border border-border hover:bg-muted active:scale-[0.98]",
         outline:
-          "border border-border/50 bg-transparent text-foreground hover:bg-muted/30 hover:border-border hover:text-accent active:scale-[0.98]",
+          "border border-border bg-transparent text-foreground hover:bg-muted active:scale-[0.98]",
         ghost:
-          "bg-transparent text-foreground hover:bg-muted/30 hover:text-accent active:scale-[0.98]",
+          "bg-transparent text-foreground hover:bg-muted active:scale-[0.98]",
         destructive:
-          "bg-destructive text-destructive-foreground shadow-md shadow-destructive/20 hover:bg-red-600 hover:shadow-destructive/40 active:scale-[0.98]",
+          "bg-destructive text-white shadow-sm hover:bg-red-600 active:scale-[0.98]",
       },
       size: {
-        default: "h-10 px-5 py-2",
+        default: "h-9 px-4 py-2",
         sm: "h-8 px-3 py-1.5 text-xs",
-        lg: "h-12 px-8 py-3 text-base",
-        icon: "h-10 w-10 p-0",
+        lg: "h-11 px-6 py-3",
+        icon: "h-9 w-9 p-0",
       },
     },
     defaultVariants: {

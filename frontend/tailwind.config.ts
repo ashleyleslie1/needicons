@@ -29,6 +29,8 @@ const config: Config = {
         success: "var(--success)",
         surface: "var(--surface)",
         input: "var(--input)",
+        "sidebar-bg": "var(--sidebar-bg)",
+        "sidebar-border": "var(--sidebar-border)",
       },
       borderRadius: {
         lg: "var(--radius-lg)",

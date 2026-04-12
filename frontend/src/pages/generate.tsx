@@ -13,7 +13,6 @@ import { QualityToggle } from "@/components/generate/quality-toggle";
 import { ResultsHistory } from "@/components/generate/results-history";
 import { ApiKeyModal } from "@/components/generation/api-key-modal";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
@@ -194,94 +193,97 @@ export function GeneratePage() {
 
   return (
     <div className="flex flex-1 overflow-hidden min-w-0">
-      {/* LEFT PANEL - Config */}
-      <div className="w-[300px] shrink-0 border-r border-border/50 flex flex-col pt-6 px-5 pb-5 overflow-auto bg-card/30 backdrop-blur-xl gap-4">
-        {/* Prompt */}
-        <div>
-          <label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1 block font-medium">
-            Prompt
-          </label>
-          <textarea
-            value={promptText}
-            onChange={(e) => setPromptText(e.target.value)}
-            onKeyDown={handleKeyDown}
-            disabled={gen.isPending}
-            placeholder="What icon would you like to generate?"
-            rows={4}
-            className="w-full resize-none rounded-lg border border-border/50 bg-input px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-accent/50 focus:outline-none focus:ring-1 focus:ring-accent/20 transition-all"
-          />
-          <p className="mt-1.5 text-[10px] text-muted-foreground leading-relaxed">
-            Use <kbd className="rounded bg-muted/60 px-1 py-0.5 font-mono">;</kbd> to separate multiple icons
-            {" · "}
-            Use <kbd className="rounded bg-muted/60 px-1 py-0.5 font-mono">:</kbd> for name:prompt
-          </p>
-        </div>
+      {/* LEFT PANEL */}
+      <div className="w-[300px] shrink-0 border-r border-border flex flex-col overflow-auto bg-card">
+        <div className="p-5 space-y-4">
+          {/* Prompt */}
+          <div className="relative">
+            <textarea
+              value={promptText}
+              onChange={(e) => setPromptText(e.target.value)}
+              onKeyDown={handleKeyDown}
+              disabled={gen.isPending}
+              placeholder="house; tree; car; bicycle..."
+              rows={3}
+              className="w-full resize-none rounded-2xl border-2 border-border bg-background px-4 py-3.5 text-[14px] text-foreground placeholder:text-muted-foreground/50 focus:border-accent focus:outline-none focus:shadow-[0_0_0_4px_rgba(109,92,255,0.1)] transition-all"
+            />
+            {iconCount > 0 && (
+              <span className="absolute right-3 bottom-3 text-[10px] font-medium text-accent bg-accent/8 rounded-md px-1.5 py-0.5">
+                {iconCount} {iconCount === 1 ? "icon" : "icons"}
+              </span>
+            )}
+          </div>
+          <div className="mt-2 rounded-xl border border-border overflow-hidden text-[11px]">
+            <div className="flex items-center gap-3 px-3 py-2 border-b border-border">
+              <span className="font-mono font-bold text-accent w-12 shrink-0 text-center">;</span>
+              <div>
+                <span className="text-foreground font-medium">Separate icons</span>
+                <span className="text-muted-foreground ml-1.5">house; tree; car</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 px-3 py-2">
+              <span className="font-mono font-bold text-accent w-12 shrink-0 text-center">name:</span>
+              <div>
+                <span className="text-foreground font-medium">Add description</span>
+                <span className="text-muted-foreground ml-1.5">house: red cottage</span>
+              </div>
+            </div>
+          </div>
 
-        {/* Model */}
-        <ModelDropdown value={effectiveModel} onChange={setModel} />
+          {/* Settings — one per line */}
+          <div className="space-y-3 pt-1">
+            <ModelDropdown value={effectiveModel} onChange={setModel} />
+            <StyleDropdown value={style} onChange={setStyle} />
+            <MoodDropdown value={mood} onChange={setMood} />
 
-        {/* Style */}
-        <StyleDropdown value={style} onChange={setStyle} />
+            {!isStabilityModel && (
+              <QualityToggle model={effectiveModel} value={quality} onChange={setQuality} />
+            )}
 
-        {/* Mood */}
-        <MoodDropdown value={mood} onChange={setMood} />
+            {/* Variations */}
+            <div className="flex items-center justify-between">
+              <label className="text-[13px] text-foreground">Variations</label>
+              <div className="segment">
+                {[1, 2, 3, 4].map((n) => (
+                  <button
+                    key={n}
+                    onClick={() => setVariations(n)}
+                    className={cn("segment-item", variations === n && "segment-item-active")}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-        {/* Quality */}
-        {!isStabilityModel && (
-          <QualityToggle model={effectiveModel} value={quality} onChange={setQuality} />
-        )}
-
-        {/* Variations */}
-        <div>
-          <label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5 block font-medium">
-            Variations
-          </label>
-          <div className="flex gap-1">
-            {[1, 2, 3, 4].map((n) => (
+            {/* AI Enhance */}
+            <div className={cn("flex items-center justify-between", !hasOpenAI && "opacity-40")}>
+              <label className="text-[13px] text-foreground">AI Enhance</label>
               <button
-                key={n}
-                onClick={() => setVariations(n)}
+                onClick={() => hasOpenAI && setAiEnhance(!aiEnhance)}
+                disabled={!hasOpenAI}
                 className={cn(
-                  "flex-1 rounded-lg py-2 text-xs font-semibold border transition-all",
-                  variations === n
-                    ? "bg-accent text-white border-accent shadow-md shadow-accent/20"
-                    : "bg-card/40 text-muted-foreground border-border/50 hover:text-foreground hover:bg-muted/30 hover:border-border active:scale-95",
+                  "rounded-full px-3 py-1 text-xs font-medium transition-all",
+                  aiEnhance && hasOpenAI
+                    ? "bg-accent text-white"
+                    : "bg-surface text-muted-foreground hover:text-foreground",
                 )}
               >
-                {n}
+                {!hasOpenAI ? "Needs OpenAI" : aiEnhance ? "On" : "Off"}
               </button>
-            ))}
+            </div>
           </div>
-        </div>
 
-        {/* AI Enhance — requires OpenAI API key */}
-        <div className={cn(
-          "flex items-center justify-between rounded-lg border border-border/50 bg-card/40 backdrop-blur-sm px-3 py-2.5",
-          !hasOpenAI && "opacity-40 pointer-events-none",
-        )}>
-          <div>
-            <p className="text-sm font-medium text-foreground">AI Enhance</p>
-            <p className="text-[10px] text-muted-foreground">{!hasOpenAI ? "Requires OpenAI API key" : "Improve prompts with GPT"}</p>
-          </div>
-          <Switch
-            checked={hasOpenAI ? aiEnhance : false}
-            onCheckedChange={setAiEnhance}
-            disabled={!hasOpenAI}
-            aria-label="AI Enhance"
-          />
-        </div>
-
-        {/* Generate button */}
-        <div className="mt-auto pt-2">
+          {/* Generate */}
           <Button
-            className="w-full shadow-lg shadow-accent/20"
+            className="w-full h-10 text-[13px] font-semibold mt-2"
             onClick={handleGenerate}
             disabled={!activeProjectId || iconCount === 0 || gen.isPending}
           >
             {gen.isPending
               ? "Generating..."
               : iconCount <= 1
-              ? "Generate icon"
+              ? "Generate"
               : `Generate ${iconCount} icons`}
           </Button>
         </div>

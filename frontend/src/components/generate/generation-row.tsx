@@ -3,8 +3,6 @@ import type { GenerationRecord } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { usePickVariation, useUnpickVariation, useDeleteGeneration } from "@/hooks/api/use-generate-v2";
 import { ImageEditorModal } from "@/components/generate/image-editor-modal";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 
 interface GenerationRowProps {
   record: GenerationRecord;
@@ -66,63 +64,67 @@ export const GenerationRow = memo(function GenerationRow({ record, layout, onReg
 
   return (
     <>
-      <div ref={ref} className="rounded-xl border border-border/50 bg-card/60 backdrop-blur-md p-3 space-y-2 min-w-0 overflow-hidden">
+      <div ref={ref} className="rounded-xl border border-border bg-card p-4 space-y-3 min-w-0 overflow-hidden">
         {/* Header */}
         <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-foreground truncate">{record.name}</span>
-          <Badge variant="outline" className="text-[10px] py-0 h-5">{record.style}</Badge>
-          {record.model && <Badge variant="outline" className="text-[10px] py-0 h-5">{record.model}</Badge>}
-          {record.ai_enhance && <Badge variant="outline" className="text-[10px] py-0 h-5 text-accent border-accent/30">AI</Badge>}
+          <span className="text-[13px] font-semibold text-foreground truncate">{record.name}</span>
+          <span className="pill pill-inactive !py-0.5 !px-2 !text-[10px]">{record.style}</span>
+          {record.model && <span className="pill pill-inactive !py-0.5 !px-2 !text-[10px]">{record.model}</span>}
+          {record.ai_enhance && <span className="pill !py-0.5 !px-2 !text-[10px] bg-accent/10 text-accent">AI</span>}
           <span className="ml-auto text-[11px] text-muted-foreground shrink-0">{getTimeAgo(record.created_at)}</span>
-          <Button variant="ghost" size="icon" className="h-6 w-6 hover:bg-destructive/10 hover:text-destructive" onClick={() => deleteGeneration.mutate(record.id)} disabled={deleteGeneration.isPending} title="Delete">
+          <button
+            className="h-6 w-6 flex items-center justify-center rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/8 transition-colors"
+            onClick={() => deleteGeneration.mutate(record.id)}
+            disabled={deleteGeneration.isPending}
+            title="Delete"
+          >
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
               <path d="M2 2l8 8M10 2l-8 8" />
             </svg>
-          </Button>
+          </button>
         </div>
 
-        {/* Enhanced prompt (shown when AI enhance produced a different prompt) */}
+        {/* AI prompt */}
         {record.ai_enhance && record.prompt !== record.name && (
-          <p className="text-[10px] text-muted-foreground leading-relaxed line-clamp-2 break-words" title={record.prompt}>
-            <span className="text-accent/70 mr-1">AI:</span>{record.prompt}
+          <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-2 break-words" title={record.prompt}>
+            <span className="text-accent font-medium mr-1">AI:</span>{record.prompt}
           </p>
         )}
 
-        {/* Image grid — click picks, hover button opens refine */}
+        {/* Variations */}
         <div className={cn("gap-2", isGrid ? "grid grid-cols-2" : "flex flex-wrap")}>
           {record.variations.map((variation) => (
             <button
               key={variation.index}
               onClick={() => handlePick(undefined, variation.index)}
               className={cn(
-                "group relative overflow-hidden rounded-lg transition-all cursor-pointer",
-                "checkerboard",
-                isGrid ? "aspect-square" : "aspect-square w-[100px] shrink-0",
+                "group relative overflow-hidden rounded-xl transition-all cursor-pointer checkerboard",
+                isGrid ? "aspect-square" : "aspect-square w-[110px] shrink-0",
                 variation.picked
-                  ? "ring-2 ring-accent ring-offset-1 ring-offset-background shadow-md shadow-accent/10"
-                  : "ring-1 ring-border hover:ring-accent/50",
+                  ? "ring-2 ring-accent ring-offset-2 ring-offset-background shadow-lg shadow-accent/10"
+                  : "ring-1 ring-border hover:ring-accent/40 hover:shadow-md",
               )}
             >
               <img
                 src={`/api/images/${variation.preview_path}?t=${cacheBust(record)}`}
                 alt={`${record.name} v${variation.index + 1}`}
-                className="h-full w-full object-contain p-1"
+                className="h-full w-full object-contain p-1.5"
                 loading="lazy"
                 decoding="async"
-                width={100}
-                height={100}
+                width={110}
+                height={110}
               />
               {variation.picked && (
-                <div className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-accent text-[9px] text-white shadow">
+                <div className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-accent text-[10px] text-white shadow-md">
                   {"\u2713"}
                 </div>
               )}
-              {/* Open detail/refine modal on hover */}
+              {/* View/refine button */}
               <div
                 className="absolute left-1.5 bottom-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
                 onClick={(e) => { e.stopPropagation(); setEditorVariation(variation.index); }}
               >
-                <div className="flex items-center gap-1 rounded-full bg-card border border-border/50 px-2 py-1 text-[10px] font-medium text-foreground shadow-md transition-colors hover:bg-accent hover:text-white hover:border-accent">
+                <div className="flex items-center gap-1 rounded-lg bg-card border border-border px-2 py-1 text-[10px] font-medium text-foreground shadow-lg transition-all hover:bg-accent hover:text-white hover:border-accent">
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
                   </svg>
