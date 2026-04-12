@@ -95,14 +95,13 @@ export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpicke
     count: items.length + (pendingCard ? 1 : 0),
     getScrollElement: () => scrollRef.current,
     estimateSize: useCallback((index: number) => {
-      if (pendingCard && index === 0) return 220;
+      if (pendingCard && index === 0) return 240;
       const item = items[pendingCard ? index - 1 : index];
-      if (!item) return 210;
-      if (item.type === "header") return 52;
-      if (item.type === "grid-row") return 300;
-      // Records with AI enhance have a 2-line prompt shown below the header
-      if (item.type === "record" && item.record.ai_enhance) return 210;
-      return 175;
+      if (!item) return 200;
+      if (item.type === "header") return 56;
+      if (item.type === "grid-row") return 320;
+      if (item.type === "record" && item.record.ai_enhance) return 230;
+      return 195;
     }, [items.length, !!pendingCard]),
     overscan: 5,
   });
