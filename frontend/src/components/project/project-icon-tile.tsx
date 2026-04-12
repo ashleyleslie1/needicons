@@ -76,13 +76,13 @@ export function ProjectIconTile({
           {/* Hover actions — inside image container only */}
           <div className="absolute bottom-1.5 left-1.5 right-1.5 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
             <button
-              className="flex-1 flex items-center justify-center gap-1 h-6 rounded-md bg-card border border-border text-[10px] font-medium text-foreground shadow-md transition-colors hover:bg-accent hover:text-white hover:border-accent"
+              className="flex-1 flex items-center justify-center gap-1 h-7 rounded-md bg-background border border-border text-[10px] font-semibold text-foreground shadow-lg transition-all hover:bg-accent hover:text-white hover:border-accent hover:shadow-accent/20 active:scale-95"
               onClick={() => setShowPreview(true)}
             >
               <Download className="h-3 w-3" /> Export
             </button>
             <button
-              className="flex items-center justify-center h-6 w-6 rounded-md bg-card border border-border text-foreground shadow-md transition-colors hover:bg-destructive hover:text-white hover:border-destructive"
+              className="flex items-center justify-center h-7 w-7 rounded-md bg-background border border-border text-foreground shadow-lg transition-all hover:bg-destructive hover:text-white hover:border-destructive hover:shadow-destructive/20 active:scale-95"
               onClick={(e) => { e.stopPropagation(); onRemove(); }}
               title="Remove"
             >
