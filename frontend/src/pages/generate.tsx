@@ -195,7 +195,7 @@ export function GeneratePage() {
   return (
     <div className="flex flex-1 overflow-hidden min-w-0">
       {/* LEFT PANEL - Config */}
-      <div className="w-[300px] shrink-0 border-r border-border/50 flex flex-col p-5 overflow-auto bg-card/30 backdrop-blur-xl gap-4">
+      <div className="w-[300px] shrink-0 border-r border-border/50 flex flex-col pt-6 px-5 pb-5 overflow-auto bg-card/30 backdrop-blur-xl gap-4">
         {/* Prompt */}
         <div>
           <label className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1 block font-medium">

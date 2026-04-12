@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useMemo } from "react";
 import { useSidebar } from "@/hooks/ui/use-sidebar";
 import { useProject, useUpdateProject, useRemoveIcon } from "@/hooks/api/use-projects";
 import { ControlsBar } from "@/components/project/controls-bar";
@@ -15,6 +15,7 @@ export function ProjectPage() {
   const removeIcon = useRemoveIcon();
   const [showExport, setShowExport] = useState(false);
   const [previewVersion, setPreviewVersion] = useState(0);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
@@ -40,6 +41,15 @@ export function ProjectPage() {
     removeIcon.mutate({ projectId: activeProjectId, iconId });
   }
 
+  const filteredIcons = useMemo(() => {
+    if (!project) return [];
+    if (!searchQuery) return project.icons;
+    const q = searchQuery.toLowerCase();
+    return project.icons.filter((icon) =>
+      icon.name.toLowerCase().includes(q) || icon.prompt.toLowerCase().includes(q)
+    );
+  }, [project?.icons, searchQuery]);
+
   if (!project) {
     return (
       <div className="flex flex-1 items-center justify-center">
@@ -57,25 +67,43 @@ export function ProjectPage() {
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      {/* Project header with stats */}
-      <div className="border-b border-border/50 bg-card/30 backdrop-blur-sm px-8 py-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-foreground tracking-tight">{project.name}</h2>
-            <div className="flex items-center gap-4 mt-1">
-              <span className="text-xs text-muted-foreground">
-                {project.icons.length} {project.icons.length === 1 ? "icon" : "icons"}
-              </span>
-              {project.icons.length > 0 && (
-                <>
-                  <span className="text-xs text-muted-foreground">
-                    {new Set(project.icons.map(i => i.style)).size} {new Set(project.icons.map(i => i.style)).size === 1 ? "style" : "styles"}
-                  </span>
-                </>
-              )}
-            </div>
+      {/* Project header */}
+      <div className="border-b border-border/50 bg-card/30 backdrop-blur-sm px-6 py-3">
+        <div className="flex items-center gap-4">
+          {/* Title + stats */}
+          <div className="shrink-0">
+            <h2 className="text-base font-semibold text-foreground tracking-tight">{project.name}</h2>
+            <span className="text-[10px] text-muted-foreground">
+              {project.icons.length} {project.icons.length === 1 ? "icon" : "icons"}
+              {project.icons.length > 0 && ` · ${new Set(project.icons.map(i => i.style)).size} ${new Set(project.icons.map(i => i.style)).size === 1 ? "style" : "styles"}`}
+            </span>
           </div>
-          <div className="flex items-center gap-2">
+
+          {/* Search */}
+          {project.icons.length > 0 && (
+            <div className="relative">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground">
+                <circle cx="11" cy="11" r="8" />
+                <path d="M21 21l-4.3-4.3" />
+              </svg>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search icons..."
+                className="h-7 w-44 rounded-lg border border-border/50 bg-input pl-7 pr-2 text-[11px] text-foreground placeholder:text-muted-foreground focus:border-accent/50 focus:outline-none focus:ring-1 focus:ring-accent/20 transition-all"
+              />
+            </div>
+          )}
+
+          {searchQuery && (
+            <span className="text-[10px] text-muted-foreground">
+              {filteredIcons.length} of {project.icons.length}
+            </span>
+          )}
+
+          {/* Actions */}
+          <div className="flex items-center gap-2 ml-auto">
             {project.icons.length > 0 && (
               <Button
                 variant="outline"
@@ -118,7 +146,7 @@ export function ProjectPage() {
       <div className="flex-1 overflow-auto">
         <div className="p-6">
           <ProjectIconGrid
-            icons={project.icons}
+            icons={filteredIcons}
             projectId={project.id}
             previewVersion={previewVersion}
             onRemoveIcon={handleRemoveIcon}
