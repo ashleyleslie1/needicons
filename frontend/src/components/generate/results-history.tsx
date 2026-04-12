@@ -91,19 +91,29 @@ export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpicke
 
   const items = buildItems(records, !!showDuplicatesOnly, isGrid, gridCols);
 
+  // Cache measured heights so remounting doesn't cause scroll jumps
+  const measuredSizes = useRef<Map<number, number>>(new Map());
+
   const rowVirtualizer = useVirtualizer({
     count: items.length + (pendingCard ? 1 : 0),
     getScrollElement: () => scrollRef.current,
     estimateSize: useCallback((index: number) => {
-      if (pendingCard && index === 0) return 240;
+      const cached = measuredSizes.current.get(index);
+      if (cached) return cached;
+      if (pendingCard && index === 0) return 220;
       const item = items[pendingCard ? index - 1 : index];
       if (!item) return 200;
-      if (item.type === "header") return 56;
-      if (item.type === "grid-row") return 320;
-      if (item.type === "record" && item.record.ai_enhance) return 230;
-      return 195;
+      if (item.type === "header") return 52;
+      if (item.type === "grid-row") return 300;
+      return 200;
     }, [items.length, !!pendingCard]),
     overscan: 5,
+    measureElement: useCallback((el: Element) => {
+      const h = el.getBoundingClientRect().height;
+      const idx = Number(el.getAttribute("data-index"));
+      if (!isNaN(idx)) measuredSizes.current.set(idx, h);
+      return h;
+    }, []),
   });
 
   if (records.length === 0 && !pendingCard && !showUnpickedOnly && !showDuplicatesOnly && !searchQuery) return null;
@@ -229,6 +239,8 @@ export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpicke
                 return (
                   <div
                     key="pending"
+                    ref={rowVirtualizer.measureElement}
+                    data-index={idx}
                     style={{
                       position: "absolute",
                       top: 0,
@@ -251,6 +263,8 @@ export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpicke
                 return (
                   <div
                     key={`header-${item.name}`}
+                    ref={rowVirtualizer.measureElement}
+                    data-index={idx}
                     style={{
                       position: "absolute",
                       top: 0,
@@ -293,6 +307,8 @@ export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpicke
                 return (
                   <div
                     key={`grid-${item.records[0].id}`}
+                    ref={rowVirtualizer.measureElement}
+                    data-index={idx}
                     style={{
                       position: "absolute",
                       top: 0,
@@ -319,6 +335,8 @@ export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpicke
               return (
                 <div
                   key={item.record.id}
+                  ref={rowVirtualizer.measureElement}
+                  data-index={idx}
                   style={{
                     position: "absolute",
                     top: 0,
