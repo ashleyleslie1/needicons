@@ -23,6 +23,7 @@ function getTimeAgo(isoDate: string): string {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
+
 function useLazyVisible() {
   const ref = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
@@ -30,8 +31,8 @@ function useLazyVisible() {
     const el = ref.current;
     if (!el) return;
     const obs = new IntersectionObserver(
-      ([entry]) => { setVisible(entry.isIntersecting); },
-      { rootMargin: "400px" },
+      ([entry]) => { if (entry.isIntersecting) { setVisible(true); obs.disconnect(); } },
+      { rootMargin: "200px" },
     );
     obs.observe(el);
     return () => obs.disconnect();
@@ -60,7 +61,7 @@ export const GenerationRow = memo(function GenerationRow({ record, layout, onReg
   }
 
   if (!visible) {
-    return <div ref={ref} className={cn("rounded-xl border border-border/50 bg-card/40", isGrid ? "aspect-square" : "h-[120px]")} />;
+    return <div ref={ref} className={cn("rounded-xl border border-border/50 bg-card/40", isGrid ? "aspect-square" : "h-[140px]")} />;
   }
 
   return (

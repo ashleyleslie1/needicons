@@ -1,5 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { useState, useRef, useEffect } from "react";
 import type { GenerationRecord } from "@/lib/types";
 import { GenerationRow } from "./generation-row";
 import { cn } from "@/lib/utils";
@@ -21,66 +20,20 @@ interface ResultsHistoryProps {
   totalCount?: number;
 }
 
-// Virtual row types
-type VirtualItem =
-  | { type: "header"; name: string; count: number }
-  | { type: "record"; record: GenerationRecord }
-  | { type: "grid-row"; records: GenerationRecord[] };
-
-function buildItems(records: GenerationRecord[], showDuplicatesOnly: boolean, isGrid: boolean, gridCols: number): VirtualItem[] {
-  if (isGrid) {
-    const items: VirtualItem[] = [];
-    if (showDuplicatesOnly) {
-      // Grid with duplicate grouping: header then grid-rows per group
-      let i = 0;
-      while (i < records.length) {
-        const name = records[i].name.toLowerCase();
-        const groupStart = i;
-        while (i < records.length && records[i].name.toLowerCase() === name) i++;
-        const group = records.slice(groupStart, i);
-        items.push({ type: "header", name: group[0].name, count: group.length });
-        for (let j = 0; j < group.length; j += gridCols) {
-          items.push({ type: "grid-row", records: group.slice(j, j + gridCols) });
-        }
-      }
-    } else {
-      for (let i = 0; i < records.length; i += gridCols) {
-        items.push({ type: "grid-row", records: records.slice(i, i + gridCols) });
-      }
-    }
-    return items;
-  }
-
-  // List mode: headers + individual records
-  const items: VirtualItem[] = [];
-  for (let i = 0; i < records.length; i++) {
-    const record = records[i];
-    if (showDuplicatesOnly) {
-      const prevName = i > 0 ? records[i - 1].name.toLowerCase() : null;
-      if (record.name.toLowerCase() !== prevName) {
-        const count = records.filter((r) => r.name.toLowerCase() === record.name.toLowerCase()).length;
-        items.push({ type: "header", name: record.name, count });
-      }
-    }
-    items.push({ type: "record", record });
-  }
-  return items;
-}
+const MIN_CARD_WIDTH = 480;
 
 export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpickedOnly, onToggleUnpicked, showDuplicatesOnly, onToggleDuplicates, onDeleteDuplicates, onDeleteGroupDuplicates, isDeleting, searchQuery, onSearchChange, totalCount }: ResultsHistoryProps) {
   const [layout, setLayout] = useState<"list" | "grid">("list");
   const scrollRef = useRef<HTMLDivElement>(null);
-
   const isGrid = layout === "grid";
-  const MIN_CARD_WIDTH = 480;
 
-  // Compute grid columns from container width
+  // Responsive grid columns
   const [gridCols, setGridCols] = useState(2);
   useEffect(() => {
     const el = scrollRef.current;
     if (!el || !isGrid) return;
     const update = () => {
-      const w = el.clientWidth - 16; // account for padding
+      const w = el.clientWidth - 16;
       setGridCols(Math.max(1, Math.floor(w / MIN_CARD_WIDTH)));
     };
     update();
@@ -89,45 +42,28 @@ export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpicke
     return () => obs.disconnect();
   }, [isGrid]);
 
-  const items = buildItems(records, !!showDuplicatesOnly, isGrid, gridCols);
-
-  // Cache measured heights so remounting doesn't cause scroll jumps
-  const measuredSizes = useRef<Map<number, number>>(new Map());
-
-  const rowVirtualizer = useVirtualizer({
-    count: items.length + (pendingCard ? 1 : 0),
-    getScrollElement: () => scrollRef.current,
-    estimateSize: useCallback((index: number) => {
-      const cached = measuredSizes.current.get(index);
-      if (cached) return cached;
-      if (pendingCard && index === 0) return 220;
-      const item = items[pendingCard ? index - 1 : index];
-      if (!item) return 200;
-      if (item.type === "header") return 52;
-      if (item.type === "grid-row") return 300;
-      return 200;
-    }, [items.length, !!pendingCard]),
-    overscan: 5,
-    measureElement: useCallback((el: Element) => {
-      const h = el.getBoundingClientRect().height;
-      const idx = Number(el.getAttribute("data-index"));
-      if (!isNaN(idx)) measuredSizes.current.set(idx, h);
-      return h;
-    }, []),
-  });
-
   if (records.length === 0 && !pendingCard && !showUnpickedOnly && !showDuplicatesOnly && !searchQuery) return null;
+
+  // Build grouped structure for duplicate view
+  const groups: Array<{ name: string; count: number; records: GenerationRecord[] }> = [];
+  if (showDuplicatesOnly) {
+    let i = 0;
+    while (i < records.length) {
+      const name = records[i].name.toLowerCase();
+      const start = i;
+      while (i < records.length && records[i].name.toLowerCase() === name) i++;
+      groups.push({ name: records[start].name, count: i - start, records: records.slice(start, i) });
+    }
+  }
 
   return (
     <div className="flex flex-col h-full">
-      {/* View toggle + filter */}
+      {/* Filter bar */}
       <div className="mb-4 flex items-center gap-2 shrink-0">
-        {/* Result count */}
         <span className="text-[11px] text-muted-foreground shrink-0">
           {records.length} of {totalCount ?? records.length}
         </span>
 
-        {/* Search */}
         {onSearchChange && (
           <div className="relative">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground">
@@ -144,7 +80,6 @@ export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpicke
           </div>
         )}
 
-        {/* Unpicked filter */}
         {onToggleUnpicked && (
           <button
             onClick={onToggleUnpicked}
@@ -163,7 +98,6 @@ export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpicke
           </button>
         )}
 
-        {/* Duplicates filter */}
         {onToggleDuplicates && (
           <button
             onClick={onToggleDuplicates}
@@ -182,7 +116,6 @@ export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpicke
           </button>
         )}
 
-        {/* Delete duplicates — only when filter is active */}
         {showDuplicatesOnly && onDeleteDuplicates && records.length > 0 && (
           <button
             onClick={onDeleteDuplicates}
@@ -220,140 +153,72 @@ export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpicke
         </div>
       </div>
 
-      {/* Virtualized scroll container */}
+      {/* Scrollable content */}
       <div ref={scrollRef} className="flex-1 overflow-auto">
         {records.length === 0 && (showUnpickedOnly || showDuplicatesOnly) ? (
           <div className="text-center py-8 text-sm text-muted-foreground">
             {showUnpickedOnly ? "All icons have been picked" : "No duplicate names found"}
           </div>
-        ) : (
-          <div
-            style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: "relative", width: "100%" }}
-          >
-            {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-              const idx = virtualRow.index;
-
-
-              // Pending card is always first
-              if (pendingCard && idx === 0) {
-                return (
-                  <div
-                    key="pending"
-                    ref={rowVirtualizer.measureElement}
-                    data-index={idx}
-                    style={{
-                      position: "absolute",
-                      top: 0,
-                      left: 0,
-                      width: "100%",
-                      transform: `translateY(${virtualRow.start}px)`,
-                      paddingBottom: "16px",
-                    }}
-                  >
-                    {pendingCard}
-                  </div>
-                );
-              }
-
-              const itemIdx = pendingCard ? idx - 1 : idx;
-              const item = items[itemIdx];
-              if (!item) return null;
-
-              if (item.type === "header") {
-                return (
-                  <div
-                    key={`header-${item.name}`}
-                    ref={rowVirtualizer.measureElement}
-                    data-index={idx}
-                    style={{
-                      position: "absolute",
-                      top: 0,
-                      left: 0,
-                      width: "100%",
-                      transform: `translateY(${virtualRow.start}px)`,
-                    }}
-                  >
-                    <div className="flex items-center gap-2 py-2">
-                      <span className="text-sm font-bold text-accent">{item.name}</span>
-                      <span className="text-xs text-muted-foreground font-medium">({item.count}x)</span>
-                      {onDeleteGroupDuplicates && item.count > 1 && (
-                        <button
-                          onClick={() => onDeleteGroupDuplicates(item.name, "keep_picked")}
-                          disabled={isDeleting}
-                          className="flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium text-destructive bg-destructive/5 border border-destructive/20 hover:bg-destructive/15 hover:border-destructive/40 transition-all disabled:opacity-50"
-                        >
-                          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                            <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
-                          </svg>
-                          Delete duplicates
-                        </button>
-                      )}
-                      {onDeleteGroupDuplicates && item.count > 1 && (
-                        <button
-                          onClick={() => onDeleteGroupDuplicates(item.name, "keep_newest_only")}
-                          disabled={isDeleting}
-                          className="flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium text-muted-foreground border border-border/50 hover:text-destructive hover:bg-destructive/10 hover:border-destructive/30 transition-all disabled:opacity-50"
-                        >
-                          Delete all
-                        </button>
-                      )}
-                      <div className="flex-1 h-px bg-border/30" />
-                    </div>
-                  </div>
-                );
-              }
-
-              if (item.type === "grid-row") {
-                return (
-                  <div
-                    key={`grid-${item.records[0].id}`}
-                    ref={rowVirtualizer.measureElement}
-                    data-index={idx}
-                    style={{
-                      position: "absolute",
-                      top: 0,
-                      left: 0,
-                      width: "100%",
-                      transform: `translateY(${virtualRow.start}px)`,
-                      paddingBottom: "16px",
-                    }}
-                  >
-                    <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${gridCols}, 1fr)` }}>
-                      {item.records.map((record) => (
-                        <GenerationRow
-                          key={record.id}
-                          record={record}
-                          layout="grid"
-                          onRegenerate={onRegenerate}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                );
-              }
-
-              return (
-                <div
-                  key={item.record.id}
-                  ref={rowVirtualizer.measureElement}
-                  data-index={idx}
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    width: "100%",
-                    transform: `translateY(${virtualRow.start}px)`,
-                    paddingBottom: "16px",
-                  }}
-                >
-                  <GenerationRow
-                    record={item.record}
-                    layout={layout}
-                    onRegenerate={onRegenerate}
-                  />
+        ) : showDuplicatesOnly ? (
+          /* Grouped duplicate view */
+          <div className="space-y-2">
+            {pendingCard}
+            {groups.map((group) => (
+              <div key={group.name}>
+                <div className="flex items-center gap-2 py-1 mb-2">
+                  <span className="text-sm font-bold text-accent">{group.name}</span>
+                  <span className="text-xs text-muted-foreground font-medium">({group.count}x)</span>
+                  {onDeleteGroupDuplicates && group.count > 1 && (
+                    <button
+                      onClick={() => onDeleteGroupDuplicates(group.name, "keep_picked")}
+                      disabled={isDeleting}
+                      className="flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium text-destructive bg-destructive/5 border border-destructive/20 hover:bg-destructive/15 hover:border-destructive/40 transition-all disabled:opacity-50"
+                    >
+                      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                        <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+                      </svg>
+                      Delete duplicates
+                    </button>
+                  )}
+                  {onDeleteGroupDuplicates && group.count > 1 && (
+                    <button
+                      onClick={() => onDeleteGroupDuplicates(group.name, "keep_newest_only")}
+                      disabled={isDeleting}
+                      className="flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium text-muted-foreground border border-border/50 hover:text-destructive hover:bg-destructive/10 hover:border-destructive/30 transition-all disabled:opacity-50"
+                    >
+                      Delete all
+                    </button>
+                  )}
+                  <div className="flex-1 h-px bg-border/30" />
                 </div>
-              );
-            })}
+                {isGrid ? (
+                  <div className="grid gap-4 mb-4" style={{ gridTemplateColumns: `repeat(${gridCols}, 1fr)` }}>
+                    {group.records.map((record) => (
+                      <GenerationRow key={record.id} record={record} layout="grid" onRegenerate={onRegenerate} />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-4 mb-4">
+                    {group.records.map((record) => (
+                      <GenerationRow key={record.id} record={record} layout="list" onRegenerate={onRegenerate} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          /* Normal list/grid view */
+          <div className={cn(
+            isGrid
+              ? "grid gap-4"
+              : "flex flex-col gap-4",
+            isGrid && { style: { gridTemplateColumns: `repeat(${gridCols}, 1fr)` } },
+          )} style={isGrid ? { gridTemplateColumns: `repeat(${gridCols}, 1fr)` } : undefined}>
+            {pendingCard}
+            {records.map((record) => (
+              <GenerationRow key={record.id} record={record} layout={layout} onRegenerate={onRegenerate} />
+            ))}
           </div>
         )}
       </div>
