@@ -4,7 +4,6 @@ import { useProject, useUpdateProject, useRemoveIcon } from "@/hooks/api/use-pro
 import { ControlsBar } from "@/components/project/controls-bar";
 import { ProjectIconGrid } from "@/components/project/project-icon-grid";
 import { ExportDialog } from "@/components/project/export-dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import type { PostProcessingSettings } from "@/lib/types";
 import { api } from "@/lib/api-client";
@@ -116,7 +115,7 @@ export function ProjectPage() {
       />
 
       {/* Icon grid */}
-      <ScrollArea className="flex-1">
+      <div className="flex-1 overflow-auto">
         <div className="p-6">
           <ProjectIconGrid
             icons={project.icons}
@@ -125,7 +124,7 @@ export function ProjectPage() {
             onRemoveIcon={handleRemoveIcon}
           />
         </div>
-      </ScrollArea>
+      </div>
 
       {showExport && (
         <ExportDialog project={project} onClose={() => setShowExport(false)} />
