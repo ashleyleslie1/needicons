@@ -154,7 +154,7 @@ All data stored locally in `~/.needicons/`:
 
 | File | Purpose |
 |------|---------|
-| `config.yaml` | API keys, provider settings |
+| `config.yaml` | API keys (encrypted at rest via Fernet), provider settings |
 | `needicons.db` | SQLite database |
 | `images/` | Generated icon images |
 
