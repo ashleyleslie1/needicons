@@ -103,9 +103,6 @@ export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpicke
       return 160;
     }, [items.length, !!pendingCard]),
     overscan: 5,
-    measureElement: useCallback((el: Element) => {
-      return el.getBoundingClientRect().height;
-    }, []),
   });
 
   if (records.length === 0 && !pendingCard && !showUnpickedOnly && !showDuplicatesOnly && !searchQuery) return null;
@@ -225,15 +222,12 @@ export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpicke
             {rowVirtualizer.getVirtualItems().map((virtualRow) => {
               const idx = virtualRow.index;
 
-              const measureRef = rowVirtualizer.measureElement;
 
               // Pending card is always first
               if (pendingCard && idx === 0) {
                 return (
                   <div
                     key="pending"
-                    ref={measureRef}
-                    data-index={idx}
                     style={{
                       position: "absolute",
                       top: 0,
@@ -256,8 +250,6 @@ export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpicke
                 return (
                   <div
                     key={`header-${item.name}`}
-                    ref={measureRef}
-                    data-index={idx}
                     style={{
                       position: "absolute",
                       top: 0,
@@ -300,8 +292,6 @@ export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpicke
                 return (
                   <div
                     key={`grid-${item.records[0].id}`}
-                    ref={measureRef}
-                    data-index={idx}
                     style={{
                       position: "absolute",
                       top: 0,
@@ -328,8 +318,6 @@ export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpicke
               return (
                 <div
                   key={item.record.id}
-                  ref={measureRef}
-                  data-index={idx}
                   style={{
                     position: "absolute",
                     top: 0,
