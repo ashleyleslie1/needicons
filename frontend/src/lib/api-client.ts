@@ -12,6 +12,7 @@ import type {
   ExportJobStatus,
   ModelCapabilities,
   QueueStatus,
+  SavedIcon,
 } from "./types";
 
 export class ApiError extends Error {
@@ -439,6 +440,13 @@ export const api = {
     return request("/generations/delete-duplicates", {
       method: "POST",
       body: JSON.stringify({ project_id: projectId, dry_run: true }),
+    });
+  },
+
+  updateIconCrop(projectId: string, iconId: string, crop: { crop_x: number; crop_y: number; crop_zoom: number }): Promise<SavedIcon> {
+    return request<SavedIcon>(`/projects/${projectId}/icons/${iconId}/crop`, {
+      method: "PUT",
+      body: JSON.stringify(crop),
     });
   },
 

@@ -6,9 +6,10 @@ interface ProjectIconGridProps {
   projectId: string;
   previewVersion: number;
   onRemoveIcon: (iconId: string) => void;
+  onCropSave?: (iconId: string, crop: { crop_x: number; crop_y: number; crop_zoom: number }) => void;
 }
 
-export function ProjectIconGrid({ icons, projectId, previewVersion, onRemoveIcon }: ProjectIconGridProps) {
+export function ProjectIconGrid({ icons, projectId, previewVersion, onRemoveIcon, onCropSave }: ProjectIconGridProps) {
 
   if (icons.length === 0) {
     return (
@@ -38,6 +39,7 @@ export function ProjectIconGrid({ icons, projectId, previewVersion, onRemoveIcon
           isPreview={false}
           onRemove={() => onRemoveIcon(icon.id)}
           onSetPreview={() => {}}
+          onCropSave={(crop) => onCropSave?.(icon.id, crop)}
         />
       ))}
     </div>

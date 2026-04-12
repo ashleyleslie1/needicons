@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import type { SavedIcon } from "@/lib/types";
-import { Download, X } from "lucide-react";
+import { Download, Move, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import {
   Dialog,
   DialogContent,
 } from "@/components/ui/dialog";
+import { CropModal } from "./crop-modal";
 
 interface ProjectIconTileProps {
   icon: SavedIcon;
@@ -15,12 +16,14 @@ interface ProjectIconTileProps {
   isPreview: boolean;
   onRemove: () => void;
   onSetPreview: () => void;
+  onCropSave?: (crop: { crop_x: number; crop_y: number; crop_zoom: number }) => void;
 }
 
 export function ProjectIconTile({
-  icon, projectId, previewVersion, onRemove,
+  icon, projectId, previewVersion, onRemove, onCropSave,
 }: ProjectIconTileProps) {
   const [showPreview, setShowPreview] = useState(false);
+  const [showCrop, setShowCrop] = useState(false);
   const [previewFormat, setPreviewFormat] = useState<"png" | "svg" | "webp">("png");
   const [svgSmoothing, setSvgSmoothing] = useState(1);
   const [svgOptimize, setSvgOptimize] = useState(false);
@@ -80,6 +83,13 @@ export function ProjectIconTile({
               onClick={() => setShowPreview(true)}
             >
               <Download className="h-3 w-3" /> Export
+            </button>
+            <button
+              className="flex items-center justify-center h-7 w-7 rounded-md bg-background border border-border text-foreground shadow-lg transition-all hover:bg-accent hover:text-white hover:border-accent hover:shadow-accent/20 active:scale-95"
+              onClick={() => setShowCrop(true)}
+              title="Adjust position & zoom"
+            >
+              <Move className="h-3 w-3" />
             </button>
             <button
               className="flex items-center justify-center h-7 w-7 rounded-md bg-background border border-border text-foreground shadow-lg transition-all hover:bg-destructive hover:text-white hover:border-destructive hover:shadow-destructive/20 active:scale-95"
@@ -232,6 +242,18 @@ export function ProjectIconTile({
             </div>
           </DialogContent>
         </Dialog>
+      )}
+
+      {/* Crop/zoom modal */}
+      {showCrop && (
+        <CropModal
+          icon={icon}
+          projectId={projectId}
+          previewVersion={previewVersion}
+          open={showCrop}
+          onOpenChange={setShowCrop}
+          onSave={(crop) => onCropSave?.(crop)}
+        />
       )}
     </>
   );

@@ -14,6 +14,29 @@ from needicons.core.models import ProcessingProfile
 
 router = APIRouter(tags=["pipeline"])
 
+
+def _apply_crop(img: Image.Image, crop_x: float, crop_y: float, crop_zoom: float) -> Image.Image:
+    """Apply non-destructive crop/zoom. Zooms into image center offset by crop_x/crop_y."""
+    w, h = img.size
+    # Compute the visible region after zoom
+    new_w = int(w / crop_zoom)
+    new_h = int(h / crop_zoom)
+    # Offset from center
+    cx = w // 2 + int(crop_x * w * 0.5)
+    cy = h // 2 + int(crop_y * h * 0.5)
+    # Crop box
+    left = max(0, cx - new_w // 2)
+    top = max(0, cy - new_h // 2)
+    right = min(w, left + new_w)
+    bottom = min(h, top + new_h)
+    # Adjust if we hit edges
+    if right - left < new_w:
+        left = max(0, right - new_w)
+    if bottom - top < new_h:
+        top = max(0, bottom - new_h)
+    cropped = img.crop((left, top, right, bottom))
+    return cropped.resize((w, h), Image.LANCZOS)
+
 _refresh_jobs: dict[str, dict] = {}
 _export_jobs: dict[str, dict] = {}
 
@@ -297,6 +320,8 @@ async def export_preview(project_id: str, icon_id: str, request: Request):
     img = wn.process(img, {"enabled": True, "target_fill": 0.95})
     centering = CenteringStep()
     img = centering.process(img, {})
+    if icon.crop_zoom != 1.0 or icon.crop_x != 0.0 or icon.crop_y != 0.0:
+        img = _apply_crop(img, icon.crop_x, icon.crop_y, icon.crop_zoom)
 
     if fmt == "svg":
         from needicons.core.export.packager import optimize_svg, svg_to_react, svg_to_react_native
@@ -435,6 +460,9 @@ async def _run_export(state, project, sizes, formats, job_id: str, svg_smoothing
             # Normalize to fill 95% of canvas for tight export
             img = export_wn.process(img, {"enabled": True, "target_fill": 0.95})
             img = export_center.process(img, {})
+            # Apply crop/zoom adjustment if set
+            if icon.crop_zoom != 1.0 or icon.crop_x != 0.0 or icon.crop_y != 0.0:
+                img = _apply_crop(img, icon.crop_x, icon.crop_y, icon.crop_zoom)
             processed = await asyncio.to_thread(pipeline.run, img, configs)
             export_name = export_names[icon.id]
             processed_icons[export_name] = (processed, icon_sizes)

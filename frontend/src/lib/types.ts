@@ -171,6 +171,9 @@ export interface SavedIcon {
   preview_path: string;
   style: IconStyle;
   created_at: string;
+  crop_x: number;
+  crop_y: number;
+  crop_zoom: number;
 }
 
 export interface GenerationVariation {

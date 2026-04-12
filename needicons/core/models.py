@@ -166,6 +166,9 @@ class SavedIcon(BaseModel):
     preview_path: str = ""
     style: IconStyle = IconStyle.SOLID
     created_at: str = Field(default_factory=lambda: datetime.datetime.utcnow().isoformat())
+    crop_x: float = 0.0
+    crop_y: float = 0.0
+    crop_zoom: float = 1.0
 
 
 class GenerationVariation(BaseModel):

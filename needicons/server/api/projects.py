@@ -64,6 +64,23 @@ async def delete_project(project_id: str, request: Request):
     return {"status": "deleted"}
 
 
+@router.put("/api/projects/{project_id}/icons/{icon_id}/crop")
+async def update_icon_crop(project_id: str, icon_id: str, request: Request):
+    state = request.app.state.app_state
+    project = state.projects.get(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    icon = next((i for i in project.icons if i.id == icon_id), None)
+    if not icon:
+        raise HTTPException(status_code=404, detail="Icon not found")
+    body = await request.json()
+    icon.crop_x = max(-1, min(1, float(body.get("crop_x", icon.crop_x))))
+    icon.crop_y = max(-1, min(1, float(body.get("crop_y", icon.crop_y))))
+    icon.crop_zoom = max(0.5, min(3, float(body.get("crop_zoom", icon.crop_zoom))))
+    state.save_data()
+    return icon.model_dump()
+
+
 @router.delete("/api/projects/{project_id}/icons/{icon_id}")
 async def remove_icon_from_project(project_id: str, icon_id: str, request: Request):
     state = request.app.state.app_state

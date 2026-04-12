@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useMemo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useSidebar } from "@/hooks/ui/use-sidebar";
 import { useProject, useUpdateProject, useRemoveIcon } from "@/hooks/api/use-projects";
 import { ControlsBar } from "@/components/project/controls-bar";
@@ -16,6 +17,7 @@ export function ProjectPage() {
   const [showExport, setShowExport] = useState(false);
   const [previewVersion, setPreviewVersion] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
+  const qc = useQueryClient();
 
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
@@ -140,6 +142,10 @@ export function ProjectPage() {
             projectId={project.id}
             previewVersion={previewVersion}
             onRemoveIcon={handleRemoveIcon}
+            onCropSave={async (iconId, crop) => {
+              await api.updateIconCrop(project.id, iconId, crop);
+              qc.invalidateQueries({ queryKey: ["projects"] });
+            }}
           />
         </div>
       </div>
