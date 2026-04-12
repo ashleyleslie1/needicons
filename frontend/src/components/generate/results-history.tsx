@@ -12,7 +12,6 @@ interface ResultsHistoryProps {
   onToggleUnpicked?: () => void;
   showDuplicatesOnly?: boolean;
   onToggleDuplicates?: () => void;
-  duplicateNameCount?: number;
   onDeleteDuplicates?: () => void;
   onDeleteGroupDuplicates?: (name: string, mode: "keep_picked" | "keep_newest_only") => void;
   isDeleting?: boolean;
@@ -21,7 +20,7 @@ interface ResultsHistoryProps {
   totalCount?: number;
 }
 
-export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpickedOnly, onToggleUnpicked, showDuplicatesOnly, onToggleDuplicates, duplicateNameCount, onDeleteDuplicates, onDeleteGroupDuplicates, isDeleting, searchQuery, onSearchChange, totalCount }: ResultsHistoryProps) {
+export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpickedOnly, onToggleUnpicked, showDuplicatesOnly, onToggleDuplicates, onDeleteDuplicates, onDeleteGroupDuplicates, isDeleting, searchQuery, onSearchChange, totalCount }: ResultsHistoryProps) {
   const [layout, setLayout] = useState<"list" | "grid">("list");
 
   if (records.length === 0 && !pendingCard && !showUnpickedOnly && !showDuplicatesOnly && !searchQuery) return null;

@@ -30,8 +30,8 @@ function useLazyVisible() {
     const el = ref.current;
     if (!el) return;
     const obs = new IntersectionObserver(
-      ([entry]) => { if (entry.isIntersecting) { setVisible(true); obs.disconnect(); } },
-      { rootMargin: "200px" },
+      ([entry]) => { setVisible(entry.isIntersecting); },
+      { rootMargin: "400px" },
     );
     obs.observe(el);
     return () => obs.disconnect();

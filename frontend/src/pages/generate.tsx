@@ -325,7 +325,6 @@ export function GeneratePage() {
               onToggleUnpicked={() => { setShowUnpickedOnly(!showUnpickedOnly); if (!showUnpickedOnly) setShowDuplicatesOnly(false); scrollToTop(); }}
               showDuplicatesOnly={showDuplicatesOnly}
               onToggleDuplicates={() => { setShowDuplicatesOnly(!showDuplicatesOnly); if (!showDuplicatesOnly) setShowUnpickedOnly(false); scrollToTop(); }}
-              duplicateNameCount={duplicateNames.size}
               onDeleteDuplicates={handleDeleteDuplicates}
               onDeleteGroupDuplicates={handleDeleteGroupDuplicates}
               isDeleting={isDeletingDupes}
