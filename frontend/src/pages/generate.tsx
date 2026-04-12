@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useCallback } from "react";
+import { useState, useMemo } from "react";
 import { useSidebar } from "@/hooks/ui/use-sidebar";
 import { useGenerateIcons } from "@/hooks/api/use-generate-v2";
 import { api } from "@/lib/api-client";
@@ -13,7 +13,6 @@ import { QualityToggle } from "@/components/generate/quality-toggle";
 import { ResultsHistory } from "@/components/generate/results-history";
 import { ApiKeyModal } from "@/components/generation/api-key-modal";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -122,13 +121,6 @@ export function GeneratePage() {
   const progress = gen.progress;
   const partials = gen.partialImages;
   const lastDone = gen.lastDone;
-  const scrollRef = useRef<HTMLDivElement>(null);
-
-  const scrollToTop = useCallback(() => {
-    // ScrollArea uses a viewport div — scroll it to top
-    const viewport = scrollRef.current?.querySelector("[data-radix-scroll-area-viewport]");
-    if (viewport) viewport.scrollTop = 0;
-  }, []);
 
   const qc = useQueryClient();
 
@@ -280,8 +272,8 @@ export function GeneratePage() {
       </div>
 
       {/* RIGHT PANEL - Results */}
-      <ScrollArea className="flex-1 min-w-0" ref={scrollRef}>
-        <div className="p-4 space-y-4">
+      <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+        <div className="p-4 pb-0 space-y-4 shrink-0">
           {/* Failed generation banner */}
           {lastDone && lastDone.failed > 0 && !dismissedFailBanner && (
             <div className="flex items-center gap-3 rounded-xl border border-destructive/30 bg-destructive/5 backdrop-blur-md p-3">
@@ -305,7 +297,9 @@ export function GeneratePage() {
               </button>
             </div>
           )}
+        </div>
 
+        <div className="flex-1 overflow-hidden px-4 pb-4">
           {history && history.length > 0 ? (
             <ResultsHistory
               records={(() => {
@@ -322,14 +316,14 @@ export function GeneratePage() {
                 return filtered;
               })()}
               showUnpickedOnly={showUnpickedOnly}
-              onToggleUnpicked={() => { setShowUnpickedOnly(!showUnpickedOnly); if (!showUnpickedOnly) setShowDuplicatesOnly(false); scrollToTop(); }}
+              onToggleUnpicked={() => { setShowUnpickedOnly(!showUnpickedOnly); if (!showUnpickedOnly) setShowDuplicatesOnly(false); }}
               showDuplicatesOnly={showDuplicatesOnly}
-              onToggleDuplicates={() => { setShowDuplicatesOnly(!showDuplicatesOnly); if (!showDuplicatesOnly) setShowUnpickedOnly(false); scrollToTop(); }}
+              onToggleDuplicates={() => { setShowDuplicatesOnly(!showDuplicatesOnly); if (!showDuplicatesOnly) setShowUnpickedOnly(false); }}
               onDeleteDuplicates={handleDeleteDuplicates}
               onDeleteGroupDuplicates={handleDeleteGroupDuplicates}
               isDeleting={isDeletingDupes}
               searchQuery={searchQuery}
-              onSearchChange={(q) => { setSearchQuery(q); if (q) scrollToTop(); }}
+              onSearchChange={setSearchQuery}
               totalCount={history.length}
               pendingCard={gen.isPending ? (
                 <div className="rounded-xl border border-border/50 bg-card/60 backdrop-blur-md p-3 space-y-2">
@@ -400,7 +394,7 @@ export function GeneratePage() {
             </div>
           )}
         </div>
-      </ScrollArea>
+      </div>
 
       <ApiKeyModal
         open={showApiKeyModal}

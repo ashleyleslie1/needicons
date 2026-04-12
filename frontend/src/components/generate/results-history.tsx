@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import type { GenerationRecord } from "@/lib/types";
 import { GenerationRow } from "./generation-row";
 import { cn } from "@/lib/utils";
@@ -20,15 +21,59 @@ interface ResultsHistoryProps {
   totalCount?: number;
 }
 
+// Build a flat list of renderable items: group headers + records
+interface ListItem {
+  type: "header";
+  name: string;
+  count: number;
+}
+interface ListRecord {
+  type: "record";
+  record: GenerationRecord;
+}
+type VirtualItem = ListItem | ListRecord;
+
+function buildItems(records: GenerationRecord[], showDuplicatesOnly: boolean): VirtualItem[] {
+  const items: VirtualItem[] = [];
+  for (let i = 0; i < records.length; i++) {
+    const record = records[i];
+    if (showDuplicatesOnly) {
+      const prevName = i > 0 ? records[i - 1].name.toLowerCase() : null;
+      if (record.name.toLowerCase() !== prevName) {
+        const count = records.filter((r) => r.name.toLowerCase() === record.name.toLowerCase()).length;
+        items.push({ type: "header", name: record.name, count });
+      }
+    }
+    items.push({ type: "record", record });
+  }
+  return items;
+}
+
 export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpickedOnly, onToggleUnpicked, showDuplicatesOnly, onToggleDuplicates, onDeleteDuplicates, onDeleteGroupDuplicates, isDeleting, searchQuery, onSearchChange, totalCount }: ResultsHistoryProps) {
   const [layout, setLayout] = useState<"list" | "grid">("list");
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const items = buildItems(records, !!showDuplicatesOnly);
+
+  const rowVirtualizer = useVirtualizer({
+    count: items.length + (pendingCard ? 1 : 0),
+    getScrollElement: () => scrollRef.current,
+    estimateSize: useCallback((index: number) => {
+      if (pendingCard && index === 0) return 180;
+      const item = items[pendingCard ? index - 1 : index];
+      if (!item) return 130;
+      if (item.type === "header") return 40;
+      return layout === "list" ? 130 : 200;
+    }, [layout, items.length, !!pendingCard]),
+    overscan: 5,
+  });
 
   if (records.length === 0 && !pendingCard && !showUnpickedOnly && !showDuplicatesOnly && !searchQuery) return null;
 
   return (
-    <div>
+    <div className="flex flex-col h-full">
       {/* View toggle + filter */}
-      <div className="mb-4 flex items-center gap-2">
+      <div className="mb-4 flex items-center gap-2 shrink-0">
         {/* Result count */}
         <span className="text-[11px] text-muted-foreground shrink-0">
           {records.length} of {totalCount ?? records.length}
@@ -127,36 +172,59 @@ export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpicke
         </div>
       </div>
 
-      <div className={cn(
-        layout === "list"
-          ? "flex flex-col gap-4"
-          : "grid grid-cols-3 gap-4",
-      )}>
-        {pendingCard}
-
+      {/* Virtualized scroll container */}
+      <div ref={scrollRef} className="flex-1 overflow-auto">
         {records.length === 0 && (showUnpickedOnly || showDuplicatesOnly) ? (
           <div className="text-center py-8 text-sm text-muted-foreground">
             {showUnpickedOnly ? "All icons have been picked" : "No duplicate names found"}
           </div>
         ) : (
-          records.map((record, i) => {
-            // Show name group header when duplicates filter is active and name changes
-            const prevName = i > 0 ? records[i - 1].name.toLowerCase() : null;
-            const showGroupHeader = showDuplicatesOnly && record.name.toLowerCase() !== prevName;
-            const groupCount = showDuplicatesOnly
-              ? records.filter((r) => r.name.toLowerCase() === record.name.toLowerCase()).length
-              : 0;
+          <div
+            style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: "relative", width: "100%" }}
+          >
+            {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+              const idx = virtualRow.index;
 
-            return (
-              <div key={record.id}>
-                {showGroupHeader && (() => {
-                  return (
-                    <div className="flex items-center gap-2 mb-2 mt-4 first:mt-0">
-                      <span className="text-sm font-bold text-accent">{record.name}</span>
-                      <span className="text-xs text-muted-foreground font-medium">({groupCount}x)</span>
-                      {onDeleteGroupDuplicates && groupCount > 1 && (
+              // Pending card is always first
+              if (pendingCard && idx === 0) {
+                return (
+                  <div
+                    key="pending"
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      width: "100%",
+                      transform: `translateY(${virtualRow.start}px)`,
+                    }}
+                  >
+                    {pendingCard}
+                  </div>
+                );
+              }
+
+              const itemIdx = pendingCard ? idx - 1 : idx;
+              const item = items[itemIdx];
+              if (!item) return null;
+
+              if (item.type === "header") {
+                return (
+                  <div
+                    key={`header-${item.name}`}
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      width: "100%",
+                      transform: `translateY(${virtualRow.start}px)`,
+                    }}
+                  >
+                    <div className="flex items-center gap-2 mb-2 mt-2">
+                      <span className="text-sm font-bold text-accent">{item.name}</span>
+                      <span className="text-xs text-muted-foreground font-medium">({item.count}x)</span>
+                      {onDeleteGroupDuplicates && item.count > 1 && (
                         <button
-                          onClick={() => onDeleteGroupDuplicates(record.name, "keep_picked")}
+                          onClick={() => onDeleteGroupDuplicates(item.name, "keep_picked")}
                           disabled={isDeleting}
                           className="flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium text-destructive bg-destructive/5 border border-destructive/20 hover:bg-destructive/15 hover:border-destructive/40 transition-all disabled:opacity-50"
                         >
@@ -166,9 +234,9 @@ export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpicke
                           Delete duplicates
                         </button>
                       )}
-                      {onDeleteGroupDuplicates && groupCount > 1 && (
+                      {onDeleteGroupDuplicates && item.count > 1 && (
                         <button
-                          onClick={() => onDeleteGroupDuplicates(record.name, "keep_newest_only")}
+                          onClick={() => onDeleteGroupDuplicates(item.name, "keep_newest_only")}
                           disabled={isDeleting}
                           className="flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium text-muted-foreground border border-border/50 hover:text-destructive hover:bg-destructive/10 hover:border-destructive/30 transition-all disabled:opacity-50"
                         >
@@ -177,16 +245,31 @@ export function ResultsHistory({ records, pendingCard, onRegenerate, showUnpicke
                       )}
                       <div className="flex-1 h-px bg-border/30" />
                     </div>
-                  );
-                })()}
-                <GenerationRow
-                  record={record}
-                  layout={layout}
-                  onRegenerate={onRegenerate}
-                />
-              </div>
-            );
-          })
+                  </div>
+                );
+              }
+
+              return (
+                <div
+                  key={item.record.id}
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    transform: `translateY(${virtualRow.start}px)`,
+                    paddingBottom: "16px",
+                  }}
+                >
+                  <GenerationRow
+                    record={item.record}
+                    layout={layout}
+                    onRegenerate={onRegenerate}
+                  />
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
     </div>
