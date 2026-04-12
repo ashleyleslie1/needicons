@@ -58,6 +58,7 @@ export function GeneratePage() {
   const [duplicateWarning, setDuplicateWarning] = useState<{ duplicates: string[]; prompts: Array<{ name: string; prompt: string }> } | null>(null);
   const [isDeletingDupes, setIsDeletingDupes] = useState(false);
   const [dupePreview, setDupePreview] = useState<{ would_delete: number; duplicate_names: number; preview: Array<{ name: string; total: number; keeping: number; deleting: number; has_picks: boolean }> } | null>(null);
+  const [dupeExcluded, setDupeExcluded] = useState<Set<string>>(new Set());
 
   const parsedPrompts = parsePrompts(promptText);
   const iconCount = parsedPrompts.length;
@@ -132,6 +133,13 @@ export function GeneratePage() {
         alert("No duplicates to delete.");
         return;
       }
+      // Sort: picked items first, then alphabetical
+      preview.preview.sort((a, b) => {
+        if (a.has_picks && !b.has_picks) return -1;
+        if (!a.has_picks && b.has_picks) return 1;
+        return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+      });
+      setDupeExcluded(new Set());
       setDupePreview(preview);
     } catch {
       alert("Failed to check duplicates.");
@@ -160,7 +168,7 @@ export function GeneratePage() {
     if (!activeProjectId) return;
     setIsDeletingDupes(true);
     try {
-      await api.deleteDuplicates(activeProjectId);
+      await api.deleteDuplicates(activeProjectId, [...dupeExcluded]);
       qc.invalidateQueries({ queryKey: ["generation-history"] });
       qc.invalidateQueries({ queryKey: ["projects"] });
       setShowDuplicatesOnly(false);
@@ -311,7 +319,24 @@ export function GeneratePage() {
                 }
                 if (searchQuery) {
                   const q = searchQuery.toLowerCase();
-                  filtered = filtered.filter((r) => r.name.toLowerCase().includes(q) || r.prompt.toLowerCase().includes(q));
+                  filtered = filtered
+                    .filter((r) => r.name.toLowerCase().includes(q) || r.prompt.toLowerCase().includes(q))
+                    .sort((a, b) => {
+                      const an = a.name.toLowerCase();
+                      const bn = b.name.toLowerCase();
+                      // Exact name match first
+                      if (an === q && bn !== q) return -1;
+                      if (bn === q && an !== q) return 1;
+                      // Name starts with query
+                      if (an.startsWith(q) && !bn.startsWith(q)) return -1;
+                      if (bn.startsWith(q) && !an.startsWith(q)) return 1;
+                      // Name contains query (vs only prompt contains)
+                      const aInName = an.includes(q);
+                      const bInName = bn.includes(q);
+                      if (aInName && !bInName) return -1;
+                      if (bInName && !aInName) return 1;
+                      return 0;
+                    });
                 }
                 return filtered;
               })()}
@@ -450,37 +475,58 @@ export function GeneratePage() {
 
       {/* Delete duplicates preview dialog */}
       <Dialog open={!!dupePreview} onOpenChange={(open) => { if (!open) setDupePreview(null); }}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg" style={{ maxHeight: "80vh", minHeight: "500px", display: "flex", flexDirection: "column" }}>
           <DialogHeader>
             <DialogTitle>Delete duplicate entries</DialogTitle>
             <DialogDescription>
-              {dupePreview?.would_delete} entries will be removed across {dupePreview?.duplicate_names} names.
-              Entries with picks are never deleted.
+              {(() => {
+                const activeCount = dupePreview ? dupePreview.preview.filter((i) => !dupeExcluded.has(i.name)).reduce((sum, i) => sum + i.deleting, 0) : 0;
+                return `${activeCount} entries will be removed. Uncheck items to keep them.`;
+              })()}
             </DialogDescription>
           </DialogHeader>
           {dupePreview && (
-            <div className="max-h-60 overflow-auto rounded-lg border border-border/50 bg-muted/20 p-2 text-[11px] space-y-0.5">
-              {dupePreview.preview.map((item) => (
-                <div key={item.name} className="flex items-center gap-2 py-0.5">
-                  <span className="text-foreground font-medium truncate flex-1">{item.name}</span>
-                  <span className="text-muted-foreground shrink-0">
-                    {item.total}x → keep {item.keeping}, delete {item.deleting}
-                  </span>
-                  {item.has_picks && (
-                    <span className="text-[9px] text-accent shrink-0">picked</span>
-                  )}
-                </div>
-              ))}
+            <div className="flex-1 overflow-auto rounded-lg border border-border/50 bg-muted/20 p-2 text-[11px] space-y-0.5">
+              {dupePreview.preview.map((item) => {
+                const excluded = dupeExcluded.has(item.name);
+                return (
+                  <label key={item.name} className={cn("flex items-center gap-2 py-1 px-1 rounded cursor-pointer hover:bg-muted/30 transition-colors", excluded && "opacity-40")}>
+                    <input
+                      type="checkbox"
+                      checked={!excluded}
+                      onChange={() => {
+                        setDupeExcluded((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(item.name)) next.delete(item.name);
+                          else next.add(item.name);
+                          return next;
+                        });
+                      }}
+                      className="accent-accent"
+                    />
+                    <span className="text-foreground font-medium truncate flex-1">{item.name}</span>
+                    <span className="text-muted-foreground shrink-0">
+                      {item.total}x → keep {item.keeping}, delete {item.deleting}
+                    </span>
+                    {item.has_picks && (
+                      <span className="text-[9px] text-accent shrink-0">picked</span>
+                    )}
+                  </label>
+                );
+              })}
             </div>
           )}
-          <DialogFooter className="gap-2 sm:gap-0">
+          <DialogFooter className="gap-2 sm:gap-0 shrink-0">
             <Button variant="ghost" onClick={() => setDupePreview(null)}>Cancel</Button>
             <Button
               variant="destructive"
               onClick={confirmDeleteDuplicates}
               disabled={isDeletingDupes}
             >
-              {isDeletingDupes ? "Deleting..." : `Delete ${dupePreview?.would_delete} entries`}
+              {isDeletingDupes ? "Deleting..." : (() => {
+                const activeCount = dupePreview ? dupePreview.preview.filter((i) => !dupeExcluded.has(i.name)).reduce((sum, i) => sum + i.deleting, 0) : 0;
+                return `Delete ${activeCount} entries`;
+              })()}
             </Button>
           </DialogFooter>
         </DialogContent>

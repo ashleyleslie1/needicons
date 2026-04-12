@@ -440,10 +440,10 @@ export const api = {
     });
   },
 
-  deleteDuplicates(projectId: string): Promise<{ deleted: number; kept: number; preview: Array<{ name: string; total: number; keeping: number; deleting: number }> }> {
+  deleteDuplicates(projectId: string, excludeNames?: string[]): Promise<{ deleted: number; kept: number; preview: Array<{ name: string; total: number; keeping: number; deleting: number }> }> {
     return request("/generations/delete-duplicates", {
       method: "POST",
-      body: JSON.stringify({ project_id: projectId }),
+      body: JSON.stringify({ project_id: projectId, exclude_names: excludeNames }),
     });
   },
 

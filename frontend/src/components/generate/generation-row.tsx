@@ -106,9 +106,11 @@ export const GenerationRow = memo(function GenerationRow({ record, layout, onReg
               <img
                 src={`/api/images/${variation.preview_path}?t=${cacheBust(record)}`}
                 alt={`${record.name} v${variation.index + 1}`}
-                className="h-full w-full object-contain p-1 transition-colors group-hover:bg-muted/30"
+                className="h-full w-full object-contain p-1"
                 loading="lazy"
                 decoding="async"
+                width={100}
+                height={100}
               />
               {variation.picked && (
                 <div className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-accent text-[9px] text-white shadow">

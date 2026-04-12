@@ -722,6 +722,7 @@ async def delete_duplicate_generations(request: Request):
     body = await request.json()
     project_id = body.get("project_id", "")
     dry_run = body.get("dry_run", False)
+    exclude_names = set(n.lower() for n in body.get("exclude_names", []))
 
     # Group records by lowercase name
     by_name: dict[str, list] = {}
@@ -735,6 +736,8 @@ async def delete_duplicate_generations(request: Request):
     preview: list[dict] = []
     for name, records in by_name.items():
         if len(records) < 2:
+            continue
+        if name in exclude_names:
             continue
         # Never delete entries with a pick — only delete unpicked duplicates
         picked = [r for r in records if any(v.picked for v in r.variations)]
