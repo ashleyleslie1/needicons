@@ -197,10 +197,25 @@ async def _generate_one(state, job, provider, queue_item, total, style, quality,
                 if result:
                     variation_results[vi] = result[0]
 
-        await asyncio.gather(*[_stream_variation(vi) for vi in range(n_variations)])
+        # IMPORTANT: keep partial successes when individual variations fail.
+        # A credit-exhaustion (or any) error mid-icon must not throw away the
+        # variations that already completed — the API was already charged.
+        var_results = await asyncio.gather(
+            *[_stream_variation(vi) for vi in range(n_variations)],
+            return_exceptions=True,
+        )
+        var_excs = [r for r in var_results if isinstance(r, BaseException)]
 
         images = [img for img in variation_results if img is not None]
         if not images:
+            # Nothing salvageable. If every variation failed with an auth-class
+            # error, escalate so the whole job aborts (bad key isn't worth
+            # retrying). Otherwise mark this icon as failed and move on.
+            if var_excs and all(
+                any(s in str(e).lower() for s in ("401", "auth", "api key"))
+                for e in var_excs
+            ):
+                raise var_excs[0]
             raise RuntimeError("All variations returned empty results")
         raw_images = list(images)
     except Exception as e:
@@ -316,17 +331,16 @@ async def _run_generation(state, job: dict):
         except Exception:
             results = []
 
-        # Process results in order
+        # Process all results first — successful records must be persisted
+        # even if a sibling in the same batch raised an auth error. Otherwise
+        # icons that did generate cleanly become orphans (images on disk,
+        # queue marked completed, but no GenerationRecord in the UI).
+        auth_msg = None
         for result in results:
             if isinstance(result, Exception):
                 msg = str(result)
                 if "401" in msg or "auth" in msg.lower() or "api key" in msg.lower():
-                    _emit(job, "error", {"message": "Invalid API key. Check your key in Settings."})
-                    job["status"] = "failed"
-                    await asyncio.sleep(5)
-                    state.jobs.pop(job["id"], None)
-                    state.save_jobs()
-                    return
+                    auth_msg = msg
                 continue
 
             idx, record = result
@@ -336,8 +350,17 @@ async def _run_generation(state, job: dict):
 
             job["completed_idx"] = idx
 
-        asyncio.create_task(asyncio.to_thread(state.save_data))
+        # Synchronous save — must land before any abort path returns.
+        state.save_data()
         state.save_jobs()
+
+        if auth_msg:
+            _emit(job, "error", {"message": "Invalid API key. Check your key in Settings."})
+            job["status"] = "failed"
+            await asyncio.sleep(5)
+            state.jobs.pop(job["id"], None)
+            state.save_jobs()
+            return
 
     # Compute final stats from queue
     all_items = state._db.get_queue_items(job["id"])
