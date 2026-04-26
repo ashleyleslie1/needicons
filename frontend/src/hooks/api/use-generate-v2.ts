@@ -419,6 +419,22 @@ export function useDeleteLassoMask() {
   });
 }
 
+export function useAddVariation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (p: { generationId: string; onPartial?: (b64: string) => void }) =>
+      api.addVariation(p.generationId, p.onPartial),
+    onSuccess: ({ record }) => {
+      qc.setQueriesData<GenerationRecord[]>(
+        { queryKey: ["generation-history"] },
+        (old) => old?.map((r) => (r.id === record.id ? record : r)),
+      );
+      qc.invalidateQueries({ queryKey: ["generation-history"] });
+      qc.invalidateQueries({ queryKey: ["projects"] });
+    },
+  });
+}
+
 export function useRefineVariation() {
   const qc = useQueryClient();
   return useMutation({

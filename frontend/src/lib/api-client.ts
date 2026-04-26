@@ -358,6 +358,55 @@ export const api = {
     );
   },
 
+  addVariation(
+    generationId: string,
+    onPartial?: (imageB64: string) => void,
+  ): Promise<{ record: GenerationRecord; new_index: number }> {
+    return new Promise((resolve, reject) => {
+      fetch(`/api/generations/${generationId}/add-variation`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      }).then((res) => {
+        if (!res.ok) {
+          res.json().then((b) => reject(new ApiError(res.status, b.detail || "Recreate failed")))
+            .catch(() => reject(new ApiError(res.status, "Recreate failed")));
+          return;
+        }
+        const reader = res.body?.getReader();
+        if (!reader) { reject(new Error("No stream")); return; }
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        function pump(): void {
+          reader!.read().then(({ done, value }) => {
+            if (done) { reject(new Error("Stream ended without done event")); return; }
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() || "";
+            let eventType = "";
+            for (const line of lines) {
+              if (line.startsWith("event: ")) eventType = line.slice(7);
+              else if (line.startsWith("data: ")) {
+                const data = JSON.parse(line.slice(6));
+                if (eventType === "partial" && onPartial) {
+                  onPartial(data.image);
+                } else if (eventType === "done") {
+                  resolve({ record: data.record, new_index: data.new_index });
+                  return;
+                } else if (eventType === "error") {
+                  reject(new ApiError(500, data.detail));
+                  return;
+                }
+              }
+            }
+            pump();
+          });
+        }
+        pump();
+      }).catch(reject);
+    });
+  },
+
   refineVariation(
     generationId: string,
     variationIndex: number,

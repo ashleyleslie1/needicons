@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { useSidebar } from "@/hooks/ui/use-sidebar";
+import { usePersistedState } from "@/hooks/ui/use-persisted-state";
 import { useGenerateIcons } from "@/hooks/api/use-generate-v2";
 import { api } from "@/lib/api-client";
 import { useQueryClient } from "@tanstack/react-query";
@@ -43,12 +44,12 @@ export function GeneratePage() {
   const gen = useGenerateIcons(activeProjectId ?? undefined);
 
   const [promptText, setPromptText] = useState("");
-  const [style, setStyle] = useState<IconStyle>(project?.style_preference ?? "solid");
-  const [model, setModel] = useState(settings?.provider?.default_model ?? "");
-  const [quality, setQuality] = useState("");
-  const [mood, setMood] = useState("none");
-  const [aiEnhance, setAiEnhance] = useState(false);
-  const [variations, setVariations] = useState(1);
+  const [style, setStyle] = usePersistedState<IconStyle>("needicons:style", project?.style_preference ?? "solid");
+  const [model, setModel] = usePersistedState<string>("needicons:model", settings?.provider?.default_model ?? "");
+  const [quality, setQuality] = usePersistedState<string>("needicons:quality", "");
+  const [mood, setMood] = usePersistedState<string>("needicons:mood", "none");
+  const [aiEnhance, setAiEnhance] = usePersistedState<boolean>("needicons:aiEnhance", false);
+  const [variations, setVariations] = usePersistedState<number>("needicons:variations", 1);
   const [showUnpickedOnly, setShowUnpickedOnly] = useState(false);
   const [showDuplicatesOnly, setShowDuplicatesOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");

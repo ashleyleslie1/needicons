@@ -1283,6 +1283,92 @@ async def refine_variation(gen_id: str, request: Request):
     return StreamingResponse(stream_refine(), media_type="text/event-stream")
 
 
+@router.post("/api/generations/{gen_id}/add-variation")
+async def add_variation(gen_id: str, request: Request):
+    """Append a new variation to an existing generation record by re-running
+    the original generation with the same provider/model/style/prompt. Streams
+    partial frames over SSE for OpenAI gpt-image models; for OpenRouter and
+    Stability the stream emits a single final-image event.
+    """
+    state = request.app.state.app_state
+    record = state.generation_records.get(gen_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Generation record not found")
+
+    model = record.model
+    gpu_provider = state.config.get("gpu", {}).get("provider", "auto")
+
+    if _is_stability_model(model):
+        from needicons.server.api.settings import get_stability_key
+        from needicons.core.providers.stability import StabilityProvider
+        api_key = get_stability_key(state)
+        if not api_key:
+            raise HTTPException(status_code=400, detail="No Stability AI API key configured")
+        provider = StabilityProvider(api_key=api_key, default_model=model)
+    elif _is_openrouter_model(model):
+        from needicons.server.api.settings import get_openrouter_key
+        from needicons.core.providers.openrouter import OpenRouterProvider
+        api_key = get_openrouter_key(state)
+        if not api_key:
+            raise HTTPException(status_code=400, detail="No OpenRouter API key configured")
+        provider = OpenRouterProvider(api_key=api_key, default_model=model)
+    else:
+        api_key = get_api_key(state)
+        if not api_key:
+            raise HTTPException(status_code=400, detail="No OpenAI API key configured")
+        provider = OpenAIProvider(api_key=api_key, default_model=model)
+
+    config = GenerationConfig(
+        style_prompt="",
+        subject=record.name,
+        description=record.prompt if record.prompt != record.name else "",
+        mode=GenerationMode.PRECISION,
+        style=record.style,
+        api_quality=record.api_quality or "",
+        mood=record.mood or "",
+        model=model,
+    )
+
+    next_index = max((v.index for v in record.variations), default=-1) + 1
+
+    async def stream_add():
+        try:
+            final_img = None
+            async for partial_b64, img in provider.generate_stream(config):
+                if partial_b64 is not None:
+                    yield f"event: partial\ndata: {json.dumps({'image': partial_b64, 'variation': next_index})}\n\n"
+                if img is not None:
+                    final_img = img
+            if final_img is None:
+                # Fallback for providers without streaming or that didn't yield
+                results = await provider.generate(config)
+                if results:
+                    final_img = results[0]
+            if final_img is None:
+                yield f"event: error\ndata: {json.dumps({'detail': 'Generation returned no images'})}\n\n"
+                return
+
+            raw_path = f"images/{record.id}/original/r{next_index}.png"
+            source_path = f"images/{record.id}/raw/v{next_index}.png"
+            preview_path = f"images/{record.id}/preview/v{next_index}.png"
+            _save_image(state, final_img, raw_path)
+            _save_image(state, final_img, source_path)
+            preview = _make_preview(final_img, gpu_provider, model=model)
+            _save_image(state, preview, preview_path)
+
+            record.variations.append(GenerationVariation(
+                index=next_index, source_path=source_path, preview_path=preview_path,
+            ))
+            record.original_count = max(record.original_count, next_index + 1)
+            state.save_data()
+
+            yield f"event: done\ndata: {json.dumps({'record': record.model_dump(mode='json'), 'new_index': next_index})}\n\n"
+        except Exception as e:
+            yield f"event: error\ndata: {json.dumps({'detail': str(e)[:300]})}\n\n"
+
+    return StreamingResponse(stream_add(), media_type="text/event-stream")
+
+
 @router.post("/api/generations/{gen_id}/remove-bg-stability")
 async def remove_bg_stability(gen_id: str, request: Request):
     """Remove background using Stability AI API for all variations of a generation."""

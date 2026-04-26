@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import type { GenerationRecord } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { usePickVariation, useUnpickVariation, useRefineVariation } from "@/hooks/api/use-generate-v2";
+import { usePickVariation, useUnpickVariation, useRefineVariation, useAddVariation } from "@/hooks/api/use-generate-v2";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -32,17 +32,20 @@ export function ImageEditorModal({ record, variationIndex, open, onOpenChange, o
   const pickVariation = usePickVariation();
   const unpickVariation = useUnpickVariation();
   const refineVariation = useRefineVariation();
+  const addVariation = useAddVariation();
 
   const [refinePrompt, setRefinePrompt] = useState("");
   const [refineVersion, setRefineVersion] = useState(0);
   const [partialImage, setPartialImage] = useState<string | null>(null);
+  const [recreatePartial, setRecreatePartial] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
   const [panX, setPanX] = useState(0);
   const [panY, setPanY] = useState(0);
   const [isPanning, setIsPanning] = useState(false);
   const panStart = useRef({ x: 0, y: 0, panX: 0, panY: 0 });
 
-  const isProcessing = refineVariation.isPending;
+  const isRecreating = addVariation.isPending;
+  const isProcessing = refineVariation.isPending || isRecreating;
 
   const goNext = useCallback(() => {
     if (!onVariationChange) return;
@@ -77,6 +80,26 @@ export function ImageEditorModal({ record, variationIndex, open, onOpenChange, o
     else pickVariation.mutate({ generationId: record.id, variationIndex });
   }
 
+  function handleRecreate() {
+    if (isProcessing) return;
+    setRecreatePartial(null);
+    addVariation.mutate(
+      {
+        generationId: record.id,
+        onPartial: (b64) => setRecreatePartial(`data:image/png;base64,${b64}`),
+      },
+      {
+        onSuccess: ({ new_index }) => {
+          setRecreatePartial(null);
+          // Switch the modal to the freshly added variation. The parent
+          // controls variationIndex, so we ask it to navigate.
+          if (onVariationChange) onVariationChange(new_index);
+        },
+        onError: () => setRecreatePartial(null),
+      },
+    );
+  }
+
   function handleRefine() {
     if (!refinePrompt.trim() || isProcessing) return;
     setPartialImage(null);
@@ -108,8 +131,9 @@ export function ImageEditorModal({ record, variationIndex, open, onOpenChange, o
         <div className="flex" style={{ height: "650px" }}>
           {/* Left: Image preview with checkerboard */}
           <div className="flex-1 flex flex-col relative">
-            {/* Processing overlay */}
-            {isProcessing && !partialImage && (
+            {/* Processing overlay — only for Refine. Recreate keeps the
+                 existing image visible and shows its progress in the sidebar. */}
+            {refineVariation.isPending && !partialImage && (
               <div className="absolute inset-0 flex items-center justify-center bg-background/50 backdrop-blur-sm z-10">
                 <div className="flex items-center gap-2 rounded-lg bg-card px-4 py-2 shadow-lg border border-border/50">
                   <Spinner className="h-4 w-4 text-accent" />
@@ -232,12 +256,39 @@ export function ImageEditorModal({ record, variationIndex, open, onOpenChange, o
               )}
             </div>
 
+            {/* Recreate — generates a new variation in-place using the
+                 record's original model/style/prompt. Available for every
+                 provider, including Stability where Refine isn't. */}
+            <div className="px-3 pt-3 pb-3 border-b border-border/50/50">
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full gap-1.5"
+                onClick={handleRecreate}
+                disabled={isProcessing}
+              >
+                {isRecreating ? (
+                  <><Spinner className="h-3 w-3" /> Adding variation...</>
+                ) : (
+                  <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg> Recreate</>
+                )}
+              </Button>
+              <p className="text-[10px] text-muted-foreground mt-1.5 leading-snug">
+                Adds a new variation with the same settings — keeps the existing image.
+              </p>
+              {isRecreating && recreatePartial && (
+                <div className="mt-2 aspect-square w-full overflow-hidden rounded-md ring-1 ring-border/50 bg-muted/20">
+                  <img src={recreatePartial} alt="New variation preview" className="h-full w-full object-contain p-1 animate-pulse" />
+                </div>
+              )}
+            </div>
+
             {/* Refine prompt */}
             <div className="flex-1 px-3 py-3 flex flex-col gap-3 overflow-y-auto">
               {record.model?.startsWith("sd3") ? (
                 <div className="flex-1 flex flex-col items-center justify-center text-center px-4">
                   <p className="text-sm text-muted-foreground">AI refine is not available for Stability AI models.</p>
-                  <p className="text-[10px] text-muted-foreground mt-2">You can pick this variation or navigate between variations using the arrows below.</p>
+                  <p className="text-[10px] text-muted-foreground mt-2">Use Recreate above to add another variation, or navigate between existing ones using the arrows below.</p>
                 </div>
               ) : <>
               <div>
@@ -263,7 +314,7 @@ export function ImageEditorModal({ record, variationIndex, open, onOpenChange, o
                 onClick={handleRefine}
                 disabled={!refinePrompt.trim() || isProcessing}
               >
-                {isProcessing ? (
+                {refineVariation.isPending ? (
                   <><Spinner className="h-3 w-3" /> Refining...</>
                 ) : (
                   <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Refine</>
