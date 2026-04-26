@@ -101,13 +101,56 @@ export function GeneratePage() {
 
   function handleGenerate() {
     if (!activeProjectId || parsedPrompts.length === 0) return;
-    const dupes = parsedPrompts.filter((p) => existingNames.has(p.name.toLowerCase()));
-    if (dupes.length > 0) {
-      setDuplicateWarning({ duplicates: dupes.map((d) => d.name), prompts: parsedPrompts });
+
+    // Detect both flavors of duplicate:
+    //   - history dupes: name already exists in this project's history
+    //   - within-input dupes: same name listed twice in the prompt textarea
+    // Either kind triggers the warning dialog.
+    const counts = new Map<string, number>();
+    for (const p of parsedPrompts) {
+      const key = p.name.toLowerCase();
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    const dupeKeys = new Set<string>();
+    for (const p of parsedPrompts) {
+      const key = p.name.toLowerCase();
+      if (existingNames.has(key) || (counts.get(key) ?? 0) > 1) {
+        dupeKeys.add(key);
+      }
+    }
+    if (dupeKeys.size > 0) {
+      // Build the displayed list: one entry per unique duplicate name, in
+      // the order they first appear in the input, using the original casing.
+      const shown = new Set<string>();
+      const displayNames: string[] = [];
+      for (const p of parsedPrompts) {
+        const key = p.name.toLowerCase();
+        if (dupeKeys.has(key) && !shown.has(key)) {
+          shown.add(key);
+          displayNames.push(p.name);
+        }
+      }
+      setDuplicateWarning({ duplicates: displayNames, prompts: parsedPrompts });
       return;
     }
     doGenerate(parsedPrompts);
   }
+
+  // How many prompts would Skip Duplicates actually generate? Used for the
+  // dialog button label and for hiding the button when the answer is zero.
+  const skipDupeCount = useMemo(() => {
+    if (!duplicateWarning) return 0;
+    const seen = new Set<string>();
+    let count = 0;
+    for (const p of duplicateWarning.prompts) {
+      const key = p.name.toLowerCase();
+      if (existingNames.has(key)) continue;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      count++;
+    }
+    return count;
+  }, [duplicateWarning, existingNames]);
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -477,8 +520,8 @@ export function GeneratePage() {
             <DialogTitle>Duplicate icon names</DialogTitle>
             <DialogDescription>
               {duplicateWarning && duplicateWarning.duplicates.length === 1
-                ? `"${duplicateWarning.duplicates[0]}" already exists in your history.`
-                : `${duplicateWarning?.duplicates.length} names already exist in your history:`}
+                ? `"${duplicateWarning.duplicates[0]}" would be a duplicate — already in this project or listed more than once.`
+                : `${duplicateWarning?.duplicates.length} names would generate duplicates — already in this project or listed more than once:`}
             </DialogDescription>
           </DialogHeader>
           {duplicateWarning && duplicateWarning.duplicates.length > 1 && (
@@ -490,18 +533,27 @@ export function GeneratePage() {
           )}
           <DialogFooter className="gap-2 sm:gap-0">
             <Button variant="ghost" onClick={() => setDuplicateWarning(null)}>Cancel</Button>
-            {duplicateWarning && duplicateWarning.prompts.length > duplicateWarning.duplicates.length && (
+            {duplicateWarning && skipDupeCount > 0 && (
               <Button
                 variant="outline"
                 onClick={() => {
                   if (!duplicateWarning) return;
-                  const dupeSet = new Set(duplicateWarning.duplicates.map((d) => d.toLowerCase()));
-                  const filtered = duplicateWarning.prompts.filter((p) => !dupeSet.has(p.name.toLowerCase()));
+                  // Drop anything already in history; for everything else
+                  // keep only the first occurrence of each name. Handles
+                  // both flavors of duplicate in one pass.
+                  const seen = new Set<string>();
+                  const filtered = duplicateWarning.prompts.filter((p) => {
+                    const key = p.name.toLowerCase();
+                    if (existingNames.has(key)) return false;
+                    if (seen.has(key)) return false;
+                    seen.add(key);
+                    return true;
+                  });
                   setDuplicateWarning(null);
                   if (filtered.length > 0) doGenerate(filtered);
                 }}
               >
-                Skip duplicates ({duplicateWarning.prompts.length - duplicateWarning.duplicates.length} new)
+                Skip duplicates ({skipDupeCount} new)
               </Button>
             )}
             <Button
