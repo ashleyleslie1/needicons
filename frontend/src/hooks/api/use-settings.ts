@@ -32,6 +32,17 @@ export function useUpdateStabilitySettings() {
   });
 }
 
+export function useUpdateOpenRouterSettings() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { api_key?: string }) => api.updateOpenRouterSettings(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["settings"] });
+      queryClient.invalidateQueries({ queryKey: ["model-capabilities"] });
+    },
+  });
+}
+
 export function useGpuStatus() {
   return useQuery({
     queryKey: ["gpu"],

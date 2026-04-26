@@ -21,7 +21,7 @@ async def test_generate_no_api_key_returns_400(app):
             "prompts": [{"name": "Star"}],
         })
         assert resp.status_code == 400
-        assert "No API key" in resp.json()["detail"]
+        assert "API key" in resp.json()["detail"]
 
 
 @pytest.mark.asyncio

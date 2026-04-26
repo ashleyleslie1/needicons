@@ -111,6 +111,10 @@ export interface SettingsResponse {
     api_key: string;
     api_key_set: boolean;
   };
+  openrouter?: {
+    api_key: string;
+    api_key_set: boolean;
+  };
   processing?: {
     active_backend: string;
   };

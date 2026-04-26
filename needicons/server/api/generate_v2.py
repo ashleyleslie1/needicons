@@ -48,6 +48,10 @@ def _is_stability_model(model: str) -> bool:
     return model in _STABILITY_MODELS or model.startswith("sd3")
 
 
+def _is_openrouter_model(model: str) -> bool:
+    return model.startswith("openrouter/")
+
+
 def _make_preview(image: Image.Image, gpu_provider: str = "auto", model: str = "") -> Image.Image:
     # GPT Image models already output transparent PNGs — skip BG removal
     if not _is_gpt_image_model(model):
@@ -268,6 +272,21 @@ async def _run_generation(state, job: dict):
         provider = StabilityProvider(api_key=api_key, default_model=default_model)
         # Stability doesn't support AI enhance
         ai_enhance = False
+    elif _is_openrouter_model(default_model):
+        from needicons.server.api.settings import get_openrouter_key, get_api_key
+        from needicons.core.providers.openrouter import OpenRouterProvider
+        api_key = get_openrouter_key(state)
+        if not api_key:
+            _emit(job, "error", {"message": "No OpenRouter API key configured"})
+            job["status"] = "failed"
+            await asyncio.sleep(5)
+            state.jobs.pop(job["id"], None)
+            state.save_jobs()
+            return
+        provider = OpenRouterProvider(api_key=api_key, default_model=default_model)
+        # AI enhance still uses the OpenAI key if present; otherwise skip.
+        if ai_enhance and not get_api_key(state):
+            ai_enhance = False
     else:
         api_key = get_api_key(state)
         if not api_key:
@@ -447,6 +466,10 @@ async def generate_icons(request: Request):
         from needicons.server.api.settings import get_stability_key
         if not get_stability_key(state):
             raise HTTPException(status_code=400, detail="No Stability AI API key configured")
+    elif _is_openrouter_model(default_model):
+        from needicons.server.api.settings import get_openrouter_key
+        if not get_openrouter_key(state):
+            raise HTTPException(status_code=400, detail="No OpenRouter API key configured")
     else:
         if not get_api_key(state):
             raise HTTPException(status_code=400, detail="No OpenAI API key configured")

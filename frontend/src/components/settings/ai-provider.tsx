@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useSettings, useUpdateProviderSettings, useUpdateStabilitySettings } from "@/hooks/api/use-settings";
+import { useSettings, useUpdateProviderSettings, useUpdateStabilitySettings, useUpdateOpenRouterSettings } from "@/hooks/api/use-settings";
 import { Check } from "lucide-react";
 
 function ProviderCard({
@@ -114,6 +114,7 @@ export function AiProviderSettings() {
   const { data: settings, isLoading } = useSettings();
   const updateProvider = useUpdateProviderSettings();
   const updateStability = useUpdateStabilitySettings();
+  const updateOpenRouter = useUpdateOpenRouterSettings();
 
   return (
     <div className="space-y-6">
@@ -148,6 +149,19 @@ export function AiProviderSettings() {
         onSave={async (key) => { await updateStability.mutateAsync({ api_key: key }); }}
         onRemove={async () => { if (confirm("Remove Stability AI API key?")) await updateStability.mutateAsync({ api_key: "" }); }}
         isSaving={updateStability.isPending}
+      />
+
+      <ProviderCard
+        name="OpenRouter"
+        description="GPT-5 Image, GPT-5 Image Mini, GPT-5.4 Image 2 — routed via OpenRouter"
+        color="bg-sky-500/10"
+        icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-sky-500"><path d="M3 12h7"/><path d="M14 12h7"/><circle cx="12" cy="12" r="2"/><path d="M5 7l-2 5 2 5"/><path d="M19 7l2 5-2 5"/></svg>}
+        connected={!!settings?.openrouter?.api_key_set}
+        maskedKey={maskKey(settings?.openrouter?.api_key)}
+        isLoading={isLoading}
+        onSave={async (key) => { await updateOpenRouter.mutateAsync({ api_key: key }); }}
+        onRemove={async () => { if (confirm("Remove OpenRouter API key?")) await updateOpenRouter.mutateAsync({ api_key: "" }); }}
+        isSaving={updateOpenRouter.isPending}
       />
     </div>
   );

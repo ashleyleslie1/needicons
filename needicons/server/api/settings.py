@@ -78,6 +78,12 @@ def get_stability_key(state) -> str:
     return _get_plaintext_key(raw)
 
 
+def get_openrouter_key(state) -> str:
+    """Public helper: get the decrypted OpenRouter API key from config."""
+    raw = state.config.get("openrouter", {}).get("api_key", "")
+    return _get_plaintext_key(raw)
+
+
 @router.get("")
 async def get_settings(request: Request):
     state = request.app.state.app_state
@@ -89,6 +95,9 @@ async def get_settings(request: Request):
     stability = state.config.get("stability", {})
     raw_stability_key = stability.get("api_key", "")
     stability_key = _get_plaintext_key(raw_stability_key)
+    openrouter = state.config.get("openrouter", {})
+    raw_openrouter_key = openrouter.get("api_key", "")
+    openrouter_key = _get_plaintext_key(raw_openrouter_key)
 
     return {
         "edition": state.edition,
@@ -100,6 +109,10 @@ async def get_settings(request: Request):
         "stability": {
             "api_key": (stability_key[:8] + "..." if len(stability_key) > 8 else "***") if stability_key else "",
             "api_key_set": bool(stability_key),
+        },
+        "openrouter": {
+            "api_key": (openrouter_key[:8] + "..." if len(openrouter_key) > 8 else "***") if openrouter_key else "",
+            "api_key_set": bool(openrouter_key),
         },
         "processing": {
             "active_backend": backend.value,
@@ -130,6 +143,19 @@ async def update_stability(request: Request):
         else:
             body["api_key"] = ""  # Clear key
     state.update_config("stability", body)
+    return {"status": "ok"}
+
+
+@router.put("/openrouter")
+async def update_openrouter(request: Request):
+    body = await request.json()
+    state = request.app.state.app_state
+    if "api_key" in body:
+        if body["api_key"]:
+            body["api_key"] = encrypt_value(body["api_key"])
+        else:
+            body["api_key"] = ""  # Clear key
+    state.update_config("openrouter", body)
     return {"status": "ok"}
 
 
@@ -241,6 +267,49 @@ _STABILITY_MODEL_CAPABILITIES = {
 }
 
 
+_OPENROUTER_MODEL_CAPABILITIES = {
+    "openrouter/openai/gpt-5.4-image-2": {
+        "label": "GPT-5.4 Image 2 (OpenRouter)",
+        "description": "Newest OpenAI image model — via OpenRouter",
+        "supports_n": False,
+        "max_n": 1,
+        "supports_transparent_bg": True,
+        "sizes": ["1024x1024"],
+        "qualities": [],
+        "economy_mode": "1 image per call",
+        "precision_mode": "1 image per call",
+        "legacy": False,
+        "provider": "openrouter",
+    },
+    "openrouter/openai/gpt-5-image": {
+        "label": "GPT-5 Image (OpenRouter)",
+        "description": "Full-quality OpenAI image — via OpenRouter",
+        "supports_n": False,
+        "max_n": 1,
+        "supports_transparent_bg": True,
+        "sizes": ["1024x1024"],
+        "qualities": [],
+        "economy_mode": "1 image per call",
+        "precision_mode": "1 image per call",
+        "legacy": False,
+        "provider": "openrouter",
+    },
+    "openrouter/openai/gpt-5-image-mini": {
+        "label": "GPT-5 Image Mini (OpenRouter)",
+        "description": "Fast & cheap OpenAI image — via OpenRouter",
+        "supports_n": False,
+        "max_n": 1,
+        "supports_transparent_bg": True,
+        "sizes": ["1024x1024"],
+        "qualities": [],
+        "economy_mode": "1 image per call",
+        "precision_mode": "1 image per call",
+        "legacy": False,
+        "provider": "openrouter",
+    },
+}
+
+
 @router.get("/models")
 async def get_model_capabilities(request: Request):
     state = request.app.state.app_state
@@ -253,6 +322,10 @@ async def get_model_capabilities(request: Request):
     stability_key = get_stability_key(state)
     if stability_key:
         models.update(_STABILITY_MODEL_CAPABILITIES)
+    # Only include OpenRouter models if key is set
+    openrouter_key = get_openrouter_key(state)
+    if openrouter_key:
+        models.update(_OPENROUTER_MODEL_CAPABILITIES)
     return models
 
 

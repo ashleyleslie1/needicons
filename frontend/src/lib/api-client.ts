@@ -102,6 +102,15 @@ export const api = {
     });
   },
 
+  updateOpenRouterSettings(
+    data: { api_key?: string },
+  ): Promise<{ status: string }> {
+    return request<{ status: string }>("/settings/openrouter", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
+
   getGpuStatus(): Promise<GpuResponse> {
     return request<GpuResponse>("/settings/gpu");
   },

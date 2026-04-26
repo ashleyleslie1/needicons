@@ -44,8 +44,15 @@ docs/
 .superpowers/
 .playwright-mcp/
 
-# Verify folder (drop PNGs here to test signatures)
+# Verify folder (drop test images here to check signatures)
 verify/*.png
+verify/*.jpg
+verify/*.jpeg
+verify/*.webp
+
+# Local Playwright dev tooling at repo root
+/package.json
+/package-lock.json
 
 # Test
 test-results/

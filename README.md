@@ -6,7 +6,7 @@ AI-powered icon pack generator. Create, refine, and export professional icon set
 
 ## Features
 
-- **Multi-Provider Support** -- Generate with OpenAI (GPT Image 1.5, GPT Image Mini) or Stability AI (SD 3.5 Flash, Medium, Large Turbo, Large)
+- **Multi-Provider Support** -- Generate with OpenAI (GPT Image 1.5, GPT Image Mini), Stability AI (SD 3.5 Flash, Medium, Large Turbo, Large), or OpenRouter (GPT-5 Image, GPT-5 Image Mini, GPT-5.4 Image 2)
 - **Compare Across Models** -- Generate the same icon with different models and compare results side by side
 - **AI Prompt Enhancement** -- Automatically expand prompts into detailed icon descriptions (OpenAI)
 - **AI Refine** -- Edit generated icons with natural language instructions (OpenAI)
@@ -28,7 +28,7 @@ AI-powered icon pack generator. Create, refine, and export professional icon set
 ### Prerequisites
 
 - **Python 3.11+**
-- An API key from **OpenAI** and/or **Stability AI**
+- An API key from **OpenAI**, **Stability AI**, and/or **OpenRouter**
 
 Node.js is **not required** -- the frontend is pre-built in `frontend/dist/`. For development with hot reload, install Node.js 18+.
 
@@ -55,7 +55,7 @@ Open [http://localhost:8420](http://localhost:8420) (production) or [http://loca
 ### First-Time Setup
 
 1. Go to **Settings** (gear icon in sidebar)
-2. Enter your **OpenAI** and/or **Stability AI** API key
+2. Enter your **OpenAI**, **Stability AI**, and/or **OpenRouter** API key
 3. Go to **Generate** tab -- available models appear based on which keys are configured
 4. Type a prompt and click **Generate**
 
@@ -143,8 +143,9 @@ needicons-MyProject.zip
 |----------|--------|---------------|------------|-----------|
 | **OpenAI** | GPT Image 1.5, GPT Image Mini, DALL-E 3 | Native | Yes | Yes |
 | **Stability AI** | SD 3.5 Flash, Medium, Large Turbo, Large | Via BG removal API | No | No |
+| **OpenRouter** | GPT-5 Image, GPT-5 Image Mini, GPT-5.4 Image 2 | Native | Via OpenAI key | No |
 
-Both providers can be active simultaneously -- switch between models per generation.
+All three providers can be active simultaneously -- switch between models per generation.
 
 ## Tech Stack
 
