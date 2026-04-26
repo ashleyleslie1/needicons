@@ -123,6 +123,13 @@ export function GeneratePage() {
   const progress = gen.progress;
   const partials = gen.partialImages;
   const lastDone = gen.lastDone;
+  const queueStatus = gen.queueStatus;
+  const inFlightItems = useMemo(
+    () => queueStatus?.items?.filter((i) => i.status === "generating") ?? [],
+    [queueStatus],
+  );
+  const inFlightNames = inFlightItems.map((i) => i.name).slice(0, 3);
+  const inFlightExtra = Math.max(0, inFlightItems.length - inFlightNames.length);
 
   const qc = useQueryClient();
 
@@ -364,8 +371,15 @@ export function GeneratePage() {
                 <div className="rounded-xl border border-border/50 bg-card/60 backdrop-blur-md p-3 space-y-2">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-semibold text-foreground truncate">
-                      {progress?.name ?? "Preparing"}
-                      {progress?.style && <span className="text-muted-foreground font-normal ml-1">· {progress.style}</span>}
+                      {queueStatus
+                        ? `Generating ${queueStatus.completed + queueStatus.failed} / ${queueStatus.total}`
+                        : (progress?.name ?? "Preparing")}
+                      {queueStatus && queueStatus.failed > 0 && (
+                        <span className="text-destructive font-normal ml-1">· {queueStatus.failed} failed</span>
+                      )}
+                      {!queueStatus && progress?.style && (
+                        <span className="text-muted-foreground font-normal ml-1">· {progress.style}</span>
+                      )}
                     </span>
                     {progress?.model && (
                       <span className="text-[10px] text-muted-foreground bg-muted/40 rounded px-1.5 py-0.5 shrink-0">{progress.model}</span>
@@ -377,9 +391,21 @@ export function GeneratePage() {
                       <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <circle cx="12" cy="12" r="10" strokeDasharray="60" strokeDashoffset="20" strokeLinecap="round" />
                       </svg>
-                      {progress?.status === "enhancing" ? "Enhancing prompt..." : progress?.status === "generating" ? "Generating images..." : progress?.status === "processing" ? "Processing previews..." : "Starting..."}
+                      {inFlightItems.length > 0
+                        ? `${inFlightItems.length} in flight`
+                        : progress?.status === "enhancing" ? "Enhancing prompt..."
+                        : progress?.status === "generating" ? "Generating images..."
+                        : progress?.status === "processing" ? "Processing previews..."
+                        : queueStatus ? "Working..."
+                        : "Starting..."}
                     </span>
                   </div>
+                  {inFlightNames.length > 0 && (
+                    <div className="text-[11px] text-muted-foreground truncate">
+                      Currently: {inFlightNames.join(", ")}
+                      {inFlightExtra > 0 && ` +${inFlightExtra} more`}
+                    </div>
+                  )}
                   <div className="flex gap-2">
                     {Array.from({ length: variations }, (_, i) => (
                       <div key={i} className="relative aspect-square w-[100px] shrink-0 overflow-hidden rounded-lg bg-muted/20 ring-1 ring-border">
@@ -391,12 +417,17 @@ export function GeneratePage() {
                       </div>
                     ))}
                   </div>
-                  {progress && progress.total > 1 && (
+                  {queueStatus && queueStatus.total > 1 ? (
+                    <div className="flex items-center gap-2 mt-1">
+                      <Progress className="flex-1" value={((queueStatus.completed + queueStatus.failed) / queueStatus.total) * 100} />
+                      <span className="text-[11px] text-muted-foreground shrink-0">{queueStatus.completed + queueStatus.failed}/{queueStatus.total}</span>
+                    </div>
+                  ) : progress && progress.total > 1 ? (
                     <div className="flex items-center gap-2 mt-1">
                       <Progress className="flex-1" value={((progress.index + (progress.status === "processing" ? 0.5 : 0)) / progress.total) * 100} />
                       <span className="text-[11px] text-muted-foreground shrink-0">{progress.index}/{progress.total}</span>
                     </div>
-                  )}
+                  ) : null}
                 </div>
               ) : undefined}
               onRegenerate={(record) => {
@@ -411,8 +442,9 @@ export function GeneratePage() {
                 <circle cx="12" cy="12" r="10" strokeDasharray="60" strokeDashoffset="20" strokeLinecap="round" />
               </svg>
               <p className="text-sm text-muted-foreground">
-                Generating {progress?.name ?? "icons"}...
-                {progress && progress.total > 1 && ` (${progress.index}/${progress.total})`}
+                {queueStatus
+                  ? `Generating ${queueStatus.completed + queueStatus.failed} / ${queueStatus.total}${queueStatus.failed > 0 ? ` (${queueStatus.failed} failed)` : ""}`
+                  : `Generating ${progress?.name ?? "icons"}...${progress && progress.total > 1 ? ` (${progress.index}/${progress.total})` : ""}`}
               </p>
             </div>
           ) : (

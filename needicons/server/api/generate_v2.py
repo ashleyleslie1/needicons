@@ -226,11 +226,14 @@ async def _generate_one(state, job, provider, queue_item, total, style, quality,
         if "401" in msg or "auth" in msg.lower() or "api key" in msg.lower():
             raise  # Auth errors bubble up to stop the whole job
 
-        # No automatic retry — mark as failed, user retries manually
+        # No automatic retry — mark as failed, user retries manually.
+        # Use a custom event name (NOT "error") so the browser EventSource's
+        # special handling for the literal "error" event type doesn't tear the
+        # SSE stream down on every per-icon failure.
         now = datetime.now(timezone.utc).isoformat()
         state._db.update_queue_item(queue_id, status="failed", error=msg[:500], updated_at=now)
         _emit(job, "queue_update", {"queue_id": queue_id, "status": "failed", "error": msg[:200]})
-        _emit(job, "error", {"message": f"Generation failed: {msg[:200]}", "name": name})
+        _emit(job, "item_failed", {"message": f"Generation failed: {msg[:200]}", "name": name, "queue_id": queue_id})
         return (idx, None)
 
     _emit(job, "progress", {"index": idx, "total": total, "name": name,

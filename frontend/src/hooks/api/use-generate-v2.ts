@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
-import type { GenerateIconsRequest, GenerationRecord } from "@/lib/types";
+import type { GenerateIconsRequest, GenerationRecord, QueueStatus } from "@/lib/types";
 
 interface GenerationProgress {
   index: number;
@@ -41,6 +41,7 @@ interface UseGenerateResult {
   jobId: string | null;
   lastDone: DoneEvent | null;
   lastJobId: string | null;
+  queueStatus: QueueStatus | null;
 }
 
 /**
@@ -64,6 +65,17 @@ export function useGenerateIcons(projectId: string | undefined): UseGenerateResu
     refetchInterval: activeJobId ? false : 3000,
   });
 
+  // Queue status drives the honest "X / Y done · M in flight" progress
+  // display. SSE alone is unreliable for this when many icons run
+  // concurrently (the latest progress event is just whichever one happened
+  // to fire most recently, not a true running total).
+  const { data: queueStatus = null } = useQuery({
+    queryKey: ["queue-status", activeJobId],
+    queryFn: () => activeJobId ? api.getQueueStatus(activeJobId) : null,
+    enabled: !!activeJobId,
+    refetchInterval: 2000,
+  });
+
   const handleEvent = useCallback((event: { type: string; data: unknown }) => {
     if (event.type === "progress") {
       setProgress(event.data as GenerationProgress);
@@ -77,6 +89,10 @@ export function useGenerateIcons(projectId: string | undefined): UseGenerateResu
       setPartialImages({});
       qc.invalidateQueries({ queryKey: ["generation-history"] });
       qc.invalidateQueries({ queryKey: ["projects"] });
+    } else if (event.type === "item_failed") {
+      // Per-icon failure — do NOT reset progress or jobIdRef; the job is
+      // still running and other icons in the same batch are still in flight.
+      // The queue endpoint already reflects the failure count; nothing to do.
     } else if (event.type === "done") {
       const doneData = event.data as DoneEvent;
       setProgress(null);
@@ -143,6 +159,7 @@ export function useGenerateIcons(projectId: string | undefined): UseGenerateResu
     jobId: activeJobId,
     lastDone,
     lastJobId: lastJobIdRef.current,
+    queueStatus,
   };
 }
 

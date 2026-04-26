@@ -219,6 +219,7 @@ export const api = {
     es.addEventListener("partial_image", handler);
     es.addEventListener("record", handler);
     es.addEventListener("queue_update", handler);
+    es.addEventListener("item_failed", handler);
     es.addEventListener("error", handler);
     es.addEventListener("done", (e) => {
       try {
@@ -228,10 +229,14 @@ export const api = {
       }
       es.close();
     });
+    // onerror also fires for server-sent named "error" events, AND fires
+    // transiently while the browser auto-reconnects. Only treat it as a real
+    // disconnect when readyState has actually settled to CLOSED — otherwise
+    // we'd tear down the user's progress state on every transient blip.
     es.onerror = () => {
-      es.close();
-      // Notify as error so the hook can clean up and rediscover resumed jobs
-      onEvent({ type: "error", data: { message: "Connection lost" } });
+      if (es.readyState === EventSource.CLOSED) {
+        onEvent({ type: "error", data: { message: "Connection lost" } });
+      }
     };
     return () => es.close();
   },
