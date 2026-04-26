@@ -538,14 +538,16 @@ export function GeneratePage() {
                 variant="outline"
                 onClick={() => {
                   if (!duplicateWarning) return;
-                  // Drop anything already in history; for everything else
-                  // keep only the first occurrence of each name. Handles
-                  // both flavors of duplicate in one pass.
+                  // Build the list of prompts to actually send to
+                  // /api/generate. Existing records in the project's history
+                  // are NOT touched — those rows stay exactly as they are;
+                  // we just don't queue another generation for the same name.
+                  // Within-input repeats collapse to the first occurrence.
                   const seen = new Set<string>();
                   const filtered = duplicateWarning.prompts.filter((p) => {
                     const key = p.name.toLowerCase();
-                    if (existingNames.has(key)) return false;
-                    if (seen.has(key)) return false;
+                    if (existingNames.has(key)) return false;  // already in project — skip
+                    if (seen.has(key)) return false;            // typed twice in input — skip second
                     seen.add(key);
                     return true;
                   });

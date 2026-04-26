@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import type { GenerationRecord } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { usePickVariation, useUnpickVariation, useRefineVariation, useAddVariation } from "@/hooks/api/use-generate-v2";
+import { usePickVariation, useUnpickVariation, useRefineVariation } from "@/hooks/api/use-generate-v2";
+import { useRecreate } from "@/hooks/api/use-recreate";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -32,19 +33,19 @@ export function ImageEditorModal({ record, variationIndex, open, onOpenChange, o
   const pickVariation = usePickVariation();
   const unpickVariation = useUnpickVariation();
   const refineVariation = useRefineVariation();
-  const addVariation = useAddVariation();
+  const recreate = useRecreate(record.id);
 
   const [refinePrompt, setRefinePrompt] = useState("");
   const [refineVersion, setRefineVersion] = useState(0);
   const [partialImage, setPartialImage] = useState<string | null>(null);
-  const [recreatePartial, setRecreatePartial] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
   const [panX, setPanX] = useState(0);
   const [panY, setPanY] = useState(0);
   const [isPanning, setIsPanning] = useState(false);
   const panStart = useRef({ x: 0, y: 0, panX: 0, panY: 0 });
 
-  const isRecreating = addVariation.isPending;
+  const isRecreating = recreate.isPending;
+  const recreatePartial = recreate.partial;
   const isProcessing = refineVariation.isPending || isRecreating;
 
   const goNext = useCallback(() => {
@@ -82,22 +83,11 @@ export function ImageEditorModal({ record, variationIndex, open, onOpenChange, o
 
   function handleRecreate() {
     if (isProcessing) return;
-    setRecreatePartial(null);
-    addVariation.mutate(
-      {
-        generationId: record.id,
-        onPartial: (b64) => setRecreatePartial(`data:image/png;base64,${b64}`),
-      },
-      {
-        onSuccess: ({ new_index }) => {
-          setRecreatePartial(null);
-          // Switch the modal to the freshly added variation. The parent
-          // controls variationIndex, so we ask it to navigate.
-          if (onVariationChange) onVariationChange(new_index);
-        },
-        onError: () => setRecreatePartial(null),
-      },
-    );
+    // Hand off to the global pool: the request lives outside this modal's
+    // lifecycle, so the user can close this dialog or navigate away while
+    // the new variation finishes generating. The icon's row in the results
+    // grid will show a ghost thumbnail while it's in flight.
+    recreate.start();
   }
 
   function handleRefine() {
@@ -274,7 +264,9 @@ export function ImageEditorModal({ record, variationIndex, open, onOpenChange, o
                 )}
               </Button>
               <p className="text-[10px] text-muted-foreground mt-1.5 leading-snug">
-                Adds a new variation with the same settings — keeps the existing image.
+                {isRecreating
+                  ? "You can close this dialog — the new variation will keep generating in the background."
+                  : "Adds a new variation with the same settings — keeps the existing image."}
               </p>
               {isRecreating && recreatePartial && (
                 <div className="mt-2 aspect-square w-full overflow-hidden rounded-md ring-1 ring-border/50 bg-muted/20">

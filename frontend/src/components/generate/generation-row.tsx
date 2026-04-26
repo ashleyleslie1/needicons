@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, memo } from "react";
 import type { GenerationRecord } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { usePickVariation, useUnpickVariation, useDeleteGeneration } from "@/hooks/api/use-generate-v2";
+import { useRecreate } from "@/hooks/api/use-recreate";
 import { ImageEditorModal } from "@/components/generate/image-editor-modal";
 
 interface GenerationRowProps {
@@ -45,6 +46,7 @@ export const GenerationRow = memo(function GenerationRow({ record, layout, onReg
   const pickVariation = usePickVariation();
   const unpickVariation = useUnpickVariation();
   const deleteGeneration = useDeleteGeneration();
+  const recreate = useRecreate(record.id);
 
   const [editorVariation, setEditorVariation] = useState<number | null>(null);
   const { ref, visible } = useLazyVisible();
@@ -133,6 +135,31 @@ export const GenerationRow = memo(function GenerationRow({ record, layout, onReg
               </div>
             </button>
           ))}
+          {recreate.isPending && (
+            <div
+              className={cn(
+                "relative overflow-hidden rounded-xl ring-1 ring-accent/40 bg-muted/20 checkerboard",
+                isGrid ? "aspect-square" : "aspect-square w-[110px] shrink-0",
+              )}
+              title="Generating new variation..."
+            >
+              {recreate.partial ? (
+                <img
+                  src={recreate.partial}
+                  alt="Generating new variation"
+                  className="h-full w-full object-contain p-1.5 animate-pulse"
+                />
+              ) : (
+                <div className="absolute inset-0 animate-shimmer bg-gradient-to-r from-transparent via-foreground/10 to-transparent" />
+              )}
+              <div className="absolute inset-x-1.5 bottom-1.5 flex items-center gap-1 rounded-md bg-card/85 backdrop-blur-sm border border-border/50 px-1.5 py-1 text-[10px] text-foreground shadow-sm">
+                <svg className="h-2.5 w-2.5 animate-spin text-accent shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <circle cx="12" cy="12" r="10" strokeDasharray="60" strokeDashoffset="20" strokeLinecap="round" />
+                </svg>
+                <span className="truncate">Adding variation</span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

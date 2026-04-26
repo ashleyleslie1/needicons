@@ -6,12 +6,17 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppShell } from "@/components/layout/app-shell";
 import { HomePage } from "@/pages/home";
 import { SettingsPage } from "@/pages/settings";
+import { recreatePool } from "@/lib/recreate-pool";
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: { staleTime: 30_000, refetchOnWindowFocus: false },
   },
 });
+
+// Recreate (add-variation) requests live outside any component's lifecycle
+// so closing the image modal mid-generation doesn't cancel a billed call.
+recreatePool.setQueryClient(queryClient);
 
 export function App() {
   return (
